@@ -68,6 +68,7 @@ public class CiliaQMain implements PlugIn, Measurements {
 	static SimpleDateFormat NameDateFormatter = new SimpleDateFormat("yyMMdd_HHmmss");
 	static SimpleDateFormat FullDateFormatter = new SimpleDateFormat("yyyy-MM-dd	HH:mm:ss");
 	static SimpleDateFormat FullDateFormatter2 = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+	static SimpleDateFormat YearOnly = new SimpleDateFormat("yyyy");
 	
 	//Progress Dialog
 	ProgressDialog progress;	
@@ -113,7 +114,7 @@ public void run(String arg) {
 	GenericDialog gd = new GenericDialog(PLUGINNAME + " - set parameters");	
 	//show Dialog-----------------------------------------------------------------
 	//Note: .setInsets(top, left, bottom)
-	gd.setInsets(0,0,0);	gd.addMessage(PLUGINNAME + ", Version " + PLUGINVERSION + ", \u00a9 2016 - 2019 JN Hansen", SuperHeadingFont);	
+	gd.setInsets(0,0,0);	gd.addMessage(PLUGINNAME + ", Version " + PLUGINVERSION + ", \u00a9 2017 - 2019 JN Hansen", SuperHeadingFont);	
 	gd.setInsets(5,0,0);	gd.addChoice("process ", taskVariant, selectedTaskVariant);
 	
 //	gd.setInsets(10,0,0);	gd.addMessage("Calibration", HeadingFont);
@@ -450,7 +451,8 @@ public void run(String arg) {
 
 public void addFooter(TextPanel tp, Date currentDate){
 	tp.append("");
-	tp.append("Datafile was generated on " + FullDateFormatter2.format(currentDate) + " by '"+PLUGINNAME+"', an ImageJ plug-in by Jan Niklas Hansen (jan.hansen@uni-bonn.de).");
+	tp.append("Datafile was generated on " + FullDateFormatter2.format(currentDate) + " by the imagej plug-in '"+PLUGINNAME+"', " 
+			+ "\u00a9 2017 - " + YearOnly.format(new Date()) + " Jan Niklas Hansen (jan.hansen@uni-bonn.de).");
 	tp.append("The plug-in '"+PLUGINNAME+"' is distributed in the hope that it will be useful,"
 			+ " but WITHOUT ANY WARRANTY; without even the implied warranty of"
 			+ " MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.");
@@ -459,7 +461,8 @@ public void addFooter(TextPanel tp, Date currentDate){
 }
 
 public String getOneRowFooter(Date currentDate){
-	String appendTxt = "		" + ("Datafile was generated on " + FullDateFormatter2.format(currentDate) + " by '"+PLUGINNAME+"', an ImageJ plug-in by Jan Niklas Hansen (jan.hansen@uni-bonn.de).");
+	String appendTxt = "		" + ("Datafile was generated on " + FullDateFormatter2.format(currentDate) + " by the imagej plug-in '"+PLUGINNAME+"', " 
+			+ "\u00a9 2017 - " + YearOnly.format(new Date()) + " Jan Niklas Hansen (jan.hansen@uni-bonn.de).");
 	appendTxt += "	" + ("The plug-in '"+PLUGINNAME+"' is distributed in the hope that it will be useful,"
 			+ " but WITHOUT ANY WARRANTY; without even the implied warranty of"
 			+ " MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.");
