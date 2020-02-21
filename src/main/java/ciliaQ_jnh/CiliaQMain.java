@@ -1,10 +1,10 @@
 package ciliaQ_jnh;
 /** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.0.5
+ * CiliaQ, a plugin for imagej - Version 0.0.6
  * 
- * Copyright (C) 2017-2019 Jan Niklas Hansen
+ * Copyright (C) 2017-2020 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: December 09, 2019
+ * This Version: February 21, 2020
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -15,7 +15,7 @@ package ciliaQ_jnh;
  * 
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  * 
  * You should have received a copy of the GNU General Public
@@ -46,7 +46,7 @@ import ij.text.*;
 public class CiliaQMain implements PlugIn, Measurements {
 	//Name variables
 	static final String PLUGINNAME = "CiliaQ";
-	static final String PLUGINVERSION = "0.0.5";
+	static final String PLUGINVERSION = "0.0.6";
 	
 	//Fix fonts
 	static final Font SuperHeadingFont = new Font("Sansserif", Font.BOLD, 16);
@@ -91,6 +91,8 @@ public class CiliaQMain implements PlugIn, Measurements {
 	int channelReconstruction = 1, channelC2 = 2, channelC3 = 3, basalStainC = 4;
 	int minSize = 10,
 		minRestSize = 1;
+	boolean increaseRangeCilia = true,
+			increaseRangeRegions = true;
 	String excludeSelection = excludeOptions [2];
 	boolean measureC2 = true,
 			measureC3 = true,
@@ -133,9 +135,11 @@ public void run(String arg) {
 	gd.setInsets(-23,55,0);	gd.addNumericField("", channelC2, 0);
 	gd.setInsets(-23,110,0);	gd.addNumericField("", channelC3, 0);
 	gd.setInsets(-23,165,0);gd.addNumericField("", basalStainC, 0);	
-	gd.setInsets(5,0,0);	gd.addNumericField("minimum cilium size [voxel]: ", minSize, 0);
+	gd.setInsets(5,0,0);	gd.addNumericField("minimum cilium size [voxel]: ", minSize, 0);	
+	gd.setInsets(0,0,0);	gd.addCheckbox("Increase range for connecting cilia", increaseRangeCilia);	
 	gd.setInsets(0,0,0);	gd.addChoice("additionally exclude...", excludeOptions, excludeSelection);
 	gd.setInsets(0,0,0);	gd.addNumericField("minimum size of intensity regions (for A and B) [voxel]: ", minRestSize, 0);
+	gd.setInsets(0,0,0);	gd.addCheckbox("Increase range for connecting intensity regions", increaseRangeRegions);	
 			
 	gd.setInsets(10,0,0);	gd.addCheckbox("Determine skeleton-based results (e.g. length)", skeletonize);
 	gd.setInsets(0,0,0);	gd.addNumericField("before skeletonization: gauss filter XY and Z sigma: ", gXY, 2);
@@ -172,8 +176,10 @@ public void run(String arg) {
 	basalStainC = (int) gd.getNextNumber();
 	
 	minSize = (int) gd.getNextNumber();
+	increaseRangeCilia = gd.getNextBoolean();
 	excludeSelection = gd.getNextChoice();
 	minRestSize = (int) gd.getNextNumber();
+	increaseRangeRegions = gd.getNextBoolean();
 	
 	skeletonize = gd.getNextBoolean();
 	gXY = (double) gd.getNextNumber();
@@ -392,11 +398,11 @@ public void run(String arg) {
 			
 		//size-filter images
 			if(measureC2local && minRestSize > 1){
-				this.filterChannel(imp, channelC2, "intensity A", minRestSize);
+				this.filterChannel(imp, channelC2, "intensity A", minRestSize, increaseRangeRegions);
 				System.gc();
 			}			
 			if(measureC3local && minRestSize > 1){
-				this.filterChannel(imp, channelC3, "intensity B", minRestSize);
+				this.filterChannel(imp, channelC3, "intensity B", minRestSize, increaseRangeRegions);
 				System.gc();
 			}
 		//size-filter images
@@ -491,9 +497,10 @@ private void addSettingsBlockToPanel(TextPanel tp, Date currentDate, Date startD
 	if(measureC2local){tp.append("		A	" + dformat0.format(channelC2));}else{tp.append("");}
 	if(measureC3local){tp.append("		B	" + dformat0.format(channelC3));}else{tp.append("");}
 	if(measureBasalLocal){tp.append("		basal stain	" + dformat0.format(basalStainC));}else{tp.append("");}
-	tp.append("	Minimum cilium size	" + dformat0.format(minSize));
+	tp.append("	Minimum cilium size	" + dformat0.format(minSize) + "	Increase range for connecting cilia	" + increaseRangeCilia);
 	tp.append("	Additional filtering	" + excludeSelection + " excluded	# excluded:	" + excludedCilia + "	of total #:	" + totalCilia);
-	tp.append("	Minimum size of particles in A or B	" + dformat0.format(minRestSize));
+	tp.append("	Minimum size of particles in A or B	" + dformat0.format(minRestSize) 
+	+ "	Increase range for connecting particles in intensity regions	" + increaseRangeRegions);
 	tp.append("	Skeleton analysis - Gauss XY sigma	" + dformat6.format(gXY));
 	tp.append("	Skeleton analysis - Gauss Z sigma	" + dformat6.format(gZ));
 	tp.append("	Determined intensity thresholds:");
@@ -522,157 +529,430 @@ int getMaxIntensity(ImagePlus imp, int task, int tasks){
  * @param imp: Hyperstack image where one channel represents the )recording of the volume of interest
  * @param c: defines the channel of the Hyperstack image imp, in which the information for the volume of interest is stored 1 < c < number of channels
  * @param particleLabel: the label for the volume of interest which is displayed in the progress dialog while obtaining object information
+ * @param increaseRange: defines whether also diagonal pixels should be allowed while Flood Filling
  * */
-void filterChannel(ImagePlus imp, int c, String particleLabel, int minSize){	
+void filterChannel(ImagePlus imp, int c, String particleLabel, int minSize, boolean increaseRange){	
 	ImagePlus refImp = imp.duplicate();
-	
+
 	int nrOfPoints = 0;
 	for(int z = 0; z < imp.getNSlices(); z++){
-		for(int x = 0; x < imp.getWidth(); x++){
-			for(int y = 0; y < imp.getHeight(); y++){	
-				if(imp.getStack().getVoxel(x, y, imp.getStackIndex(c, z+1, 1)-1) > 0.0){
-					nrOfPoints++;
+		for(int t = 0; t < imp.getNFrames(); t++){
+			for(int x = 0; x < imp.getWidth(); x++){
+				for(int y = 0; y < imp.getHeight(); y++){	
+					if(imp.getStack().getVoxel(x, y, imp.getStackIndex(c, z+1, t+1)-1) > 0.0){
+						nrOfPoints++;
+					}
 				}
 			}
-		}
+		}		
 	}
-	
+		
 	ArrayList<ArrayList<PartPoint>> particles = new ArrayList<ArrayList<PartPoint>>((int)Math.round((double)nrOfPoints/(double)minSize));
 	
 	int pc100 = nrOfPoints/100; if (pc100==0){pc100 = 1;}
 	int pc1000 = nrOfPoints/1000; if (pc1000==0){pc1000 = 1;}
 	int floodFilledPc = 0, floodFilledPcOld = 0;
 	int[][] floodNodes = new int[nrOfPoints][3];
-	int floodNodeX, floodNodeY, floodNodeZ, index = 0;
+	int floodNodeX, floodNodeY, floodNodeZ, floodNodeT, index = 0;
 	ArrayList<PartPoint> preliminaryParticle;
 	
-	searchCells: for(int z = 0; z < imp.getNSlices(); z++){
-		for(int x = 0; x < imp.getWidth(); x++){
-			for(int y = 0; y < imp.getHeight(); y++){		
-				if(imp.getStack().getVoxel(x, y, imp.getStackIndex(c, z+1, 1)-1) > 0.0){
-					preliminaryParticle = new ArrayList<PartPoint>(nrOfPoints-floodFilledPc);		
-					System.gc();
-					preliminaryParticle.add(new PartPoint(x, y, z, refImp, c));
-					
-					imp.getStack().setVoxel(x, y, imp.getStackIndex(c, z+1, 1)-1, 0.0);
-					floodFilledPc++;
-					
-					//Floodfiller					
-					floodNodeX = x;
-					floodNodeY = y;
-					floodNodeZ = z;
-					 
-					index = 0;
-					 
-					floodNodes[0][0] = floodNodeX;
-					floodNodes[0][1] = floodNodeY;
-					floodNodes[0][2] = floodNodeZ;
-
-					while (index >= 0){
-						floodNodeX = floodNodes[index][0];
-						floodNodeY = floodNodes[index][1];
-						floodNodeZ = floodNodes[index][2];						
-						index--;            						
-						if ((floodNodeX > 0) 
-								&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, 1)-1) > 0.0){
-							
-							preliminaryParticle.add(new PartPoint(floodNodeX-1,floodNodeY,floodNodeZ, refImp, c));
-							imp.getStack().setVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, 1)-1, 0.0);
-							
-							index++;
-							floodFilledPc++;
-							
-							floodNodes[index][0] = floodNodeX-1;
-							floodNodes[index][1] = floodNodeY;
-							floodNodes[index][2] = floodNodeZ;
-						}
-						if ((floodNodeX < (imp.getWidth()-1)) 
-								&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, 1)-1) > 0.0){
-							
-							preliminaryParticle.add(new PartPoint(floodNodeX+1,floodNodeY,floodNodeZ, refImp, c));
-							imp.getStack().setVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, 1)-1, 0.0);
-							
-							index++;
-							floodFilledPc++;
-							
-							floodNodes[index][0] = floodNodeX+1;
-							floodNodes[index][1] = floodNodeY;
-							floodNodes[index][2] = floodNodeZ;
-						}
-						if ((floodNodeY > 0) 
-								&& imp.getStack().getVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, 1)-1) > 0.0){
-							
-							preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY-1,floodNodeZ, refImp, c));
-							imp.getStack().setVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, 1)-1, 0.0);
-							
-							index++;
-							floodFilledPc++;
-							
-							floodNodes[index][0] = floodNodeX;
-							floodNodes[index][1] = floodNodeY-1;
-							floodNodes[index][2] = floodNodeZ;
-						}                
-						if ((floodNodeY < (imp.getHeight()-1)) 
-								&& imp.getStack().getVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, 1)-1) > 0.0){
-							
-							preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY+1,floodNodeZ, refImp, c));
-							imp.getStack().setVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, 1)-1, 0.0);
-							
-							index++;
-							floodFilledPc++;
-							
-							floodNodes[index][0] = floodNodeX;
-							floodNodes[index][1] = floodNodeY+1;
-							floodNodes[index][2] = floodNodeZ;
-						}
-						if ((floodNodeZ > 0) 
-								&& imp.getStack().getVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, 1)-1) > 0.0){
-							
-							preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY,floodNodeZ-1, refImp, c));
-							imp.getStack().setVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, 1)-1, 0.0);
-							
-							index++;
-							floodFilledPc++;
-							
-							floodNodes[index][0] = floodNodeX;
-							floodNodes[index][1] = floodNodeY;
-							floodNodes[index][2] = floodNodeZ-1;
-						}                
-						if ((floodNodeZ < (imp.getNSlices()-1)) 
-								&& imp.getStack().getVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, 1)-1) > 0.0){
-							
-							preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY,floodNodeZ+1, refImp, c));
-							imp.getStack().setVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, 1)-1, 0.0);
-							
-							index++;
-							floodFilledPc++;
-							
-							floodNodes[index][0] = floodNodeX;
-							floodNodes[index][1] = floodNodeY;
-							floodNodes[index][2] = floodNodeZ+1;
-						}  
-					}					
-					//Floodfiller	
-					preliminaryParticle.trimToSize();
-					if(preliminaryParticle.size() >= minSize){
-						particles.add(preliminaryParticle);						
-					}else{
-						preliminaryParticle.clear();
+	searchCells: for(int t = 0; t < imp.getNFrames(); t++){
+		for(int z = 0; z < imp.getNSlices(); z++){
+			for(int x = 0; x < imp.getWidth(); x++){
+				for(int y = 0; y < imp.getHeight(); y++){		
+					if(imp.getStack().getVoxel(x, y, imp.getStackIndex(c, z+1, 1)-1) > 0.0){
+						preliminaryParticle = new ArrayList<PartPoint>(nrOfPoints-floodFilledPc);		
+						System.gc();
+						preliminaryParticle.add(new PartPoint(x, y, z, t, refImp, c));
+						
+						imp.getStack().setVoxel(x, y, imp.getStackIndex(c, z+1, 1)-1, 0.0);
+						floodFilledPc++;
+						
+						//Floodfiller					
+						floodNodeX = x;
+						floodNodeY = y;
+						floodNodeZ = z;
+						floodNodeT = t;
+						 
+						index = 0;
+						 
+						floodNodes[0][0] = floodNodeX;
+						floodNodes[0][1] = floodNodeY;
+						floodNodes[0][2] = floodNodeZ;
+	
+						while (index >= 0){
+							floodNodeX = floodNodes[index][0];
+							floodNodeY = floodNodes[index][1];
+							floodNodeZ = floodNodes[index][2];						
+							index--;            						
+							if ((floodNodeX > 0) 
+									&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+								
+								preliminaryParticle.add(new PartPoint(floodNodeX-1,floodNodeY,floodNodeZ,floodNodeT, refImp, c));
+								imp.getStack().setVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+								
+								index++;
+								floodFilledPc++;
+								
+								floodNodes[index][0] = floodNodeX-1;
+								floodNodes[index][1] = floodNodeY;
+								floodNodes[index][2] = floodNodeZ;
+							}
+							if ((floodNodeX < (imp.getWidth()-1)) 
+									&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+								
+								preliminaryParticle.add(new PartPoint(floodNodeX+1,floodNodeY,floodNodeZ,floodNodeT, refImp, c));
+								imp.getStack().setVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+								
+								index++;
+								floodFilledPc++;
+								
+								floodNodes[index][0] = floodNodeX+1;
+								floodNodes[index][1] = floodNodeY;
+								floodNodes[index][2] = floodNodeZ;
+							}
+							if ((floodNodeY > 0) 
+									&& imp.getStack().getVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+								
+								preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY-1,floodNodeZ,floodNodeT, refImp, c));
+								imp.getStack().setVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+								
+								index++;
+								floodFilledPc++;
+								
+								floodNodes[index][0] = floodNodeX;
+								floodNodes[index][1] = floodNodeY-1;
+								floodNodes[index][2] = floodNodeZ;
+							}                
+							if ((floodNodeY < (imp.getHeight()-1)) 
+									&& imp.getStack().getVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+								
+								preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY+1,floodNodeZ,floodNodeT, refImp, c));
+								imp.getStack().setVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+								
+								index++;
+								floodFilledPc++;
+								
+								floodNodes[index][0] = floodNodeX;
+								floodNodes[index][1] = floodNodeY+1;
+								floodNodes[index][2] = floodNodeZ;
+							}
+							if ((floodNodeZ > 0) 
+									&& imp.getStack().getVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+								
+								preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY,floodNodeZ-1,floodNodeT, refImp, c));
+								imp.getStack().setVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+								
+								index++;
+								floodFilledPc++;
+								
+								floodNodes[index][0] = floodNodeX;
+								floodNodes[index][1] = floodNodeY;
+								floodNodes[index][2] = floodNodeZ-1;
+							}                
+							if ((floodNodeZ < (imp.getNSlices()-1)) 
+									&& imp.getStack().getVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+								
+								preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY,floodNodeZ+1,floodNodeT, refImp, c));
+								imp.getStack().setVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+								
+								index++;
+								floodFilledPc++;
+								
+								floodNodes[index][0] = floodNodeX;
+								floodNodes[index][1] = floodNodeY;
+								floodNodes[index][2] = floodNodeZ+1;
+							}
+							if(increaseRange){
+								// X, Y
+								if ((floodNodeX > 0) && (floodNodeY > 0)  
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX-1,floodNodeY-1,floodNodeZ,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeY < (imp.getHeight()-1))
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX+1,floodNodeY+1,floodNodeZ,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeY > 0) 
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX+1,floodNodeY-1,floodNodeZ,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ;
+								}                
+								if ((floodNodeX > 0) && (floodNodeY < (imp.getHeight()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX-1,floodNodeY+1,floodNodeZ,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ;
+								}
+								// Z-X
+								if ((floodNodeX > 0) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX-1,floodNodeY,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY;
+									floodNodes[index][2] = floodNodeZ-1;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX+1,floodNodeY,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY;
+									floodNodes[index][2] = floodNodeZ-1;
+								}
+								if ((floodNodeX > 0) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX-1,floodNodeY,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY;
+									floodNodes[index][2] = floodNodeZ+1;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX+1,floodNodeY,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY;
+									floodNodes[index][2] = floodNodeZ+1;
+								} 
+								// Z-Y
+								if ((floodNodeY > 0) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY-1,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ-1;
+								}
+								if ((floodNodeY < (imp.getHeight()-1)) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY+1,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ-1;
+								}
+								if ((floodNodeY > 0) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY-1,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ+1;
+								} 
+								if ((floodNodeY < (imp.getHeight()-1)) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY+1,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ+1;
+								} 
+								// X, Y - Z down
+								if ((floodNodeX > 0) && (floodNodeY > 0) && (floodNodeZ > 0)  
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									preliminaryParticle.add(new PartPoint(floodNodeX-1,floodNodeY-1,floodNodeZ-1,floodNodeT,
+											refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ-1;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeY < (imp.getHeight()-1)) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX+1,floodNodeY+1,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ-1;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeY > 0) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX+1,floodNodeY-1,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ-1;
+								}                
+								if ((floodNodeX > 0) && (floodNodeY < (imp.getHeight()-1)) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX-1,floodNodeY+1,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ-1;
+								}
+								// X, Y - Z up
+								if ((floodNodeX > 0) && (floodNodeY > 0) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									preliminaryParticle.add(new PartPoint(floodNodeX-1,floodNodeY-1,floodNodeZ+1,floodNodeT,
+											refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ+1;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeY < (imp.getHeight()-1)) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX+1,floodNodeY+1,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ+1;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeY > 0) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX+1,floodNodeY-1,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ+1;
+								}                
+								if ((floodNodeX > 0) && (floodNodeY < (imp.getHeight()-1)) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX-1,floodNodeY+1,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ+1;
+								}
+							}
+						}					
+						//Floodfiller	
 						preliminaryParticle.trimToSize();
-					}
-					
-					if(floodFilledPc%(pc100)<pc1000){						
-						progress.updateBarText("Connecting " + particleLabel + " complete: " + dformat3.format(((double)(floodFilledPc)/(double)(nrOfPoints))*100) + "%");
-						progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(nrOfPoints)));
-						floodFilledPcOld = floodFilledPc;
-					}	
-				}				
-			}	
+						if(preliminaryParticle.size() >= minSize){
+							particles.add(preliminaryParticle);						
+						}else{
+							preliminaryParticle.clear();
+							preliminaryParticle.trimToSize();
+						}
+						
+						if(floodFilledPc%(pc100)<pc1000){						
+							progress.updateBarText("Connecting " + particleLabel + " complete: " + dformat3.format(((double)(floodFilledPc)/(double)(nrOfPoints))*100) + "%");
+							progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(nrOfPoints)));
+							floodFilledPcOld = floodFilledPc;
+						}	
+					}				
+				}	
+			}
+			if(floodFilledPc==nrOfPoints){					
+				break searchCells;
+			}
 		}
-		if(floodFilledPc==nrOfPoints){					
-			break searchCells;
-		}
-	}						
+	}
 	progress.updateBarText("Connecting " + particleLabel + " complete: " + dformat3.format(((double)(floodFilledPc)/(double)(nrOfPoints))*100) + "%");
 	progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(nrOfPoints)));	
 	particles.trimToSize();
@@ -947,8 +1227,9 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjects (ImagePlus imp, int c){
  * @return a container that contains lists, which each contain the points belonging to an individual plaque object
  * @param imp: Hyperstack image where one channel represents the recording of plaques
  * @param c: defines the channel of the Hyperstack image imp, in which the ciliary information is stored 1 < c < number of channels
+ * @param increaseRange: defines whether also diagonal pixels should be allowed while Flood Filling
  * */
-ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c){
+ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, boolean increaseRange){
 	ImagePlus refImp = imp.duplicate();
 	int nrOfPoints = 0;
 	for(int z = 0; z < imp.getNSlices(); z++){
@@ -1016,11 +1297,11 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c){
 							floodNodeT = floodNodes[index][3];
 							index--;            						
 							if ((floodNodeX > 0) 
-									&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, floodNodeT+1)-1) > 0.0){
+									&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
 								
 								preliminaryParticle.add(new CellPoint(floodNodeX-1,floodNodeY,floodNodeZ,floodNodeT,
 										refImp, c));
-								imp.getStack().setVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, floodNodeT+1)-1, 0.0);
+								imp.getStack().setVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
 								
 //								if(floodNodeX-1 == 0 || floodNodeX-1 == imp.getWidth()-1)		touchesXY = true;
 //								if(floodNodeY == 0 || 	floodNodeY == imp.getHeight()-1)	touchesXY = true;
@@ -1035,10 +1316,10 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c){
 								floodNodes[index][3] = floodNodeT;
 							}
 							if ((floodNodeX < (imp.getWidth()-1)) 
-									&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, floodNodeT+1)-1) > 0.0){
+									&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
 								
 								preliminaryParticle.add(new CellPoint(floodNodeX+1,floodNodeY,floodNodeZ,floodNodeT, refImp, c));
-								imp.getStack().setVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, floodNodeT+1)-1, 0.0);
+								imp.getStack().setVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
 								
 //								if(floodNodeX+1 == 0 || floodNodeX+1 == imp.getWidth()-1)	touchesXY = true;
 //								if(floodNodeY == 0 || 	floodNodeY == imp.getHeight()-1)	touchesXY = true;
@@ -1053,10 +1334,10 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c){
 								floodNodes[index][3] = floodNodeT;
 							}
 							if ((floodNodeY > 0) 
-									&& imp.getStack().getVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, floodNodeT+1)-1) > 0.0){
+									&& imp.getStack().getVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
 								
 								preliminaryParticle.add(new CellPoint(floodNodeX,floodNodeY-1,floodNodeZ,floodNodeT, refImp, c));
-								imp.getStack().setVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, floodNodeT+1)-1, 0.0);
+								imp.getStack().setVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
 								
 //								if(floodNodeX == 0 || 	floodNodeX == imp.getWidth()-1)	touchesXY = true;
 //								if(floodNodeY-1 == 0 || floodNodeY-1 == imp.getHeight()-1)	touchesXY = true;
@@ -1071,10 +1352,10 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c){
 								floodNodes[index][3] = floodNodeT;
 							}                
 							if ((floodNodeY < (imp.getHeight()-1)) 
-									&& imp.getStack().getVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, floodNodeT+1)-1) > 0.0){
+									&& imp.getStack().getVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
 								
 								preliminaryParticle.add(new CellPoint(floodNodeX,floodNodeY+1,floodNodeZ,floodNodeT, refImp, c));
-								imp.getStack().setVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, floodNodeT+1)-1, 0.0);
+								imp.getStack().setVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
 								
 //								if(floodNodeX == 0 || 	floodNodeX == imp.getWidth()-1)	touchesXY = true;
 //								if(floodNodeY+1 == 0 || floodNodeY+1 == imp.getHeight()-1)	touchesXY = true;
@@ -1089,10 +1370,10 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c){
 								floodNodes[index][3] = floodNodeT;
 							}
 							if ((floodNodeZ > 0) 
-									&& imp.getStack().getVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, floodNodeT+1)-1) > 0.0){
+									&& imp.getStack().getVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
 								
 								preliminaryParticle.add(new CellPoint(floodNodeX,floodNodeY,floodNodeZ-1,floodNodeT, refImp, c));
-								imp.getStack().setVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, floodNodeT+1)-1, 0.0);
+								imp.getStack().setVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
 								
 //								if(floodNodeX == 0 || 	floodNodeX == imp.getWidth()-1)	touchesXY = true;
 //								if(floodNodeY == 0 || 	floodNodeY == imp.getHeight()-1)	touchesXY = true;
@@ -1107,10 +1388,10 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c){
 								floodNodes[index][3] = floodNodeT;
 							}                
 							if ((floodNodeZ < (imp.getNSlices()-1)) 
-									&& imp.getStack().getVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, floodNodeT+1)-1) > 0.0){
+									&& imp.getStack().getVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
 								
 								preliminaryParticle.add(new CellPoint(floodNodeX,floodNodeY,floodNodeZ+1,floodNodeT, refImp, c));
-								imp.getStack().setVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, floodNodeT+1)-1, 0.0);
+								imp.getStack().setVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
 								
 //								if(floodNodeX == 0 || 	floodNodeX == imp.getWidth()-1)		touchesXY = true;
 //								if(floodNodeY == 0 || 	floodNodeY == imp.getHeight()-1)	touchesXY = true;
@@ -1143,10 +1424,10 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c){
 								floodNodes[index][3] = floodNodeT-1;
 							}                
 							if ((floodNodeT < (imp.getNFrames()-1)) 
-									&& imp.getStack().getVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, floodNodeZ+1, (floodNodeT+1)+1)-1) > 0.0){
+									&& imp.getStack().getVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, floodNodeZ+1, ((floodNodeT)+1)+1)-1) > 0.0){
 								
-								preliminaryParticle.add(new CellPoint(floodNodeX,floodNodeY,floodNodeZ,floodNodeT+1, refImp, c));
-								imp.getStack().setVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, floodNodeZ+1, (floodNodeT+1)+1)-1, 0.0);
+								preliminaryParticle.add(new CellPoint(floodNodeX,floodNodeY,floodNodeZ,(floodNodeT)+1, refImp, c));
+								imp.getStack().setVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, floodNodeZ+1, ((floodNodeT)+1)+1)-1, 0.0);
 								
 //								if(floodNodeX == 0 || 	floodNodeX == imp.getWidth()-1)		touchesXY = true;
 //								if(floodNodeY == 0 || 	floodNodeY == imp.getHeight()-1)	touchesXY = true;
@@ -1158,8 +1439,295 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c){
 								floodNodes[index][0] = floodNodeX;
 								floodNodes[index][1] = floodNodeY;
 								floodNodes[index][2] = floodNodeZ;
-								floodNodes[index][3] = floodNodeT+1;
-							} 
+								floodNodes[index][3] = (floodNodeT)+1;
+							}
+							if(increaseRange){
+								// X, Y
+								if ((floodNodeX > 0) && (floodNodeY > 0)  
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+									preliminaryParticle.add(new CellPoint(floodNodeX-1,floodNodeY-1,floodNodeZ,floodNodeT,
+											refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeY < (imp.getHeight()-1))
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new CellPoint(floodNodeX+1,floodNodeY+1,floodNodeZ,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeY > 0) 
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new CellPoint(floodNodeX+1,floodNodeY-1,floodNodeZ,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ;
+									floodNodes[index][3] = floodNodeT;
+								}                
+								if ((floodNodeX > 0) && (floodNodeY < (imp.getHeight()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new CellPoint(floodNodeX-1,floodNodeY+1,floodNodeZ,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ;
+									floodNodes[index][3] = floodNodeT;
+								}
+								// Z-X
+								if ((floodNodeX > 0) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new CellPoint(floodNodeX-1,floodNodeY,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY;
+									floodNodes[index][2] = floodNodeZ-1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new CellPoint(floodNodeX+1,floodNodeY,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY;
+									floodNodes[index][2] = floodNodeZ-1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeX > 0) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new CellPoint(floodNodeX-1,floodNodeY,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY;
+									floodNodes[index][2] = floodNodeZ+1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new CellPoint(floodNodeX+1,floodNodeY,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY;
+									floodNodes[index][2] = floodNodeZ+1;
+									floodNodes[index][3] = floodNodeT;
+								} 
+								// Z-Y
+								if ((floodNodeY > 0) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new CellPoint(floodNodeX,floodNodeY-1,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ-1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeY < (imp.getHeight()-1)) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new CellPoint(floodNodeX,floodNodeY+1,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ-1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeY > 0) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new CellPoint(floodNodeX,floodNodeY-1,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ+1;
+									floodNodes[index][3] = floodNodeT;
+								} 
+								if ((floodNodeY < (imp.getHeight()-1)) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new CellPoint(floodNodeX,floodNodeY+1,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ+1;
+									floodNodes[index][3] = floodNodeT;
+								} 
+								// X, Y - Z down
+								if ((floodNodeX > 0) && (floodNodeY > 0) && (floodNodeZ > 0)  
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									preliminaryParticle.add(new CellPoint(floodNodeX-1,floodNodeY-1,floodNodeZ-1,floodNodeT,
+											refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ-1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeY < (imp.getHeight()-1)) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new CellPoint(floodNodeX+1,floodNodeY+1,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ-1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeY > 0) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new CellPoint(floodNodeX+1,floodNodeY-1,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ-1;
+									floodNodes[index][3] = floodNodeT;
+								}                
+								if ((floodNodeX > 0) && (floodNodeY < (imp.getHeight()-1)) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new CellPoint(floodNodeX-1,floodNodeY+1,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ-1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								// X, Y - Z up
+								if ((floodNodeX > 0) && (floodNodeY > 0) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									preliminaryParticle.add(new CellPoint(floodNodeX-1,floodNodeY-1,floodNodeZ+1,floodNodeT,
+											refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ+1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeY < (imp.getHeight()-1)) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new CellPoint(floodNodeX+1,floodNodeY+1,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ+1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeY > 0) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new CellPoint(floodNodeX+1,floodNodeY-1,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ+1;
+									floodNodes[index][3] = floodNodeT;
+								}                
+								if ((floodNodeX > 0) && (floodNodeY < (imp.getHeight()-1)) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new CellPoint(floodNodeX-1,floodNodeY+1,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ+1;
+									floodNodes[index][3] = floodNodeT;
+								}
+							}
 						}					
 						//Floodfiller
 						preliminaryParticle.trimToSize();
@@ -1381,7 +1949,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	int excludedCilia = 0;
 	{
 		//Retrieving ciliary objects from the image
-		ArrayList<ArrayList<CellPoint>> ciliaParticles = getCiliaObjectsTimelapse(imp, channelReconstruction);	//Method changed on 23.04.2019
+		ArrayList<ArrayList<CellPoint>> ciliaParticles = getCiliaObjectsTimelapse(imp, channelReconstruction, increaseRangeCilia);	//Method changed on 23.04.2019
 		System.gc();
 		progress.updateBarText("Structure reconstruction completed.");
 		//TODO how to set channelCells accordingly if no cells at all present in image?
@@ -1773,7 +2341,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	int excludedCilia = 0;
 	{
 		//Retrieving ciliary objects from the image
-		ArrayList<ArrayList<CellPoint>> ciliaParticles = getCiliaObjectsTimelapse(imp, channelReconstruction);	//Method changed on 23.04.2019
+		ArrayList<ArrayList<CellPoint>> ciliaParticles = getCiliaObjectsTimelapse(imp, channelReconstruction, increaseRangeCilia);	//Method changed on 23.04.2019
 		System.gc();
 		
 		progress.updateBarText("Cilia reconstruction completed.");

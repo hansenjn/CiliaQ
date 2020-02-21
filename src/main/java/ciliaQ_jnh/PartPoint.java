@@ -1,10 +1,10 @@
 package ciliaQ_jnh;
 /** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.0.5
+ * CiliaQ, a plugin for imagej - Version 0.0.6
  * 
  * Copyright (C) 2017-2019 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: December 09, 2019
+ * This Version: February 21, 2020
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -31,13 +31,15 @@ class PartPoint{
 	int x = 0; 
 	int y = 0; 
 	int z = 0; 
+	int t = 0;
 	double intensity = 0.0;
 	
-	public PartPoint(int px, int py, int pz, ImagePlus imp, int channel){
-		intensity = imp.getStack().getVoxel(px, py, imp.getStackIndex(channel, (pz)+1, 1)-1);
+	public PartPoint(int px, int py, int pz, int pt, ImagePlus imp, int channel){
+		intensity = imp.getStack().getVoxel(px, py, imp.getStackIndex(channel, (pz)+1, (pt)+1)-1);
 		x = px;
 		y = py;
 		z = pz;
+		t = pt;
 	}
 }
 
