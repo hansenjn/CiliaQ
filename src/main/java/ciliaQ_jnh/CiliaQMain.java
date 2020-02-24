@@ -4,7 +4,7 @@ package ciliaQ_jnh;
  * 
  * Copyright (C) 2017-2020 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: February 21, 2020
+ * This Version: February 24, 2020
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -103,10 +103,10 @@ public class CiliaQMain implements PlugIn, Measurements {
 	double gXY = 2.0;
 	double gZ = 0.0;
 	
-	boolean saveDate = true;	
+	boolean saveDate = false;	
 	boolean saveSingleCiliaTifs = false, saveSingleCilia3DImages = false, saveOverview3DImages = true;
 	
-	String ChosenNumberFormat = "Germany (0,00...)";
+	String ChosenNumberFormat = nrFormats[0];
 	
 public void run(String arg) {
 //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
@@ -116,7 +116,7 @@ public void run(String arg) {
 	GenericDialog gd = new GenericDialog(PLUGINNAME + " - set parameters");	
 	//show Dialog-----------------------------------------------------------------
 	//Note: .setInsets(top, left, bottom)
-	gd.setInsets(0,0,0);	gd.addMessage(PLUGINNAME + ", Version " + PLUGINVERSION + ", \u00a9 2017 - 2019 JN Hansen", SuperHeadingFont);	
+	gd.setInsets(0,0,0);	gd.addMessage(PLUGINNAME + ", Version " + PLUGINVERSION + ", \u00a9 2017 - 2020 JN Hansen", SuperHeadingFont);	
 	gd.setInsets(5,0,0);	gd.addChoice("process ", taskVariant, selectedTaskVariant);
 	
 //	gd.setInsets(10,0,0);	gd.addMessage("Calibration", HeadingFont);
@@ -150,7 +150,7 @@ public void run(String arg) {
 	gd.setInsets(0,0,0);	gd.addCheckbox("save result image for each individual cilium", saveSingleCiliaTifs);
 	gd.setInsets(0,0,0);	gd.addCheckbox("save 3D visualizations for each individual cilium", saveSingleCilia3DImages);
 	gd.setInsets(0,0,0);	gd.addCheckbox("save 3D visualizations for whole image", saveOverview3DImages);
-	gd.setInsets(0,0,0);	gd.addChoice("output number format", nrFormats, nrFormats[1]);
+	gd.setInsets(0,0,0);	gd.addChoice("output number format", nrFormats, nrFormats[0]);
 	gd.showDialog();
 	//show Dialog-----------------------------------------------------------------
 
@@ -438,20 +438,15 @@ public void run(String arg) {
 				//Single-frame Mode
 				progress.notifyMessage("Single-timepoint workflow started...", ProgressDialog.LOG);
 				this.analyzeCiliaIn3DAndSaveResults(imp, measureC2local, measureC3local, measureBasalLocal, name[task], dir[task], startDate, filePrefix, subfolderPrefix);
-			}
-			
-		//Get cilia data		
-					
-		/******************************************************************
-		*** 						OUPUT OPTIONS						***	
-		*******************************************************************/
-		
+			}			
+		//Get cilia data and save them
 	processingDone = true;
 	break running;
 	}	
 	progress.updateBarText("finished!");
 	progress.setBar(1.0);
 	progress.moveTask(task);
+	System.gc();
 }
 }
 
@@ -2055,7 +2050,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				maximumArcLength = cilia.get(i).arcLength[cilia.get(i).arcLength.length-1];
 			}
 		}
-		nrOfProfileCols = (int) Math.round(maximumArcLength / calibration);
+		nrOfProfileCols = (int) Math.round(maximumArcLength / calibration) + 1;
 	}
 	
 	// SAVING
@@ -2152,29 +2147,41 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	appendTxt += "	"; if(skeletonize) appendTxt += "orientation vector y [" + calibrationDimension + "] (vector from first to last skeleton point)";
 	appendTxt += "	"; if(skeletonize) appendTxt += "orientation vector z [" + calibrationDimension + "] (vector from first to last skeleton point)";
 	appendTxt += "	"; if(skeletonize) appendTxt += "cilia bending index (arc length of cilium / eucledian distance of first and last skeleton point)";
-					
-	//profiles
-	if(measureC2local && skeletonize){
-		appendTxt += "	" + "Profile A (arc length step: " + dformat6.format(calibration) + ")";
-		for(int i = 0; i < nrOfProfileCols-1; i++){
-			appendTxt += "	";
+
+	appendTxt += "	"; if(measureC2local){appendTxt += "Intensity threshold A";}
+	appendTxt += "	"; if(measureC3local){appendTxt += "Intensity threshold B";}
+	appendTxt += "	"; if(measureBasalLocal){appendTxt += "Intensity threshold Basal Stain";}
+	
+	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "Integrated A intensity";
+	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "Average A intensity on center line";
+	appendTxt += "	"; if(skeletonize && measureC3local) appendTxt += "Integrated B intensity";
+	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "Average B intensity on center line";
+			
+	if(skeletonize){
+		//profiles
+		if(measureC2local){
+			appendTxt += "	" + "Profile A (arc length step: " + dformat6.format(calibration) + ")";
+			for(int i = 0; i < nrOfProfileCols-1; i++){
+				appendTxt += "	";
+			}
+			appendTxt += "	" + "Profile A (normalized to reconstruction channel) (arc length step: " + dformat6.format(calibration) + ")";
+			for(int i = 0; i < nrOfProfileCols-1; i++){
+				appendTxt += "	";
+			}
 		}
-		appendTxt += "	" + "Profile A (normalized to reconstruction channel) (arc length step: " + dformat6.format(calibration) + ")";
-		for(int i = 0; i < nrOfProfileCols-1; i++){
-			appendTxt += "	";
-		}
+			
+		if(measureC3local){
+			appendTxt += "	" + "Profile B (arc length step: " + dformat6.format(calibration) + ")";
+			for(int i = 0; i < nrOfProfileCols-1; i++){
+				appendTxt += "	";
+			}
+			appendTxt += "	" + "Profile B (normalized to reconstruction channel) (arc length step: " + dformat6.format(calibration) + ")";
+			for(int i = 0; i < nrOfProfileCols-1; i++){
+				appendTxt += "	";
+			}
+		}				
 	}
-		
-	if(measureC3local && skeletonize){
-		appendTxt += "	" + "Profile B (arc length step: " + dformat6.format(calibration) + ")";
-		for(int i = 0; i < nrOfProfileCols-1; i++){
-			appendTxt += "	";
-		}
-		appendTxt += "	" + "Profile B (normalized to reconstruction channel) (arc length step: " + dformat6.format(calibration) + ")";
-		for(int i = 0; i < nrOfProfileCols-1; i++){
-			appendTxt += "	";
-		}
-	}				
+	
 					
 	tw1.append(""+appendTxt);
 				
@@ -2231,41 +2238,67 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		appendTxt += "	"; if(cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilia.get(i).orientationVector[2]);}
 		appendTxt += "	"; if(cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilia.get(i).bendingIndex);}
 		
+		appendTxt += "	"; if(measureC2local){appendTxt += dformat6.format(intensityThresholds[channelC2-1]);}
+		appendTxt += "	"; if(measureC3local){appendTxt += dformat6.format(intensityThresholds[channelC3-1]);}
+		appendTxt += "	"; if(measureBasalLocal){appendTxt += dformat6.format(intensityThresholds[basalStainC-1]);}
+		
 		//profiles
 		if(skeletonize){
-			double [] iProfile;
+			double [] iProfileC2, iProfileC3;
 			if(measureC2local){
-				iProfile = cilia.get(i).getIntensityProfile(2, calibration, false);
-				if(iProfile != null){
+				iProfileC2 = cilia.get(i).getIntensityProfile(2, calibration, false);
+				appendTxt += "	"; 
+				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC2));
+				appendTxt += "	"; 
+				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC2));
+			}else{
+				iProfileC2  = new double [] {0.0};
+				appendTxt += "	"; 
+				appendTxt += "	"; 
+			}
+			
+			if(measureC3local){
+				iProfileC3 = cilia.get(i).getIntensityProfile(3, calibration, false);
+				appendTxt += "	"; 
+				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC3));
+				appendTxt += "	"; 
+				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC3));
+			}else{
+				iProfileC3  = new double [] {0.0};
+				appendTxt += "	"; 
+				appendTxt += "	"; 
+			}		
+			
+			if(measureC2local){
+				if(iProfileC2 != null){
 					for(int j = 0; j < nrOfProfileCols; j++){
 						appendTxt += "	";
-						if(cilia.get(i).sklAvailable && j < iProfile.length){
-							appendTxt += dformat6.format(iProfile[j]);
+						if(cilia.get(i).sklAvailable && j < iProfileC2.length){
+							appendTxt += dformat6.format(iProfileC2[j]);
 						}						
 					}
-					iProfile = cilia.get(i).getIntensityProfile(2, calibration, true);
+					iProfileC2 = cilia.get(i).getIntensityProfile(2, calibration, true);
 					for(int j = 0; j < nrOfProfileCols; j++){
 						appendTxt += "	";
-						if(cilia.get(i).sklAvailable && j < iProfile.length){
-							appendTxt += dformat6.format(iProfile[j]);
+						if(cilia.get(i).sklAvailable && j < iProfileC2.length){
+							appendTxt += dformat6.format(iProfileC2[j]);
 						}						
 					}
 				}						
 			}					
 			if(measureC3local){
-				iProfile = cilia.get(i).getIntensityProfile(3, calibration, false);
-				if(iProfile != null){
+				if(iProfileC3 != null){
 					for(int j = 0; j < nrOfProfileCols; j++){
 						appendTxt += "	";
-						if(cilia.get(i).sklAvailable && j < iProfile.length){
-							appendTxt += dformat6.format(iProfile[j]);
+						if(cilia.get(i).sklAvailable && j < iProfileC3.length){
+							appendTxt += dformat6.format(iProfileC3[j]);
 						}						
 					}
-					iProfile = cilia.get(i).getIntensityProfile(3, calibration, true);
+					iProfileC3 = cilia.get(i).getIntensityProfile(3, calibration, true);
 					for(int j = 0; j < nrOfProfileCols; j++){
 						appendTxt += "	";
-						if(cilia.get(i).sklAvailable && j < iProfile.length){
-							appendTxt += dformat6.format(iProfile[j]);
+						if(cilia.get(i).sklAvailable && j < iProfileC3.length){
+							appendTxt += dformat6.format(iProfileC3[j]);
 						}
 					}
 				}
@@ -2450,7 +2483,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				}
 			}			
 		}
-		nrOfProfileCols = (int) Math.round(maximumArcLength / calibration);
+		nrOfProfileCols = (int) Math.round(maximumArcLength / calibration) + 1;
 	}
 	
 	// SAVING
@@ -2520,6 +2553,10 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	appendTxt += "	"; if(skeletonize) appendTxt += "orientation vector y [" + calibrationDimension + "] (vector from first to last skeleton point) (time-averaged)";
 	appendTxt += "	"; if(skeletonize) appendTxt += "orientation vector z [" + calibrationDimension + "] (vector from first to last skeleton point) (time-averaged)";
 	appendTxt += "	"; if(skeletonize) appendTxt += "cilia bending index (arc length of cilium / eucledian distance of first and last skeleton point) (time-averaged)";
+	
+	appendTxt += "	"; if(measureC2local){appendTxt += "Intensity threshold A";}
+	appendTxt += "	"; if(measureC3local){appendTxt += "Intensity threshold B";}
+	appendTxt += "	"; if(measureBasalLocal){appendTxt += "Intensity threshold Basal Stain";}
 		
 	tw1.append(""+appendTxt);
 				
@@ -2577,6 +2614,10 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		appendTxt += "	"; if(timelapseCilia.get(i).sklAvailableInAllFrames){appendTxt += dformat6.format(timelapseCilia.get(i).orientationVectorAvg[1]);}
 		appendTxt += "	"; if(timelapseCilia.get(i).sklAvailableInAllFrames){appendTxt += dformat6.format(timelapseCilia.get(i).orientationVectorAvg[2]);}
 		appendTxt += "	"; if(timelapseCilia.get(i).sklAvailableInAllFrames){appendTxt += dformat6.format(timelapseCilia.get(i).bendingIndexAvg);}
+		
+		appendTxt += "	"; if(measureC2local){appendTxt += dformat6.format(intensityThresholds[channelC2-1]);}
+		appendTxt += "	"; if(measureC3local){appendTxt += dformat6.format(intensityThresholds[channelC3-1]);}
+		appendTxt += "	"; if(measureBasalLocal){appendTxt += dformat6.format(intensityThresholds[basalStainC-1]);}
 		
 		//Averaged Profiles: TODO to be implemented
 //		double [] iProfile;
@@ -2768,7 +2809,16 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 	appendTxt += "	"; if(skeletonize) appendTxt += "orientation vector y [" + calibrationDimension + "] (vector from first to last skeleton point)";
 	appendTxt += "	"; if(skeletonize) appendTxt += "orientation vector z [" + calibrationDimension + "] (vector from first to last skeleton point)";
 	appendTxt += "	"; if(skeletonize) appendTxt += "cilia bending index (arc length of cilium / eucledian distance of first and last skeleton point)";
-					
+	
+	appendTxt += "	"; if(measureC2local){appendTxt += "Intensity threshold A";}
+	appendTxt += "	"; if(measureC3local){appendTxt += "Intensity threshold B";}
+	appendTxt += "	"; if(measureBasalLocal){appendTxt += "Intensity threshold Basal Stain";}
+		
+	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "Integrated A intensity";
+	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "Average A intensity on center line";
+	appendTxt += "	"; if(skeletonize && measureC3local) appendTxt += "Integrated B intensity";
+	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "Average B intensity on center line";
+		
 	//profiles
 	if(measureC2local && skeletonize){
 		appendTxt += "	" + "Profile A (arc length step: " + dformat6.format(calibration) + ")";
@@ -2877,42 +2927,68 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 		appendTxt += "	"; if(cilium.cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).orientationVector[2]);}
 		appendTxt += "	"; if(cilium.cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).bendingIndex);}
 		
+		appendTxt += "	"; if(measureC2local){appendTxt += dformat6.format(intensityThresholds[channelC2-1]);}
+		appendTxt += "	"; if(measureC3local){appendTxt += dformat6.format(intensityThresholds[channelC3-1]);}
+		appendTxt += "	"; if(measureBasalLocal){appendTxt += dformat6.format(intensityThresholds[basalStainC-1]);}
+		
 		//profiles
 		if(skeletonize){
 			progress.updateBarText("Determine intensity profiles for cilium " + ciliumID + " - time " + time);
-			double [] iProfile;
+			double [] iProfileC2, iProfileC3;
 			if(measureC2local){
-				iProfile = cilium.cilia.get(i).getIntensityProfile(2, calibration, false);
-				if(iProfile != null){
+				iProfileC2 = cilium.cilia.get(i).getIntensityProfile(2, calibration, false);
+				appendTxt += "	";
+				if(cilium.cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC2));
+				appendTxt += "	";
+				if(cilium.cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC2));
+			}else{
+				iProfileC2  = new double [] {0.0};
+				appendTxt += "	";
+				appendTxt += "	";
+			}
+						
+			if(measureC3local){
+				iProfileC3 = cilium.cilia.get(i).getIntensityProfile(3, calibration, false);
+				appendTxt += "	"; 
+				if(cilium.cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC3));
+				appendTxt += "	"; 
+				if(cilium.cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC3));
+			}else{
+				iProfileC3  = new double [] {0.0};
+				appendTxt += "	"; 
+				appendTxt += "	"; 
+			}
+			
+			if(measureC2local){
+				if(iProfileC2 != null){
 					for(int j = 0; j < nrOfProfileCols; j++){
 						appendTxt += "	";
-						if(cilium.cilia.get(i).sklAvailable && j < iProfile.length){
-							appendTxt += dformat6.format(iProfile[j]);
+						if(cilium.cilia.get(i).sklAvailable && j < iProfileC2.length){
+							appendTxt += dformat6.format(iProfileC2[j]);
 						}						
 					}
-					iProfile = cilium.cilia.get(i).getIntensityProfile(2, calibration, true);
+					iProfileC2 = cilium.cilia.get(i).getIntensityProfile(2, calibration, true);
 					for(int j = 0; j < nrOfProfileCols; j++){
 						appendTxt += "	";
-						if(cilium.cilia.get(i).sklAvailable && j < iProfile.length){
-							appendTxt += dformat6.format(iProfile[j]);
+						if(cilium.cilia.get(i).sklAvailable && j < iProfileC2.length){
+							appendTxt += dformat6.format(iProfileC2[j]);
 						}						
 					}
 				}						
 			}					
 			if(measureC3local){
-				iProfile = cilium.cilia.get(i).getIntensityProfile(3, calibration, false);
-				if(iProfile != null){
+				if(iProfileC3 != null){
 					for(int j = 0; j < nrOfProfileCols; j++){
 						appendTxt += "	";
-						if(cilium.cilia.get(i).sklAvailable && j < iProfile.length){
-							appendTxt += dformat6.format(iProfile[j]);
+						if(cilium.cilia.get(i).sklAvailable && j < iProfileC3.length){
+							appendTxt += dformat6.format(iProfileC3[j]);
 						}						
 					}
-					iProfile = cilium.cilia.get(i).getIntensityProfile(3, calibration, true);
+					iProfileC3 = cilium.cilia.get(i).getIntensityProfile(3, calibration, true);
 					for(int j = 0; j < nrOfProfileCols; j++){
 						appendTxt += "	";
-						if(cilium.cilia.get(i).sklAvailable && j < iProfile.length){
-							appendTxt += dformat6.format(iProfile[j]);
+						if(cilium.cilia.get(i).sklAvailable && j < iProfileC3.length){
+							appendTxt += dformat6.format(iProfileC3[j]);
 						}
 					}
 				}

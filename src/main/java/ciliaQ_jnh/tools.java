@@ -1,10 +1,10 @@
 package ciliaQ_jnh;
 /** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.0.5
+ * CiliaQ, a plugin for imagej - Version 0.0.6
  * 
- * Copyright (C) 2017-2019 Jan Niklas Hansen
+ * Copyright (C) 2017-2020 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: December 09, 2019
+ * This Version: February 21, 2020
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -135,7 +135,15 @@ public class tools{
 			average += values [x];
 		}	
 		return (average / (double) values.length);		
-	}	
+	}
+	
+	public static double getSum (double [] values){
+		double sum = 0.0;	
+		for(int x = 0; x < values.length; x++){
+			sum += values [x];
+		}	
+		return sum;		
+	}
 	
 	public static double getSD(double [] values){
 		double average = tools.getAverage(values);

@@ -1,10 +1,10 @@
 package ciliaQ_jnh;
 /** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.0.5
+ * CiliaQ, a plugin for imagej - Version 0.0.6
  * 
- * Copyright (C) 2017-2019 Jan Niklas Hansen
+ * Copyright (C) 2017-2020 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: December 09, 2019
+ * This Version: February 24, 2020
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -102,7 +102,7 @@ class Cilium{
 	double treeLength = 0.0,
 		largestShortestPathOfLargest;
 	public boolean sklAvailable = false;
-	ArrayList<SklPoint> sklPointList; 	// point list in raw coordinates
+	private ArrayList<SklPoint> sklPointList; 	// point list in raw coordinates
 	
 	double arcLength [];
 	double profileC2 [], profileC3 [];
@@ -262,7 +262,7 @@ class Cilium{
 			slices = zMax - zMin + 1 + 2;
 	
 		//generate a binary image to calculate skeleton parameters
-		//TODO include intensity? currently negelected
+		//TODO include intensity? currently neglected
 		ImagePlus particleImp = IJ.createImage("Particle image", "8-bit", width, height, 1, slices, 1);
 		particleImp.setCalibration(cal);
 		for(int i = 0; i < voxels; i++){
@@ -286,17 +286,6 @@ class Cilium{
 			
 //			particleImp.show();
 //			new WaitForUserDialog("Test").show();
-//			particleImp.hide();
-			
-//			IJ.run(particleImp, "Scale...", "x=3 y=3 z=3"
-//					+ " width="
-//					+ (int)(particleImp.getWidth()*3)
-//					+ " height="
-//					+ (int)(particleImp.getHeight()*3)
-//					+ " depth="
-//					+ (int)(particleImp.getStackSize()*3)
-//					+ " interpolation=Bilinear average process create");
-//			particleImp = WindowManager.getCurrentImage();
 //			particleImp.hide();
 		}
 		
@@ -329,23 +318,25 @@ class Cilium{
 		
 		//Hints for programming: run(int pruneIndex, boolean pruneEnds, boolean shortPath, ImagePlus origIP, boolean silent, boolean verbose)
 		SkeletonResult sklRes = skel.run(AnalyzeSkeleton_.NONE, false, true, null, true, false);
-		ArrayList<ciliaQ_skeleton_analysis.Point>[] shortestPath = skel.getShortestPathPoints();	//Skl Points are integers
-		
-		sklPointList = getSortedList(shortestPath, sklRes, measureBasalBody, basalBodyC, imp, progress);
-		if(sklPointList != null){
+		foundSkl = sklRes.getNumOfTrees();
+		if(foundSkl == 1){
+			ArrayList<ciliaQ_skeleton_analysis.Point>[] shortestPath = skel.getShortestPathPoints();	//Skl Points are integers
+			
+			sklPointList = getSortedList(shortestPath, sklRes, measureBasalBody, basalBodyC, imp, progress, particleImp);
+		}		
+		if(foundSkl == 1 && sklPointList != null){
+			sklAvailable = true;
+			sklPointList.trimToSize();	
+			
 			arcLength = new double [sklPointList.size()];
 			profileC2 = new double [sklPointList.size()];
 			profileC3 = new double [sklPointList.size()];
 			profileC2norm = new double [sklPointList.size()];
 			profileC3norm = new double [sklPointList.size()];
-			
-			sklAvailable = true;
-			sklPointList.trimToSize();			
-//			IJ.log("sklPointList " + sklPointList.size());
-					
+								
 			arcLength [0] = 0.0;
 						
-			SklPoint sklP;
+			SklPoint sklP;	
 			for(int i = 0; i < sklPointList.size(); i++){
 				sklP = new SklPoint(sklPointList.get(i));	
 //				progress.notifyMessage("old: x" + sklPointList.get(i).x + "y" + sklPointList.get(i).y + "z" + sklPointList.get(i).z, ProgressDialog.LOG);
@@ -354,9 +345,10 @@ class Cilium{
 				sklP.z += (zMin-1) * voxelDepth;
 //				progress.notifyMessage("new: x" + sklP.x + "y" + sklP.y + "z" + sklP.z, ProgressDialog.LOG);
 				if(i!=0){
-					arcLength [i] = arcLength [i-1] + getDistance(sklPointList.get(i),sklPointList.get(i-1));
-//					IJ.log("al" + i + ": " + arcLength [i]);
+					arcLength [i] = arcLength [i-1] + getDistance(sklPointList.get(i),sklPointList.get(i-1));					
 				}
+//				progress.notifyMessage("x	"+ sklP.x + "	y	" + sklP.y + "	z	" + sklP.z +"	al	" + i + ":	" 
+//					+ arcLength [i], ProgressDialog.LOG);
 				
 				if(measureC2){
 					profileC2 [i] = this.getInterpolatedIntensity2D(imp, sklP, channel2, progress);
@@ -383,24 +375,21 @@ class Cilium{
 			}
 			System.gc();
 			
-			foundSkl = sklRes.getNumOfTrees();		
-			if(foundSkl>0){
-				int [] sBranches = sklRes.getBranches();
-				double [] sAvBrL = sklRes.getAverageBranchLength();
-				ArrayList<Double> lst = sklRes.getShortestPathList();
-				
-				double maxValue = 0.0;
-				int largestSklID = 0;
-				for(int i = 0; i < foundSkl; i++){
-					if(lst.get(i)>maxValue){
-						maxValue = lst.get(i);
-						largestSklID = i;
-					}
+			int [] sBranches = sklRes.getBranches();
+			double [] sAvBrL = sklRes.getAverageBranchLength();
+			ArrayList<Double> lst = sklRes.getShortestPathList();
+			
+			double maxValue = 0.0;
+			int largestSklID = 0;
+			for(int i = 0; i < foundSkl; i++){
+				if(lst.get(i)>maxValue){
+					maxValue = lst.get(i);
+					largestSklID = i;
 				}
-				branches += sBranches [largestSklID];
-				treeLength += sAvBrL[largestSklID] * sBranches[largestSklID];
-				largestShortestPathOfLargest += lst.get(largestSklID);
 			}
+			branches += sBranches [largestSklID];
+			treeLength += sAvBrL[largestSklID] * sBranches[largestSklID];
+			largestShortestPathOfLargest += lst.get(largestSklID);
 			
 			orientationVector [0] = sklPointList.get(sklPointList.size()-1).x - sklPointList.get(0).x;
 			orientationVector [1] = sklPointList.get(sklPointList.size()-1).y - sklPointList.get(0).y;
@@ -452,7 +441,7 @@ class Cilium{
 	 * (x,y,z coordinates of the SklPoints are calibrated, so indicated in the calibration Unit)
 	 * */
 	private ArrayList<SklPoint> getSortedList(ArrayList<Point>[] shortestPath, SkeletonResult sklRes, boolean measureBasalBody, int basalBodyC, ImagePlus imp,
-			ProgressDialog progress){
+			ProgressDialog progress, ImagePlus sklImp){
 		if(shortestPath.equals(null) || shortestPath.length == 0){
 			return null;
 		}
@@ -471,67 +460,37 @@ class Cilium{
 		
 		//count points 
 		int nPoints = shortestPath[chosenShortestPath].size();
-//		IJ.log("n" + nPoints);
-		
-		if(nPoints == 0){
+		SklPoint startEnd = new SklPoint(Math.round(sklRes.getSpStartPosition()[chosenShortestPath][0] / calibration * 3.0),
+				Math.round(sklRes.getSpStartPosition()[chosenShortestPath][1] / calibration * 3.0),
+				Math.round(sklRes.getSpStartPosition()[chosenShortestPath][2] / voxelDepth * 3.0));
+//		progress.notifyMessage("start " + startEnd.x + " " + startEnd.y + " " + startEnd.z, ProgressDialog.LOG);
+		if(nPoints == 0 || startEnd.equals(null)){
 			return null;
 		}
 		
 		//get trace list -  new method
 		ArrayList<SklPoint> list = new ArrayList<SklPoint>(nPoints);
-		LinkedList<SklPoint> unsortedList = new LinkedList<SklPoint>();
-						
-		//find end point
-//				IJ.log("searching w" + impMax.getCalibration().pixelWidth + " h" + impMax.getCalibration().pixelHeight);
-		SklPoint startEnd = null; int startIndex = -1;
-		searching: for(int i = 0; i < nPoints; i++){
-			double counter = 0;
-			SklPoint p = new SklPoint(shortestPath[chosenShortestPath].get(i));
-			for(int j = 0; j < nPoints; j++){
-				if(i!=j){
-					SklPoint q = new SklPoint(shortestPath[chosenShortestPath].get(j));
-					if(getDistance(p,q) <= constants.sqrt3){
-//							IJ.log(i + "-" + j);
-						counter++;
-//						progress.notifyMessage("stEnd p" + p.x + "-" + p.y + "-" + p.z, ProgressDialog.LOG);
-//						progress.notifyMessage("stEnd q" + q.x + "-" + q.y + "-" + q.z, ProgressDialog.LOG);
-//						IJ.log("stEnd p" + p.x + "-" + p.y + "-" + p.z);
-//						IJ.log("stEnd q" + q.x + "-" + q.y + "-" + q.z);
-					}else{
-//						IJ.log("p" + p.x + "-" + p.y + "-" + p.z);
-//						IJ.log("q" + q.x + "-" + q.y + "-" + q.z);
-					}
-				}
-				
-			}
-			if (counter==1){ 
-//				IJ.log("found start" + i);
-//				IJ.log("counter " + counter);
-				startEnd = new SklPoint(shortestPath[chosenShortestPath].get(i));
-				startIndex = i;
-				break searching;
-			}								
-		}
+		ArrayList<SklPoint> unsortedList = new ArrayList<SklPoint>(nPoints);
 		
-		if(startIndex == -1 || startEnd == null){
-//			IJ.log("Problem no start found");
-			return null;
-		}
 		
 		//save unsorted list
+		SklPoint tempPoint;
 		for(int i = 0; i < nPoints; i++){
-			if(i != startIndex){
-				unsortedList.add(new SklPoint(shortestPath[chosenShortestPath].get(i)));
-			}					
+			tempPoint = new SklPoint(shortestPath[chosenShortestPath].get(i));
+			if(!(tempPoint.x == startEnd.x && tempPoint.y == startEnd.y && tempPoint.z == startEnd.z)){
+				unsortedList.add(tempPoint);
+			}
 		}
 		
+		//create list of junction voxels
+		ArrayList<SklPoint> junctions = new ArrayList<SklPoint>(sklRes.getListOfJunctionVoxels().size());
+		for(int i = 0; i < sklRes.getListOfJunctionVoxels().size(); i++){
+			junctions.add(new SklPoint(sklRes.getListOfJunctionVoxels().get(i)));
+		}
+
 		//create sortedList (list)
 		{
 			list.add(startEnd);
-			
-//			IJ.log(unsortedList.size() + " uls");
-//			IJ.log(list.size() + " ls");
-			
 			int index = 0;
 			double distance;
 			SklPoint p;
@@ -547,12 +506,54 @@ class Cilium{
 						distance = getDistance(unsortedList.get(i),list.get(index));
 					}
 				}
-//				if(startIndex == -1 || p.equals(null)){
-//					IJ.log("Problem no next point found");
-//				}					
-				unsortedList.remove(pIndex);
-				list.add(p);
-				index++;
+				if(distance <= constants.sqrt3){
+					list.add(p);
+					index++;
+				}else{
+					boolean check = true;
+					for(int rest = 0; rest < unsortedList.size(); rest++){
+						check = false;
+						for(int jnc = 0; jnc < junctions.size(); jnc++){
+							if(junctions.get(jnc).x == unsortedList.get(rest).x 
+									&& junctions.get(jnc).y == unsortedList.get(rest).y 
+									&& junctions.get(jnc).z == unsortedList.get(rest).z){
+								check = true;
+								break;
+							}
+						}
+						if(check == false){
+							break;
+						}
+					}
+					if(check){
+						//all remaining points not included are junction voxels and can be removed
+//						progress.notifyMessage("Info for expert users: rmp " + unsortedList.size() + " from profile.", ProgressDialog.LOG);
+//						sklImp.show();
+//						for(int uI = 0; uI < unsortedList.size(); uI++){
+//							progress.notifyMessage("Info for expert users: uL x " + unsortedList.get(uI).x 
+//									+ " y " + unsortedList.get(uI).y
+//									+ " z " + unsortedList.get(uI).z, ProgressDialog.LOG);
+//						}
+//						for(int uI = 0; uI < junctions.size(); uI++){
+//							progress.notifyMessage("Info for expert users: jnc x " + junctions.get(uI).x 
+//									+ " y " + junctions.get(uI).y
+//									+ " z " + junctions.get(uI).z, ProgressDialog.LOG);
+//						}
+//						for(int uI = 0; uI < list.size(); uI++){
+//							progress.notifyMessage("Info for expert users: sL x " + list.get(uI).x 
+//									+ " y " + list.get(uI).y
+//									+ " z " + list.get(uI).z, ProgressDialog.LOG);
+//						}
+//						new WaitForUserDialog("Check error").show();
+//						sklImp.hide();
+						break;
+					}else{
+						//listing needs to go on because there are still non junction voxels in the queue
+						list.add(p);
+						index++;
+					}				
+				}
+				unsortedList.remove(pIndex);				
 			}
 		}
 		unsortedList.clear();
@@ -561,28 +562,36 @@ class Cilium{
 
 		//remove modification by upscaling
 		for(int i = 0; i < list.size(); i++){
-//			progress.notifyMessage("x" + list.get(i).x + "y" + list.get(i).y + "z" + list.get(i).z, ProgressDialog.LOG);
 			list.get(i).x /= 3.0;
 			list.get(i).y /= 3.0;
-			list.get(i).z /= 3.0;
-//			progress.notifyMessage("x" + list.get(i).x + "y" + list.get(i).y + "z" + list.get(i).z, ProgressDialog.LOG);
+			list.get(i).z /= 3.0;			
+			
 			list.get(i).x *= calibration;
 			list.get(i).y *= calibration;
-			list.get(i).z *= voxelDepth;
-//			progress.notifyMessage("x" + list.get(i).x + "y" + list.get(i).y + "z" + list.get(i).z, ProgressDialog.LOG);
-//			progress.notifyMessage("next", ProgressDialog.LOG);
+			list.get(i).z *= voxelDepth;			
 		}
+		
+		SklPoint pFirst = new SklPoint(list.get(0));
+		SklPoint pLast = new SklPoint(list.get(list.size()-1));
+		
+		pFirst.x += (xMin-2) * calibration;
+		pFirst.y += (yMin-2) * calibration;
+		pFirst.z += (zMin-1) * voxelDepth;
+		
+		pLast.x += (xMin-2) * calibration;
+		pLast.y += (yMin-2) * calibration;
+		pLast.z += (zMin-1) * voxelDepth;
 		
 		if(measureBasalBody){
 			//get statistics for first point
 			double roiRadius = 3.0; //in micron
 			double intensitySumStart = 0.0;
-			for(int is = (int) Math.round((list.get(0).z - roiRadius)/ voxelDepth); is <= (int) Math.round((list.get(0).z + roiRadius)/ voxelDepth); is++){
-				for(int ix = (int) Math.round((list.get(0).x - roiRadius)/ calibration); ix <= (int) Math.round((list.get(0).x + roiRadius)/ calibration); ix++){
-					for(int iy = (int) Math.round((list.get(0).y - roiRadius)/ calibration); iy <= (int) Math.round((list.get(0).y + roiRadius)/ calibration); iy++){
-						if((((Math.pow((ix*calibration-list.get(0).x),2.0))/(Math.pow(roiRadius,2.0)))
-							+((Math.pow((iy*calibration-list.get(0).y),2.0))/(Math.pow(roiRadius,2.0)))
-							+((Math.pow((is*voxelDepth-list.get(0).z),2.0))/(Math.pow(roiRadius,2.0)))) <= 1.0){
+			for(int is = (int) Math.round((pFirst.z - roiRadius)/ voxelDepth); is <= (int) Math.round((pFirst.z + roiRadius)/ voxelDepth); is++){
+				for(int ix = (int) Math.round((pFirst.x - roiRadius)/ calibration); ix <= (int) Math.round((pFirst.x + roiRadius)/ calibration); ix++){
+					for(int iy = (int) Math.round((pFirst.y - roiRadius)/ calibration); iy <= (int) Math.round((pFirst.y + roiRadius)/ calibration); iy++){
+						if((((Math.pow((ix*calibration-pFirst.x),2.0))/(Math.pow(roiRadius,2.0)))
+							+((Math.pow((iy*calibration-pFirst.y),2.0))/(Math.pow(roiRadius,2.0)))
+							+((Math.pow((is*voxelDepth-pFirst.z),2.0))/(Math.pow(roiRadius,2.0)))) <= 1.0){
 							if(ix >= 0 && ix < imp.getWidth() && iy >= 0 && iy < imp.getHeight() 
 									&& imp.getStackIndex(basalBodyC, is+1, t+1) >= 0 
 									&& imp.getStackIndex(basalBodyC, is+1, t+1) < imp.getStackSize()){
@@ -595,12 +604,12 @@ class Cilium{
 									
 			//get statistics for last point
 			double intensitySumEnd = 0.0;
-			for(int is = (int) Math.round((list.get(list.size()-1).z - roiRadius)/ voxelDepth); is <= (int) Math.round((list.get(list.size()-1).z + roiRadius)/ voxelDepth); is++){
-				for(int ix = (int) Math.round((list.get(list.size()-1).x - roiRadius)/ calibration); ix <= (int) Math.round((list.get(list.size()-1).x + roiRadius)/ calibration); ix++){
-					for(int iy = (int) Math.round((list.get(list.size()-1).y - roiRadius)/ calibration); iy <= (int) Math.round((list.get(list.size()-1).y + roiRadius)/ calibration); iy++){
-						if((((Math.pow((ix*calibration-list.get(list.size()-1).x),2.0))/(Math.pow(roiRadius,2.0)))
-								+((Math.pow((iy*calibration-list.get(list.size()-1).y),2.0))/(Math.pow(roiRadius,2.0)))
-								+((Math.pow((is*voxelDepth-list.get(list.size()-1).z),2.0))/(Math.pow(roiRadius,2.0)))) <= 1.0){
+			for(int is = (int) Math.round((pLast.z - roiRadius)/ voxelDepth); is <= (int) Math.round((pLast.z + roiRadius)/ voxelDepth); is++){
+				for(int ix = (int) Math.round((pLast.x - roiRadius)/ calibration); ix <= (int) Math.round((pLast.x + roiRadius)/ calibration); ix++){
+					for(int iy = (int) Math.round((pLast.y - roiRadius)/ calibration); iy <= (int) Math.round((pLast.y + roiRadius)/ calibration); iy++){
+						if((((Math.pow((ix*calibration-pLast.x),2.0))/(Math.pow(roiRadius,2.0)))
+								+((Math.pow((iy*calibration-pLast.y),2.0))/(Math.pow(roiRadius,2.0)))
+								+((Math.pow((is*voxelDepth-pLast.z),2.0))/(Math.pow(roiRadius,2.0)))) <= 1.0){
 							if(ix >= 0 && ix < imp.getWidth() && iy >= 0 && iy < imp.getHeight() 
 									&& imp.getStackIndex(basalBodyC, is+1, t+1) >= 0 
 									&& imp.getStackIndex(basalBodyC, is+1, t+1) < imp.getStackSize()){
@@ -613,9 +622,9 @@ class Cilium{
 			
 			//if first point is actually last point reverse list
 			if(intensitySumStart < intensitySumEnd){
-				ArrayList <SklPoint> newList = new ArrayList <SklPoint>(nPoints);
+				ArrayList <SklPoint> newList = new ArrayList <SklPoint>(list.size());
 				//invert list
-				for(int i = nPoints-1; i >= 0; i--){	
+				for(int i = list.size()-1; i >= 0; i--){	
 					newList.add(list.get(i));	
 				}					
 				newList.trimToSize();
