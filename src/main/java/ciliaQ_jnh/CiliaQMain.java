@@ -2332,7 +2332,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		for(int i = 0; i < cilia.size(); i++){
 			progress.updateBarText("Producing 3D images of individual cilia (" + i + "/" + cilia.size() + " done)");
 			impTemp = cilia.get(i).getCiliumImp(intensityThresholds, channelC2, channelC3);
-			saveImageAs3D(subfolderPrefix + "_C" + (i+1) + "_3D.tif",impTemp, v3D, false, true, false);
+			saveImageAs3D(subfolderPrefix + "_C" + (i+1) + "",impTemp, v3D, false, true, false);
 			impTemp.changes = false;
 			impTemp.close();
 		}
@@ -3159,7 +3159,7 @@ private void saveSkeletonOverviewImagesTimelapse(String savePath, ImagePlus imp,
 		progress.updateBarText("Saving timelapse skeleton overview 3D image...");		
 		imp3D = IJ.createImage("3D", width, height, impOut.getNFrames(), 24);
 		imp3D.setStack(stackOut);
-		IJ.saveAsTiff(imp3D, savePath + "_3D.tif"); 
+		IJ.saveAs(imp3D, "PNG", savePath + "_3D.png"); 
 		
 		imp3D.changes = false;
 		imp3D.close();
@@ -3304,7 +3304,7 @@ private void saveSkeletonOverviewImageNonTimeLapse(String savePath, ImagePlus im
 //		imp3D.hide();
 		
 		progress.updateBarText("Producing 3D NTL skeleton overview image...save");								
-		IJ.saveAsTiff(imp3D, savePath + "_3D.tif"); 
+		IJ.saveAs(imp3D, "PNG", savePath + "_3D.png"); 
 
 		impOut.changes = false;
 		impOut.close();
@@ -3430,8 +3430,8 @@ private void saveImageAs3D(String savePath, ImagePlus imp, Visualizer3D v3D, boo
 		}
 		
 		imp3D = IJ.createImage("3D", width, height, impOut.getNFrames(), 24);
-		imp3D.setStack(stackOut);
-		IJ.saveAsTiff(imp3D, savePath + "_3D.tif"); 
+		imp3D.setStack(stackOut); 
+		IJ.saveAs(imp3D, "PNG", savePath + "_3D.png");
 		
 		imp3D.changes = false;
 		imp3D.close();
