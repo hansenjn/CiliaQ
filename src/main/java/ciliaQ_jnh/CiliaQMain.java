@@ -1,10 +1,10 @@
 package ciliaQ_jnh;
 /** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.0.6
+ * CiliaQ, a plugin for imagej - Version 0.0.7
  * 
  * Copyright (C) 2017-2020 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: February 24, 2020
+ * This Version: February 26, 2020
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -46,7 +46,7 @@ import ij.text.*;
 public class CiliaQMain implements PlugIn, Measurements {
 	//Name variables
 	static final String PLUGINNAME = "CiliaQ";
-	static final String PLUGINVERSION = "0.0.6";
+	static final String PLUGINVERSION = "0.0.7";
 	
 	//Fix fonts
 	static final Font SuperHeadingFont = new Font("Sansserif", Font.BOLD, 16);
@@ -3159,7 +3159,7 @@ private void saveSkeletonOverviewImagesTimelapse(String savePath, ImagePlus imp,
 		progress.updateBarText("Saving timelapse skeleton overview 3D image...");		
 		imp3D = IJ.createImage("3D", width, height, impOut.getNFrames(), 24);
 		imp3D.setStack(stackOut);
-		IJ.saveAs(imp3D, "PNG", savePath + "_3D.png"); 
+		IJ.saveAsTiff(imp3D, savePath + "_3D.tif"); 
 		
 		imp3D.changes = false;
 		imp3D.close();
@@ -3431,7 +3431,7 @@ private void saveImageAs3D(String savePath, ImagePlus imp, Visualizer3D v3D, boo
 		
 		imp3D = IJ.createImage("3D", width, height, impOut.getNFrames(), 24);
 		imp3D.setStack(stackOut); 
-		IJ.saveAs(imp3D, "PNG", savePath + "_3D.png");
+		IJ.saveAsTiff(imp3D, savePath + "_3D.tif");
 		
 		imp3D.changes = false;
 		imp3D.close();
