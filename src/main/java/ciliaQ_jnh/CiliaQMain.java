@@ -1,10 +1,10 @@
 package ciliaQ_jnh;
 /** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.0.7
+ * CiliaQ, a plugin for imagej - Version 0.0.8
  * 
  * Copyright (C) 2017-2020 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: February 26, 2020
+ * This Version: March 31, 2020
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -46,7 +46,7 @@ import ij.text.*;
 public class CiliaQMain implements PlugIn, Measurements {
 	//Name variables
 	static final String PLUGINNAME = "CiliaQ";
-	static final String PLUGINVERSION = "0.0.7";
+	static final String PLUGINVERSION = "0.0.8";
 	
 	//Fix fonts
 	static final Font SuperHeadingFont = new Font("Sansserif", Font.BOLD, 16);
@@ -2474,18 +2474,21 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	int nrOfProfileCols = 0;
 	if(measureC2local || measureC3local){
 		for(int i = 0; i < timelapseCilia.size(); i++){
+			if(timelapseCilia.get(i).excluded){
+				continue;
+			}
 			for(int k = 0; k < timelapseCilia.get(i).cilia.size(); k++){
-				if(timelapseCilia.get(i).excluded){
+				if(timelapseCilia.get(i).cilia.get(k).excluded){
 					continue;
-				}
-				if(timelapseCilia.get(i).cilia.get(k).foundSkl != 0 && timelapseCilia.get(i).cilia.get(k).arcLength[timelapseCilia.get(i).cilia.get(k).arcLength.length-1] > maximumArcLength){
+				}				
+				if(timelapseCilia.get(i).cilia.get(k).sklAvailable
+						&& timelapseCilia.get(i).cilia.get(k).arcLength[timelapseCilia.get(i).cilia.get(k).arcLength.length-1] > maximumArcLength){
 					maximumArcLength = timelapseCilia.get(i).cilia.get(k).arcLength[timelapseCilia.get(i).cilia.get(k).arcLength.length-1];
 				}
 			}			
 		}
 		nrOfProfileCols = (int) Math.round(maximumArcLength / calibration) + 1;
 	}
-	
 	// SAVING
 	
 	Date currentDate = new Date();
