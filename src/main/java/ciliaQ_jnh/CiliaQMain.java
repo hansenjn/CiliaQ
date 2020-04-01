@@ -1,10 +1,10 @@
 package ciliaQ_jnh;
 /** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.0.8
+ * CiliaQ, a plugin for imagej - Version 0.0.9
  * 
  * Copyright (C) 2017-2020 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: March 31, 2020
+ * This Version: April 1, 2020
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -46,7 +46,7 @@ import ij.text.*;
 public class CiliaQMain implements PlugIn, Measurements {
 	//Name variables
 	static final String PLUGINNAME = "CiliaQ";
-	static final String PLUGINVERSION = "0.0.8";
+	static final String PLUGINVERSION = "0.0.9";
 	
 	//Fix fonts
 	static final Font SuperHeadingFont = new Font("Sansserif", Font.BOLD, 16);
@@ -2046,7 +2046,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			if(cilia.get(i).excluded){
 				continue;
 			}
-			if(cilia.get(i).foundSkl != 0 && cilia.get(i).arcLength[cilia.get(i).arcLength.length-1] > maximumArcLength){
+			if(cilia.get(i).sklAvailable && cilia.get(i).arcLength[cilia.get(i).arcLength.length-1] > maximumArcLength){
 				maximumArcLength = cilia.get(i).arcLength[cilia.get(i).arcLength.length-1];
 			}
 		}
