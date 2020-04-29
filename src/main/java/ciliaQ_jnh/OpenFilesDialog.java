@@ -1,29 +1,4 @@
 package ciliaQ_jnh;
-/** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.0.5
- * 
- * Copyright (C) 2017-2019 Jan Niklas Hansen
- * First version: June 30, 2017  
- * This Version: December 09, 2019
- * 
- * Parts of the code were inherited from MotiQ
- * (https://github.com/hansenjn/MotiQ).
- * 
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation (http://www.gnu.org/licenses/gpl.txt )
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/gpl-3.0.html>.
- *    
- * For any questions please feel free to contact me (jan.hansen@uni-bonn.de).
-* =============================================================================== */
 
 import java.awt.Component;
 import java.awt.Dimension;
@@ -31,6 +6,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
 import java.util.LinkedList;
+import java.util.Stack;
 
 import javax.swing.BoxLayout;
 import javax.swing.DefaultComboBoxModel;
@@ -44,7 +20,18 @@ import javax.swing.JScrollPane;
 import javax.swing.JSeparator;
 import javax.swing.SwingConstants;
 
-public class OpenFilesDialog extends javax.swing.JFrame implements ActionListener{
+import ij.gui.GenericDialog;
+
+/**
+ * This class wraps the functionality to select multiple files from the system
+ * by an gui. It extends the old OpenFilesDialog ("Multi-Taks-Manager") by
+ * adding an function to select files containing certain pattern (regex or
+ * non-regex) in all subdirectories of a chosen root directory
+ * 
+ * @author Jan Niklas Hansen and Sebastian Rassmann
+ *
+ */
+public class OpenFilesDialog extends javax.swing.JFrame implements ActionListener {
 	LinkedList<File> filesToOpen = new LinkedList<File>();
 	boolean done = false, dirsaved = false;
 	File saved;// = new File(getClass().getResource(".").getFile());
@@ -54,121 +41,211 @@ public class OpenFilesDialog extends javax.swing.JFrame implements ActionListene
 	JPanel bgPanel;
 	JScrollPane jScrollPane1;
 	JList Liste1;
-	JButton loadButton, removeButton, goButton;
-	
+	JButton loadSingleFilesButton, loadByPatternButtom, removeFileButton, goButton;
+
 	public OpenFilesDialog() {
 		super();
+		System.out.println("Here");
 		initGUI();
 	}
 	
+
 	private void initGUI() {
 		int prefXSize = 600, prefYSize = 400;
-		this.setMinimumSize(new java.awt.Dimension(prefXSize, prefYSize+40));
-		this.setSize(prefXSize, prefYSize+40);			
-		this.setTitle("Multi-Task-Manager - by JN Hansen (\u00a9 2016)");
-//		this.setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
-		//Surface
-			bgPanel = new JPanel();
-			bgPanel.setLayout(new BoxLayout(bgPanel, BoxLayout.Y_AXIS));
-			bgPanel.setVisible(true);
-			bgPanel.setPreferredSize(new java.awt.Dimension(prefXSize,prefYSize-20));
+		this.setMinimumSize(new java.awt.Dimension(prefXSize, prefYSize + 40));
+		this.setSize(prefXSize, prefYSize + 40);
+		this.setTitle("Multi-File-Manager - by JNH and SR (\u00a9 2016-20)");
+//			this.setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
+		// Surface
+		bgPanel = new JPanel();
+		bgPanel.setLayout(new BoxLayout(bgPanel, BoxLayout.Y_AXIS));
+		bgPanel.setVisible(true);
+		bgPanel.setPreferredSize(new java.awt.Dimension(prefXSize, prefYSize - 20));
+		{
+			jScrollPane1 = new JScrollPane();
+			jScrollPane1.setHorizontalScrollBarPolicy(30);
+			jScrollPane1.setVerticalScrollBarPolicy(20);
+			jScrollPane1.setPreferredSize(new java.awt.Dimension(prefXSize - 10, prefYSize - 60));
+			bgPanel.add(jScrollPane1);
 			{
-				jScrollPane1 = new JScrollPane();
-				jScrollPane1.setHorizontalScrollBarPolicy(30);
-				jScrollPane1.setVerticalScrollBarPolicy(20);
-				jScrollPane1.setPreferredSize(new java.awt.Dimension(prefXSize-10, prefYSize-60));
-				bgPanel.add(jScrollPane1);
-				{
-					Liste1 = new JList();
-					jScrollPane1.setViewportView(Liste1);
-					Liste1.setModel(new DefaultComboBoxModel(new String[] { "" }));
-				}
-				{
-					JPanel spacer = new JPanel();
-					spacer.setMaximumSize(new java.awt.Dimension(prefXSize,10));
-					spacer.setVisible(true);
-					bgPanel.add(spacer);
-				}
-				{
-					JPanel bottom = new JPanel();
-					bottom.setLayout(new BoxLayout(bottom, BoxLayout.X_AXIS));
-					bottom.setMaximumSize(new java.awt.Dimension(prefXSize,10));
-					bottom.setVisible(true);
-					bgPanel.add(bottom);
-					int locHeight = 40;
-					int locWidth3 = prefXSize/4-60;
-					{
-						loadButton = new JButton();
-						loadButton.addActionListener(this);
-						loadButton.setText("add files");
-						loadButton.setMinimumSize(new java.awt.Dimension(locWidth3,locHeight));
-						loadButton.setVisible(true);
-						loadButton.setVerticalAlignment(SwingConstants.BOTTOM);
-						bottom.add(loadButton);
-					}
-					{
-						removeButton = new JButton();
-						removeButton.addActionListener(this);
-						removeButton.setText("remove selected files");
-						removeButton.setMinimumSize(new java.awt.Dimension(locWidth3,locHeight));
-						removeButton.setVisible(true);
-						removeButton.setVerticalAlignment(SwingConstants.BOTTOM);
-						bottom.add(removeButton);
-					}	
-					{
-						goButton = new JButton();
-						goButton.addActionListener(this);
-						goButton.setText("start processing");
-						goButton.setMinimumSize(new java.awt.Dimension(locWidth3,locHeight));
-						goButton.setVisible(true);
-						goButton.setVerticalAlignment(SwingConstants.BOTTOM);
-						bottom.add(goButton);
-					}	
-				}	
+				Liste1 = new JList();
+				jScrollPane1.setViewportView(Liste1);
+				Liste1.setModel(new DefaultComboBoxModel(new String[] { "" }));
 			}
-			getContentPane().add(bgPanel);		
+			{
+				JPanel spacer = new JPanel();
+				spacer.setMaximumSize(new java.awt.Dimension(prefXSize, 10));
+				spacer.setVisible(true);
+				bgPanel.add(spacer);
+			}
+			{
+				JPanel bottom = new JPanel();
+				bottom.setLayout(new BoxLayout(bottom, BoxLayout.X_AXIS));
+				bottom.setMaximumSize(new java.awt.Dimension(prefXSize, 10));
+				bottom.setVisible(true);
+				bgPanel.add(bottom);
+				int locHeight = 40;
+				int locWidth3 = prefXSize / 4 - 60;
+				{
+					loadSingleFilesButton = new JButton();
+					loadSingleFilesButton.addActionListener(this);
+					loadSingleFilesButton.setText("select files individually");
+					loadSingleFilesButton.setMinimumSize(new java.awt.Dimension(locWidth3, locHeight));
+					loadSingleFilesButton.setVisible(true);
+					loadSingleFilesButton.setVerticalAlignment(SwingConstants.BOTTOM);
+					bottom.add(loadSingleFilesButton);
+				}
+					loadByPatternButtom = new JButton();
+					loadByPatternButtom.addActionListener(this);
+					loadByPatternButtom.setText("select files by pattern");
+					loadByPatternButtom.setMinimumSize(new java.awt.Dimension(locWidth3, locHeight));
+					loadByPatternButtom.setVisible(true);
+					loadByPatternButtom.setVerticalAlignment(SwingConstants.BOTTOM);
+					bottom.add(loadByPatternButtom);
+				{
+					removeFileButton = new JButton();
+					removeFileButton.addActionListener(this);
+					removeFileButton.setText("remove selected files");
+					removeFileButton.setMinimumSize(new java.awt.Dimension(locWidth3, locHeight));
+					removeFileButton.setVisible(true);
+					removeFileButton.setVerticalAlignment(SwingConstants.BOTTOM);
+					bottom.add(removeFileButton);
+				}
+				{
+					goButton = new JButton();
+					goButton.addActionListener(this);
+					goButton.setText("start processing");
+					goButton.setMinimumSize(new java.awt.Dimension(locWidth3, locHeight));
+					goButton.setVisible(true);
+					goButton.setVerticalAlignment(SwingConstants.BOTTOM);
+					bottom.add(goButton);
+				}
+			}
+		}
+		getContentPane().add(bgPanel);
 	}
-	
+
 	@Override
 	public void actionPerformed(ActionEvent ae) {
 		Object eventQuelle = ae.getSource();
-		if (eventQuelle == loadButton){
+		if (eventQuelle == loadSingleFilesButton) {
 			JFileChooser chooser = new JFileChooser();
-			chooser.setPreferredSize(new Dimension(600,400));
-			if(dirsaved){				
+			chooser.setPreferredSize(new Dimension(600, 400));
+			if (dirsaved) {
 				chooser.setCurrentDirectory(saved);
-			}			
+			}
 			chooser.setMultiSelectionEnabled(true);
 			Component frame = null;
 			chooser.showOpenDialog(frame);
 			File[] files = chooser.getSelectedFiles();
-			for(int i = 0; i < files.length; i++){
-//				IJ.log("" + files[i].getPath());
+			for (int i = 0; i < files.length; i++) {
+//					IJ.log("" + files[i].getPath());
 				filesToOpen.add(files[i]);
 				saved = files[i];
-				dirsaved=true;
-			}			
+				dirsaved = true;
+			}
 			updateDisplay();
 		}
-		if (eventQuelle == removeButton){
+		if (eventQuelle == loadByPatternButtom) {
+			matchPattern(System.getProperty("user.dir"));
+			updateDisplay();
+		}
+		if (eventQuelle == removeFileButton) {
 			int[] indices = Liste1.getSelectedIndices();
-			for(int i = indices.length-1; i >=0; i--){
-//				IJ.log("remove " + indices[i]);
+			for (int i = indices.length - 1; i >= 0; i--) {
+//					IJ.log("remove " + indices[i]);
 				filesToOpen.remove(indices[i]);
 			}
 			updateDisplay();
 		}
-		if (eventQuelle == goButton){
-			done=true;
+		if (eventQuelle == goButton) {
+			done = true;
 			dispose();
-		}		
-		
+		}
+
 	}
-	
-	public void updateDisplay(){
-		String resultsString [] = new String [filesToOpen.size()];
-		for(int i = 0; i < filesToOpen.size(); i++){
-			resultsString [i] = (i+1) + ": " + filesToOpen.get(i).getName();
+
+	private void matchPattern(String rootPath) {
+		String posFilePattern = "", negFilePattern = "", negDirPattern = "";
+
+		JFileChooser fc = new JFileChooser();
+		fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+		fc.setMultiSelectionEnabled(true);
+		fc.setCurrentDirectory(new File(rootPath));
+
+		if (fc.showDialog(fc, "Choose directory to start pattern matching") != JFileChooser.APPROVE_OPTION) {
+			return;
+		}
+
+		Stack<File> q = new Stack<File>();
+		for (File f : fc.getSelectedFiles()) {
+			q.push(f);
+		}
+
+		boolean posFileInputAsRegex = false, negFileInputAsRegex = false, negDirInputAsRegex = false;
+		GenericDialog gd = new GenericDialog("Insert pattern matching parameters:");
+
+		gd.addCheckbox("Input as Regex", posFileInputAsRegex);
+		gd.setInsets(0, 50, 0);
+		gd.addStringField("Enter pattern to be matched in filenames", posFilePattern, 16);
+
+		gd.addCheckbox("Input as Regex", negFileInputAsRegex);
+		gd.setInsets(0, 50, 0);
+		gd.addStringField("Enter pattern in filenames to exclude files", negFilePattern, 16);
+
+		gd.addCheckbox("Input as Regex", negDirInputAsRegex);
+		gd.setInsets(0, 50, 0);
+		gd.addStringField("Enter pattern in parent directories to exclude files", negDirPattern, 16);
+
+		gd.showDialog();
+
+		posFileInputAsRegex = gd.getNextBoolean();
+		posFilePattern = gd.getNextString();
+		negFileInputAsRegex = gd.getNextBoolean();
+		negFilePattern = gd.getNextString();
+		negDirInputAsRegex = gd.getNextBoolean();
+		negDirPattern = gd.getNextString();
+		if (gd.wasCanceled()) {
+			return;
+		}
+
+		if (!posFileInputAsRegex) {
+			posFilePattern = transformStringToRegex(posFilePattern);
+		}
+		if (!negFileInputAsRegex) {
+			negFilePattern = transformStringToRegex(negFilePattern);
+		}
+		if (!negDirInputAsRegex) {
+			negDirPattern = transformStringToRegex(negDirPattern);
+		}
+
+		File[] fid; // Files in Dir
+		while (!q.isEmpty()) {
+			fid = q.pop().listFiles();
+			for (File f : fid) { // loop through files in dir
+				if (f.isDirectory() && !f.getName().matches(negDirPattern)) {
+					q.push(f); // add to queue if f is a dir and negDirPattern can't be matched
+				} else if (f.getName().matches(posFilePattern) && !f.getName().matches(negFilePattern)) {
+					// add to file list if posPattern matches and negative Pattern doesn't
+					filesToOpen.add(f);
+				}
+			}
+		}		
+		return;
+	}
+
+	static String transformStringToRegex(String pattern) {
+		String s = "";
+		if (pattern.length() != 0)
+			s = ".*" + pattern.replace(".", "\\.") + ".*";
+		return s;
+	}
+
+	@SuppressWarnings("unchecked")
+	public void updateDisplay() {
+		String resultsString[] = new String[filesToOpen.size()];
+		for (int i = 0; i < filesToOpen.size(); i++) {
+			resultsString[i] = (i + 1) + ": " + filesToOpen.get(i).getName();
 		}
 		Liste1.setListData(resultsString);
 	}
