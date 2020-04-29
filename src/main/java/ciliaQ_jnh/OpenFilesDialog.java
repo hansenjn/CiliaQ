@@ -28,6 +28,8 @@ import ij.gui.GenericDialog;
  * adding an function to select files containing certain pattern (regex or
  * non-regex) in all subdirectories of a chosen root directory
  * 
+ * Parts of the code were inherited from MotiQ (https://github.com/hansenjn/MotiQ).
+ * 
  * @author Jan Niklas Hansen and Sebastian Rassmann
  *
  */
