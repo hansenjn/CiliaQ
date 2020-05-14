@@ -1,10 +1,10 @@
 package ciliaQ_jnh;
 /** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.0.10
+ * CiliaQ, a plugin for imagej - Version 0.1.0
  * 
  * Copyright (C) 2017-2020 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: April 29, 2020
+ * This Version: May 14, 2020
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -46,7 +46,7 @@ import ij.text.*;
 public class CiliaQMain implements PlugIn, Measurements {
 	//Name variables
 	static final String PLUGINNAME = "CiliaQ";
-	static final String PLUGINVERSION = "0.0.10";
+	static final String PLUGINVERSION = "0.1.0";
 	
 	//Fix fonts
 	static final Font SuperHeadingFont = new Font("Sansserif", Font.BOLD, 16);
@@ -1947,7 +1947,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		ArrayList<ArrayList<CellPoint>> ciliaParticles = getCiliaObjectsTimelapse(imp, channelReconstruction, increaseRangeCilia);	//Method changed on 23.04.2019
 		System.gc();
 		progress.updateBarText("Structure reconstruction completed.");
-		//TODO how to set channelCells accordingly if no cells at all present in image?
+		//TODO implement method to move on if no cells detected
 		
 		//Determine intensity thresholds for each other channel
 		progress.updateBarText("Determining intensity thresholds ...");
@@ -2155,7 +2155,13 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "Integrated A intensity";
 	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "Average A intensity on center line";
 	appendTxt += "	"; if(skeletonize && measureC3local) appendTxt += "Integrated B intensity";
-	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "Average B intensity on center line";
+	appendTxt += "	"; if(skeletonize && measureC3local) appendTxt += "Average B intensity on center line";
+	
+	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "A: Colocalized on centerline compared to BG volume [" + calibrationDimension + "]";
+	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "A: Colocalized on centerline compared to BG volume [% total length]";
+	appendTxt += "	"; if(skeletonize && measureC3local) appendTxt += "B: Colocalized on centerline compared to BG volume [" + calibrationDimension + "]";
+	appendTxt += "	"; if(skeletonize && measureC3local) appendTxt += "B: Colocalized on centerline compared to BG volume [% total length]";
+	
 			
 	if(skeletonize){
 		//profiles
@@ -2184,7 +2190,8 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	
 					
 	tw1.append(""+appendTxt);
-				
+	
+	double [] coloc, iProfileC2, iProfileC3;
 	for(int i = 0; i < cilia.size(); i++){
 		if(cilia.get(i).excluded){
 			continue;
@@ -2244,7 +2251,6 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		
 		//profiles
 		if(skeletonize){
-			double [] iProfileC2, iProfileC3;
 			if(measureC2local){
 				iProfileC2 = cilia.get(i).getIntensityProfile(2, calibration, false);
 				appendTxt += "	"; 
@@ -2252,22 +2258,42 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				appendTxt += "	"; 
 				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC2));
 			}else{
-				iProfileC2  = new double [] {0.0};
-				appendTxt += "	"; 
-				appendTxt += "	"; 
+				iProfileC2  = null;
+				appendTxt += "		";
 			}
 			
 			if(measureC3local){
 				iProfileC3 = cilia.get(i).getIntensityProfile(3, calibration, false);
-				appendTxt += "	"; 
+				appendTxt += "	";
 				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC3));
 				appendTxt += "	"; 
 				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC3));
 			}else{
-				iProfileC3  = new double [] {0.0};
-				appendTxt += "	"; 
-				appendTxt += "	"; 
-			}		
+				iProfileC3  = null;
+				appendTxt += "		";
+			}					
+
+			if(measureC2local && iProfileC2 != null){
+				//Colocalized length
+				appendTxt += "	";
+				coloc = getColocalizedLengthsOfProfile(iProfileC2, intensityThresholds[channelC2-1], calibration);
+				appendTxt += dformat6.format(coloc[0]);
+				appendTxt += "	";
+				appendTxt += dformat6.format(coloc[1]);					
+			}else{
+				appendTxt += "		";
+			}	
+			
+			if(measureC3local && iProfileC3 != null){
+				//Colocalized length
+				appendTxt += "	";
+				coloc = getColocalizedLengthsOfProfile(iProfileC3, intensityThresholds[channelC3-1], calibration);
+				appendTxt += dformat6.format(coloc[0]);
+				appendTxt += "	";
+				appendTxt += dformat6.format(coloc[1]);
+			}else{
+				appendTxt += "		";
+			}	
 			
 			if(measureC2local){
 				if(iProfileC2 != null){
@@ -2284,7 +2310,11 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 							appendTxt += dformat6.format(iProfileC2[j]);
 						}						
 					}
-				}						
+				}else{
+					for(int j = 0; j < nrOfProfileCols; j++){
+						appendTxt += "		";
+					}
+				}				
 			}					
 			if(measureC3local){
 				if(iProfileC3 != null){
@@ -2301,8 +2331,11 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 							appendTxt += dformat6.format(iProfileC3[j]);
 						}
 					}
-				}
-					
+				}else{
+					for(int j = 0; j < nrOfProfileCols; j++){
+						appendTxt += "		";
+					}
+				}					
 			}
 		}							
 		tw1.append(""+appendTxt);
@@ -2378,7 +2411,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		System.gc();
 		
 		progress.updateBarText("Cilia reconstruction completed.");
-		//TODO how to set channelCells accordingly if no cells at all present in image?
+		//TODO implement method to move on if no cells detected
 		
 		//Determine intensity thresholds for each other channel
 		progress.updateBarText("Determining intensity thresholds...");
@@ -2622,45 +2655,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		appendTxt += "	"; if(measureC3local){appendTxt += dformat6.format(intensityThresholds[channelC3-1]);}
 		appendTxt += "	"; if(measureBasalLocal){appendTxt += dformat6.format(intensityThresholds[basalStainC-1]);}
 		
-		//Averaged Profiles: TODO to be implemented
-//		double [] iProfile;
-//		if(measureC2local){
-//			iProfile = timelapseCilia.get(i).getIntensityProfile(2, calibration, false);
-//			if(iProfile != null){
-//				for(int j = 0; j < nrOfProfileCols; j++){
-//					appendTxt += "	";
-//					if(timelapseCilia.get(i).sklAvailable && j < iProfile.length){
-//						appendTxt += dformat6.format(iProfile[j]);
-//					}						
-//				}
-//				iProfile = timelapseCilia.get(i).getIntensityProfile(2, calibration, true);
-//				for(int j = 0; j < nrOfProfileCols; j++){
-//					appendTxt += "	";
-//					if(timelapseCilia.get(i).sklAvailable && j < iProfile.length){
-//						appendTxt += dformat6.format(iProfile[j]);
-//					}						
-//				}
-//			}						
-//		}					
-//		if(measureC3local){
-//			iProfile = timelapseCilia.get(i).getIntensityProfile(3, calibration, false);
-//			if(iProfile != null){
-//				for(int j = 0; j < nrOfProfileCols; j++){
-//					appendTxt += "	";
-//					if(timelapseCilia.get(i).sklAvailable && j < iProfile.length){
-//						appendTxt += dformat6.format(iProfile[j]);
-//					}						
-//				}
-//				iProfile = timelapseCilia.get(i).getIntensityProfile(3, calibration, true);
-//				for(int j = 0; j < nrOfProfileCols; j++){
-//					appendTxt += "	";
-//					if(timelapseCilia.get(i).sklAvailable && j < iProfile.length){
-//						appendTxt += dformat6.format(iProfile[j]);
-//					}
-//				}
-//			}
-//				
-//		}
+		//TODO Averages of profile based parameters to be implemented
 							
 		tw1.append(""+appendTxt);
 		
@@ -2821,6 +2816,11 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "Average A intensity on center line";
 	appendTxt += "	"; if(skeletonize && measureC3local) appendTxt += "Integrated B intensity";
 	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "Average B intensity on center line";
+	
+	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "A: Colocalized on centerline compared to BG volume [" + calibrationDimension + "]";
+	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "A: Colocalized on centerline compared to BG volume [% total length]";
+	appendTxt += "	"; if(skeletonize && measureC3local) appendTxt += "B: Colocalized on centerline compared to BG volume [" + calibrationDimension + "]";
+	appendTxt += "	"; if(skeletonize && measureC3local) appendTxt += "B: Colocalized on centerline compared to BG volume [% total length]";
 		
 	//profiles
 	if(measureC2local && skeletonize){
@@ -2848,6 +2848,7 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 	tw1.append(""+appendTxt);
 				
 	int time = 0;
+	double [] iProfileC2, iProfileC3, coloc;
 	scanningTimePoints: for(int i = 0; i < cilium.cilia.size(); i++){			
 		while(true){
 			if (cilium.cilia.get(i).t!=time){
@@ -2937,7 +2938,6 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 		//profiles
 		if(skeletonize){
 			progress.updateBarText("Determine intensity profiles for cilium " + ciliumID + " - time " + time);
-			double [] iProfileC2, iProfileC3;
 			if(measureC2local){
 				iProfileC2 = cilium.cilia.get(i).getIntensityProfile(2, calibration, false);
 				appendTxt += "	";
@@ -2945,9 +2945,8 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 				appendTxt += "	";
 				if(cilium.cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC2));
 			}else{
-				iProfileC2  = new double [] {0.0};
-				appendTxt += "	";
-				appendTxt += "	";
+				iProfileC2  = null;
+				appendTxt += "		";
 			}
 						
 			if(measureC3local){
@@ -2957,10 +2956,31 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 				appendTxt += "	"; 
 				if(cilium.cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC3));
 			}else{
-				iProfileC3  = new double [] {0.0};
-				appendTxt += "	"; 
-				appendTxt += "	"; 
+				iProfileC3  = null;
+				appendTxt += "		";
 			}
+			
+			if(measureC2local && iProfileC2 != null){
+				//Colocalized length
+				appendTxt += "	";
+				coloc = getColocalizedLengthsOfProfile(iProfileC2, intensityThresholds[channelC2-1], calibration);
+				appendTxt += dformat6.format(coloc[0]);
+				appendTxt += "	";
+				appendTxt += dformat6.format(coloc[1]);					
+			}else{
+				appendTxt += "		";
+			}	
+			
+			if(measureC3local && iProfileC3 != null){
+				//Colocalized length
+				appendTxt += "	";
+				coloc = getColocalizedLengthsOfProfile(iProfileC3, intensityThresholds[channelC3-1], calibration);
+				appendTxt += dformat6.format(coloc[0]);
+				appendTxt += "	";
+				appendTxt += dformat6.format(coloc[1]);
+			}else{
+				appendTxt += "		";
+			}	
 			
 			if(measureC2local){
 				if(iProfileC2 != null){
@@ -2977,7 +2997,11 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 							appendTxt += dformat6.format(iProfileC2[j]);
 						}						
 					}
-				}						
+				}else{
+					for(int j = 0; j < nrOfProfileCols; j++){
+						appendTxt += "		";
+					}
+				}
 			}					
 			if(measureC3local){
 				if(iProfileC3 != null){
@@ -2993,6 +3017,10 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 						if(cilium.cilia.get(i).sklAvailable && j < iProfileC3.length){
 							appendTxt += dformat6.format(iProfileC3[j]);
 						}
+					}
+				}else{
+					for(int j = 0; j < nrOfProfileCols; j++){
+						appendTxt += "		";
 					}
 				}
 			}
@@ -3621,5 +3649,23 @@ public ImagePlus reduceToMaskChannel(ImagePlus impIn, int maskChannel){
 		}
 	}
 	return imp;
+}
+
+/**
+ * @param intensityProfile
+ * @param threshold
+ * @param stepSize: length in µm corresponding to one step in the profile
+ * @return array with first entry containing the absolute colocalized length and second entry containing the colocalized length as percentage of total length
+ * */
+private static double [] getColocalizedLengthsOfProfile(double [] intensityProfile, double threshold, double stepSize){
+	double coloc [] = new double [] {0.0,0.0};
+	for(int i = 0; i < intensityProfile.length; i++){
+		if(intensityProfile [i] > threshold){
+			coloc [0] ++;
+		}		
+	}
+	coloc [1] = coloc [0] / (double) intensityProfile.length * 100;
+	coloc [0] *= stepSize;
+	return coloc;
 }
 }//end main class
