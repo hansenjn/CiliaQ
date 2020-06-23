@@ -3,15 +3,17 @@
 	<modelVersion>4.0.0</modelVersion>
   
 	<parent>
-		<groupId>sc.fiji</groupId>
-		<artifactId>pom-fiji</artifactId>
-		<version>17.0.0</version>
+		<groupId>org.scijava</groupId>
+		<artifactId>pom-scijava</artifactId>
+		<version>17.1.1</version>
 		<relativePath />
 	</parent> 
  
  	<artifactId>CiliaQ_</artifactId>
  	<groupId>JNH</groupId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.1.1-SNAPSHOT</version>
+    <name>CiliaQ</name>
+    <description>A plugin to analyze cilia in 3D and 4D images.</description>
  
 <!-- Plugin Information -->
  	<url>https://github.com/hansenjn/</url>
@@ -65,12 +67,12 @@
 		</mailingList>
 	</mailingLists>
  	
-<!--  	<scm> -->
-<!-- 		<connection>scm:git:git://github.com/hansenjn/MotiQ/3D Analyzer</connection> -->
-<!-- 		<developerConnection>scm:git:git@github.com:hansenjn/MotiQ/3D Analyzer</developerConnection> -->
-<!-- 		<tag>HEAD</tag> -->
-<!-- 		<url>https://github.com/hansenjn/MotiQ/3D Analyzer</url> -->
-<!-- 	</scm> -->
+ 	<scm>
+		<connection>scm:git:git://github.com/hansenjn/CiliaQ</connection>
+		<developerConnection>scm:git:git@github.com:hansenjn/CiliaQ</developerConnection>
+		<tag>HEAD</tag>
+		<url>https://github.com/hansenjn/CiliaQ</url>
+	</scm>
  	
  	<issueManagement>
 		<system>GitHub Issues</system>
@@ -102,7 +104,24 @@
         <dependency>
             <groupId>net.imagej</groupId>
             <artifactId>ij</artifactId>
-        </dependency>        
+        </dependency>
+        
+        <!-- Bio-Formats dependencies -->
+		<dependency>
+			<groupId>ome</groupId>
+			<artifactId>bio-formats_plugins</artifactId>
+			<exclusions>
+				<!-- NB: Guava requires Java 7+, so we exclude it here. -->
+				<exclusion>
+					<groupId>com.google.guava</groupId>
+					<artifactId>guava</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>ome</groupId>
+			<artifactId>formats-api</artifactId>
+		</dependency>        
     </dependencies>  
     
     <build>
@@ -134,10 +153,6 @@
 					</archive>
 				</configuration>
 			</plugin>
-			
-
 		</plugins>
 	</build>  
-    <name>CiliaQ</name>
-    <description>A plugin to analyze cilia in 3D and 4D images.</description>
 </project>
