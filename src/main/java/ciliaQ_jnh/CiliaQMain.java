@@ -1,10 +1,10 @@
 package ciliaQ_jnh;
 /** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.1.0
+ * CiliaQ, a plugin for imagej - Version 0.1.1
  * 
  * Copyright (C) 2017-2020 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: May 14, 2020
+ * This Version: June 23, 2020
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -28,12 +28,9 @@ package ciliaQ_jnh;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
-
 import java.util.*;
 import java.text.*;
-
 import javax.swing.UIManager;
-
 import ij.*;
 import ij.gui.*;
 import ij.io.*;
@@ -46,7 +43,7 @@ import ij.text.*;
 public class CiliaQMain implements PlugIn, Measurements {
 	//Name variables
 	static final String PLUGINNAME = "CiliaQ";
-	static final String PLUGINVERSION = "0.1.0";
+	static final String PLUGINVERSION = "0.1.1";
 	
 	//Fix fonts
 	static final Font SuperHeadingFont = new Font("Sansserif", Font.BOLD, 16);
@@ -113,7 +110,7 @@ public void run(String arg) {
 //-------------------------GenericDialog--------------------------------------
 //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 	
-	GenericDialog gd = new GenericDialog(PLUGINNAME + " - set parameters");	
+	GenericDialog gd = new GenericDialog(PLUGINNAME + " on " + System.getProperty("os.name") + " - set parameters");	
 	//show Dialog-----------------------------------------------------------------
 	//Note: .setInsets(top, left, bottom)
 	gd.setInsets(0,0,0);	gd.addMessage(PLUGINNAME + ", Version " + PLUGINVERSION + ", \u00a9 2017 - 2020 JN Hansen", SuperHeadingFont);	
