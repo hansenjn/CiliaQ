@@ -105,23 +105,6 @@
             <groupId>net.imagej</groupId>
             <artifactId>ij</artifactId>
         </dependency>
-        
-        <!-- Bio-Formats dependencies -->
-		<dependency>
-			<groupId>ome</groupId>
-			<artifactId>bio-formats_plugins</artifactId>
-			<exclusions>
-				<!-- NB: Guava requires Java 7+, so we exclude it here. -->
-				<exclusion>
-					<groupId>com.google.guava</groupId>
-					<artifactId>guava</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-		<dependency>
-			<groupId>ome</groupId>
-			<artifactId>formats-api</artifactId>
-		</dependency>        
     </dependencies>  
     
     <build>
