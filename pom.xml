@@ -91,14 +91,6 @@
 		<license.projectName>CiliaQ plugin for ImageJ.</license.projectName>
 	</properties>
  	
- 	<repositories>
-    	<repository>
-            <id>imagej.public</id>
-            <url>http://maven.imagej.net/content/groups/public</url>
-        </repository>
-    </repositories>
- 
-<!-- TODO: See Optional Dependencies section -->
     <dependencies>
         <!-- ImageJ dependencies -->
         <dependency>
