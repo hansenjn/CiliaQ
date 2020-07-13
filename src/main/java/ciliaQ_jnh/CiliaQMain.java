@@ -1,10 +1,10 @@
 package ciliaQ_jnh;
 /** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.1.1
+ * CiliaQ, a plugin for imagej - Version 0.1.2
  * 
  * Copyright (C) 2017-2020 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: June 23, 2020
+ * This Version: July 13, 2020
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -43,7 +43,7 @@ import ij.text.*;
 public class CiliaQMain implements PlugIn, Measurements {
 	//Name variables
 	static final String PLUGINNAME = "CiliaQ";
-	static final String PLUGINVERSION = "0.1.1";
+	static final String PLUGINVERSION = "0.1.2";
 	
 	//Fix fonts
 	static final Font SuperHeadingFont = new Font("Sansserif", Font.BOLD, 16);
@@ -106,6 +106,12 @@ public class CiliaQMain implements PlugIn, Measurements {
 	String ChosenNumberFormat = nrFormats[0];
 	
 public void run(String arg) {
+	try  
+	  { UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName()); }
+	catch (Exception e)
+	  { e.printStackTrace(); }
+
+	
 //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 //-------------------------GenericDialog--------------------------------------
 //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
@@ -2355,14 +2361,12 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	IJ.saveAsTiff(imp, filePrefix + "_RP"); 
 
 	//save 3D images
-	Visualizer3D v3D = new Visualizer3D(imp, 3.0f);
-	v3D.setAngle(10.0f, -10.0f, 0.0f);
 	if(saveSingleCilia3DImages){				
 		ImagePlus impTemp;
 		for(int i = 0; i < cilia.size(); i++){
 			progress.updateBarText("Producing 3D images of individual cilia (" + i + "/" + cilia.size() + " done)");
 			impTemp = cilia.get(i).getCiliumImp(intensityThresholds, channelC2, channelC3);
-			saveImageAs3D(subfolderPrefix + "_C" + (i+1) + "",impTemp, v3D, false, true, false);
+			saveImageAs3D(subfolderPrefix + "_C" + (i+1) + "",impTemp, false, true, false);
 			impTemp.changes = false;
 			impTemp.close();
 		}
@@ -2370,20 +2374,14 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	{		
 		progress.updateBarText("Producing Overview Images");
 		if(skeletonize && saveOverview3DImages){
-			v3D = new Visualizer3D(imp, 3.0f);
-			v3D.setAngle(10.0f, -10.0f, 0.0f);
 			saveSkeletonOverviewImageNonTimeLapse(filePrefix + "_SKL", imp, cilia,
-					name, dir, currentDate, startDate, v3D);
+					name, dir, currentDate, startDate);
 		}
 		if(saveOverview3DImages){
-			v3D = new Visualizer3D(imp, 3.0f);
-			v3D.setAngle(10.0f, -10.0f, 0.0f);
 			progress.updateBarText("Producing Overview 3D Image");	
-			saveImageAs3D(filePrefix + "_RP", reduceToMaskChannel(imp, channelReconstruction), v3D, false, true, false);
+			saveImageAs3D(filePrefix + "_RP", reduceToMaskChannel(imp, channelReconstruction), false, true, false);
 		}		
-	}
-	v3D = null;
-	
+	}	
 	imp.changes = false;
 	imp.close();
 	progress.setBar(0.95);
@@ -2711,31 +2709,23 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	System.gc();
 	
 	//save 3D images
-	Visualizer3D v3D = new Visualizer3D(imp, 3.0f);
-	v3D.setAngle(10.0f, -10.0f, 0.0f);
 	{		
 		progress.updateBarText("Producing Overview Skeleton Image");
 		saveSkeletonOverviewImagesTimelapse(filePrefix + "_SKL", imp, timelapseCilia,
-				name, dir, currentDate, startDate, v3D);
-		if(this.saveOverview3DImages){
-			v3D = new Visualizer3D(imp, 3.0f);
-			v3D.setAngle(10.0f, -10.0f, 0.0f);
-			
+				name, dir, currentDate, startDate);
+		if(this.saveOverview3DImages){			
 			progress.updateBarText("Producing Overview 3D Image");		
-			saveImageAs3D(filePrefix + "_RP", reduceToMaskChannel(imp, channelReconstruction), v3D, false, true, false);
+			saveImageAs3D(filePrefix + "_RP", reduceToMaskChannel(imp, channelReconstruction), false, true, false);
 		}		
 	}
 	System.gc();
 	if(saveSingleCilia3DImages){
-		v3D = new Visualizer3D(imp, 3.0f);
-		v3D.setAngle(10.0f, -10.0f, 0.0f);
 		for(int i = 0; i < timelapseCilia.size(); i++){
 			progress.updateBarText("Producing 3D images of individual cilia (" + i + "/" + timelapseCilia.size() + " done)");
 			saveImageAs3D(subfolderPrefix + "_C" + (i+1), timelapseCilia.get(i).getCiliumImp(intensityThresholds, channelC2, channelC3, progress),
-					v3D, false, true, false);
+					false, true, false);
 		}
 	}
-	v3D = null;
 	imp.changes = false;
 	imp.close();
 	progress.setBar(0.95);
@@ -3042,7 +3032,7 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
  * save overview image of all detected skeletons 
  * */
 private void saveSkeletonOverviewImagesTimelapse(String savePath, ImagePlus imp, ArrayList<TimelapseCilium> cilia, 
-		String name, String dir, Date currentDate, Date startDate, Visualizer3D v3D){
+		String name, String dir, Date currentDate, Date startDate){
 	ImagePlus impOut = IJ.createHyperStack(imp.getTitle() + " skl", imp.getWidth(), imp.getHeight(), 
 			2, imp.getNSlices(), imp.getNFrames(), 8);
 	impOut.setOverlay(imp.getOverlay());
@@ -3126,72 +3116,88 @@ private void saveSkeletonOverviewImagesTimelapse(String savePath, ImagePlus imp,
 	
 	// make 3D visualization
 	if(saveOverview3DImages){
-		ImagePlus impCal, imp3D;	
-		v3D.setImage(getTimePointFor3D(impOut, 1));
-		int width = v3D.getWidth();
-		int height = v3D.getHeight();
-		v3D.setObjectLightValue(1.2f);
-		v3D.setLightPosX(-0.25f);
-		v3D.setAlphaOffset1(0);
-		
-		ImageStack stackOut = new ImageStack(10,10);	//Random values for initialization because intialized later	
-		TextRoi txtR;
-		Color txtc;
-		for(int i = 0; i < impOut.getNFrames(); i++){
-			progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ")");
-			impCal = getTimePointFor3D(impOut, i+1);
-			progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ") ... add scale bar");
-			double calBarLength = this.addContainedScalerBarAndGetBarValue(impCal);
-			progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ") ... convert to RGB");
-			convertToRGB(impCal);			
-			progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ") ... write IDs");
-			if(impOut.getOverlay()!=null){
-				impCal.setSlice(1);
-				for(int j = 0; j < impOut.getOverlay().size(); j++){
-					txtR = (TextRoi) impOut.getOverlay().get(j);
-					txtc = txtR.getStrokeColor();
-					txtR.setStrokeColor(Color.GREEN);
-					if(txtc.equals(Color.YELLOW)){
-						txtR.setStrokeColor(Color.WHITE);
+		ImagePlus impCal, imp3D;
+		Visualizer3D v3D;	
+		try {
+			progress.updateBarText("Producing 3D TL skeleton overview image...launch 3Dvis");
+			v3D = new Visualizer3D(imp, 3.0f);
+			v3D.setAngle(10.0f, -10.0f, 0.0f);
+			v3D.setImage(getTimePointFor3D(impOut, 1));
+			int width = v3D.getWidth();
+			int height = v3D.getHeight();
+			v3D.setObjectLightValue(1.2f);
+			v3D.setLightPosX(-0.25f);
+			v3D.setAlphaOffset1(0);
+			
+			ImageStack stackOut = new ImageStack(10,10);	//Random values for initialization because intialized later	
+			TextRoi txtR;
+			Color txtc;
+			for(int i = 0; i < impOut.getNFrames(); i++){
+				progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ")");
+				impCal = getTimePointFor3D(impOut, i+1);
+				progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ") ... add scale bar");
+				double calBarLength = this.addContainedScalerBarAndGetBarValue(impCal);
+				progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ") ... convert to RGB");
+				convertToRGB(impCal);			
+				progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ") ... write IDs");
+				if(impOut.getOverlay()!=null){
+					impCal.setSlice(1);
+					for(int j = 0; j < impOut.getOverlay().size(); j++){
+						txtR = (TextRoi) impOut.getOverlay().get(j);
+						txtc = txtR.getStrokeColor();
+						txtR.setStrokeColor(Color.GREEN);
+						if(txtc.equals(Color.YELLOW)){
+							txtR.setStrokeColor(Color.WHITE);
+						}
+						impCal.getProcessor().drawRoi(txtR);
+						txtR.setStrokeColor(txtc);											
+	//					progress.notifyMessage("Producing 3D NTL skeleton overview image...write ID " 
+	//							+ j + "/" + impOut.getOverlay().size() + "", ProgressDialog.LOG);
 					}
-					impCal.getProcessor().drawRoi(txtR);
-					txtR.setStrokeColor(txtc);											
-//					progress.notifyMessage("Producing 3D NTL skeleton overview image...write ID " 
-//							+ j + "/" + impOut.getOverlay().size() + "", ProgressDialog.LOG);
+				}else{
+					progress.notifyMessage("no overlay in TL skeleton overview", ProgressDialog.LOG);
 				}
-			}else{
-				progress.notifyMessage("no overlay in TL skeleton overview", ProgressDialog.LOG);
+				
+	//			if(impCal == null) impCal = particleImp.duplicate();
+				
+				progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ") ... create 3D vis");
+				v3D.setImage(impCal);
+				imp3D = v3D.get3DVisualization(false);
+				
+				writeBarText(imp3D, calBarLength, imp.getCalibration().getUnit(), 
+						true, ((double)i*imp.getCalibration().frameInterval), imp.getCalibration().getTimeUnit());				
+				
+				impCal.changes = false;
+				impCal.close();
+				
+				if(i == 0){
+					stackOut = new ImageStack(imp3D.getWidth(),imp3D.getHeight());
+				}
+				stackOut.addSlice(imp3D.getProcessor());
+				
+				imp3D.changes = false;
+				imp3D.close();
 			}
 			
-//			if(impCal == null) impCal = particleImp.duplicate();
-			
-			progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ") ... create 3D vis");
-			v3D.setImage(impCal);
-			imp3D = v3D.get3DVisualization(false);
-			
-			writeBarText(imp3D, calBarLength, imp.getCalibration().getUnit(), 
-					true, ((double)i*imp.getCalibration().frameInterval), imp.getCalibration().getTimeUnit());				
-			
-			impCal.changes = false;
-			impCal.close();
-			
-			if(i == 0){
-				stackOut = new ImageStack(imp3D.getWidth(),imp3D.getHeight());
-			}
-			stackOut.addSlice(imp3D.getProcessor());
+			progress.updateBarText("Saving timelapse skeleton overview 3D image...");		
+			imp3D = IJ.createImage("3D", width, height, impOut.getNFrames(), 24);
+			imp3D.setStack(stackOut);
+			IJ.saveAsTiff(imp3D, savePath + "_3D.tif"); 
 			
 			imp3D.changes = false;
-			imp3D.close();
+			imp3D.close();		
+		}catch(Exception e){
+			String out = "";
+			for(int err = 0; err < e.getStackTrace().length; err++){
+				out += " \n " + e.getStackTrace()[err].toString();
+			}			
+			progress.notifyMessage("Image: " + savePath.substring(savePath.lastIndexOf(System.getProperty("file.separator"))) 
+				+ "_3D.tif: Producing timelapse skeleton overview 3D image failed - error message: \n"
+				+ "" + out,ProgressDialog.ERROR);
 		}
+		v3D = null;
+		System.gc();
 		
-		progress.updateBarText("Saving timelapse skeleton overview 3D image...");		
-		imp3D = IJ.createImage("3D", width, height, impOut.getNFrames(), 24);
-		imp3D.setStack(stackOut);
-		IJ.saveAsTiff(imp3D, savePath + "_3D.tif"); 
-		
-		imp3D.changes = false;
-		imp3D.close();
-
 		impOut.changes = false;
 		impOut.close();
 	}	
@@ -3201,7 +3207,7 @@ private void saveSkeletonOverviewImagesTimelapse(String savePath, ImagePlus imp,
  * save overview image of all detected skeletons (non timelapse)
  * */
 private void saveSkeletonOverviewImageNonTimeLapse(String savePath, ImagePlus imp, ArrayList<Cilium> cilia, 
-		String name, String dir, Date currentDate, Date startDate, Visualizer3D v3D){
+		String name, String dir, Date currentDate, Date startDate){
 	ImagePlus impOut = IJ.createHyperStack(imp.getTitle() + " skl", imp.getWidth(), imp.getHeight(), 
 			2, imp.getNSlices(), imp.getNFrames(), 8);
 	impOut.setOverlay(imp.getOverlay());
@@ -3316,29 +3322,44 @@ private void saveSkeletonOverviewImageNonTimeLapse(String savePath, ImagePlus im
 //		new WaitForUserDialog("imp out").show();
 //		impOut.hide();
 		
-		ImagePlus imp3D;	
-		progress.updateBarText("Producing 3D NTL skeleton overview image...launch 3Dvis");
-		v3D.setImage(impOut);
-		v3D.setObjectLightValue(1.2f);
-		v3D.setLightPosX(-0.25f);
-		v3D.setAlphaOffset1(0);
-		progress.updateBarText("Producing 3D NTL skeleton overview image...get 3Dvis");
-		imp3D = v3D.get3DVisualization(false);
-		
-		writeBarText(imp3D, calBarLength, imp.getCalibration().getUnit(), false, 0.0, "");	
-
-//		imp3D.show();
-//		new WaitForUserDialog("imp3D").show();
-//		imp3D.hide();
-		
-		progress.updateBarText("Producing 3D NTL skeleton overview image...save");								
-		IJ.saveAs(imp3D, "PNG", savePath + "_3D.png"); 
-
+		Visualizer3D v3D;
+		try {
+			ImagePlus imp3D;	
+			progress.updateBarText("Producing 3D NTL skeleton overview image...launch 3Dvis");
+			v3D = new Visualizer3D(imp, 3.0f);
+			v3D.setAngle(10.0f, -10.0f, 0.0f);
+			v3D.setObjectLightValue(1.2f);
+			v3D.setLightPosX(-0.25f);
+			v3D.setAlphaOffset1(0);
+			progress.updateBarText("Producing 3D NTL skeleton overview image...get 3Dvis");
+			imp3D = v3D.get3DVisualization(false);
+			
+			writeBarText(imp3D, calBarLength, imp.getCalibration().getUnit(), false, 0.0, "");	
+	
+//			imp3D.show();
+//			new WaitForUserDialog("imp3D").show();
+//			imp3D.hide();
+			
+			progress.updateBarText("Producing 3D NTL skeleton overview image...save");								
+			IJ.saveAs(imp3D, "PNG", savePath + "_3D.png"); 
+	
+			imp3D.changes = false;
+			imp3D.close();			
+			
+		}catch(Exception e){
+			String out = "";
+			for(int err = 0; err < e.getStackTrace().length; err++){
+				out += " \n " + e.getStackTrace()[err].toString();
+			}			
+			progress.notifyMessage("Image: " + savePath.substring(savePath.lastIndexOf(System.getProperty("file.separator"))) 
+				+ ": Producing 3D NTL skeleton overview image failed - error message: \n"
+				+ "" + out,ProgressDialog.ERROR);
+		}		
+		v3D = null;
+		System.gc();
 		impOut.changes = false;
 		impOut.close();
 		
-		imp3D.changes = false;
-		imp3D.close();
 
 	}	
 }
@@ -3372,7 +3393,7 @@ private void writeBarText(ImagePlus imp, double calBarLength, String unit, boole
 /**
  * save image as 3D
  * */
-private void saveImageAs3D(String savePath, ImagePlus imp, Visualizer3D v3D, boolean transparent, boolean useLight, boolean autoAlpha){
+private void saveImageAs3D(String savePath, ImagePlus imp, boolean transparent, boolean useLight, boolean autoAlpha){
 	ImagePlus impOut = imp.duplicate();
 	
 	impOut.setDisplayMode(IJ.COMPOSITE);
@@ -3392,78 +3413,94 @@ private void saveImageAs3D(String savePath, ImagePlus imp, Visualizer3D v3D, boo
 		ImagePlus impCal, imp3D;	
 		int width = 10;
 		int height = 10;
-		
-		if(useLight){
-			v3D.useLight(true);
-			if(transparent){
-				v3D.setObjectLightValue(1.8f);
-				v3D.setLightPosX(0.0f);
+		Visualizer3D v3D;		
+		try {
+			v3D = new Visualizer3D(imp, 3.0f);
+			v3D.setAngle(10.0f, -10.0f, 0.0f);
+			
+			if(useLight){
+				v3D.useLight(true);
+				if(transparent){
+					v3D.setObjectLightValue(1.8f);
+					v3D.setLightPosX(0.0f);
+				}else{
+					v3D.setObjectLightValue(1.8f);
+					v3D.setLightPosX(-0.25f);		
+				}			
 			}else{
-				v3D.setObjectLightValue(1.8f);
-				v3D.setLightPosX(-0.25f);		
-			}			
-		}else{
-			v3D.useLight(false);
-		}
-		
-		if(transparent){
-			v3D.setAlphaOffset1(-45);
-		}else{
-			v3D.setAlphaOffset1(0);			
-		}
-		
-		ImageStack stackOut = new ImageStack(10,10);	//Random values for initialization because initialized later	
-		
-		TextRoi txtR;
-		Color txtc;
-		for(int i = 0; i < impOut.getNFrames(); i++){
-			impCal = getTimePointFor3D(impOut, i+1);
-			double calBarLength = addContainedScalerBarAndGetBarValue(impCal);
-			convertToRGB(impCal);
-			if(impOut.getOverlay()!=null){
-//				impCal.setSlice(impCal.getNSlices());
-				impCal.setSlice(1);
-				for(int j = 0; j < impOut.getOverlay().size(); j++){
-					txtR = (TextRoi) impOut.getOverlay().get(j);
-					txtc = txtR.getStrokeColor();
-					txtR.setStrokeColor(Color.GREEN);
-					if(txtc.equals(Color.YELLOW)){
-						txtR.setStrokeColor(Color.WHITE);
-					}
-					impCal.getProcessor().drawRoi(txtR);
-					txtR.setStrokeColor(txtc);
-				}	
-			}		
-			
-//			if(impCal == null) impCal = particleImp.duplicate();
-			
-			v3D.setImage(impCal);
-			imp3D = v3D.get3DVisualization(autoAlpha);
-			
-			writeBarText(imp3D, calBarLength, imp.getCalibration().getUnit(), 
-					impOut.getNFrames()!=1, ((double)i*imp.getCalibration().frameInterval), imp.getCalibration().getTimeUnit());
-						
-			impCal.changes = false;
-			impCal.close();
-			
-			if(i == 0){
-				width = imp3D.getWidth();
-				height = imp3D.getHeight();
-				stackOut = new ImageStack(imp3D.getWidth(),imp3D.getHeight());
+				v3D.useLight(false);
 			}
-			stackOut.addSlice(imp3D.getProcessor());
+			
+			if(transparent){
+				v3D.setAlphaOffset1(-45);
+			}else{
+				v3D.setAlphaOffset1(0);			
+			}
+			
+			ImageStack stackOut = new ImageStack(10,10);	//Random values for initialization because initialized later	
+			
+			TextRoi txtR;
+			Color txtc;
+			for(int i = 0; i < impOut.getNFrames(); i++){
+				impCal = getTimePointFor3D(impOut, i+1);
+				double calBarLength = addContainedScalerBarAndGetBarValue(impCal);
+				convertToRGB(impCal);
+				if(impOut.getOverlay()!=null){
+	//				impCal.setSlice(impCal.getNSlices());
+					impCal.setSlice(1);
+					for(int j = 0; j < impOut.getOverlay().size(); j++){
+						txtR = (TextRoi) impOut.getOverlay().get(j);
+						txtc = txtR.getStrokeColor();
+						txtR.setStrokeColor(Color.GREEN);
+						if(txtc.equals(Color.YELLOW)){
+							txtR.setStrokeColor(Color.WHITE);
+						}
+						impCal.getProcessor().drawRoi(txtR);
+						txtR.setStrokeColor(txtc);
+					}	
+				}		
+				
+	//			if(impCal == null) impCal = particleImp.duplicate();
+				
+				v3D.setImage(impCal);
+				imp3D = v3D.get3DVisualization(autoAlpha);
+				
+				writeBarText(imp3D, calBarLength, imp.getCalibration().getUnit(), 
+						impOut.getNFrames()!=1, ((double)i*imp.getCalibration().frameInterval), imp.getCalibration().getTimeUnit());
+							
+				impCal.changes = false;
+				impCal.close();
+				
+				if(i == 0){
+					width = imp3D.getWidth();
+					height = imp3D.getHeight();
+					stackOut = new ImageStack(imp3D.getWidth(),imp3D.getHeight());
+				}
+				stackOut.addSlice(imp3D.getProcessor());
+				
+				imp3D.changes = false;
+				imp3D.close();
+			}
+			
+			imp3D = IJ.createImage("3D", width, height, impOut.getNFrames(), 24);
+			imp3D.setStack(stackOut); 
+			IJ.saveAsTiff(imp3D, savePath + "_3D.tif");
 			
 			imp3D.changes = false;
 			imp3D.close();
+		
+		}catch(Exception e){
+			String out = "";
+			for(int err = 0; err < e.getStackTrace().length; err++){
+				out += " \n " + e.getStackTrace()[err].toString();
+			}
+			
+			progress.notifyMessage("Image: " + savePath.substring(savePath.lastIndexOf(System.getProperty("file.separator"))) 
+				+ "_3D.tif: Producing 3D image image failed - error message: \n"
+				+ "" + out,ProgressDialog.ERROR);
 		}
-		
-		imp3D = IJ.createImage("3D", width, height, impOut.getNFrames(), 24);
-		imp3D.setStack(stackOut); 
-		IJ.saveAsTiff(imp3D, savePath + "_3D.tif");
-		
-		imp3D.changes = false;
-		imp3D.close();
-
+		v3D = null;
+		System.gc();		
 		impOut.changes = false;
 		impOut.close();
 	}	

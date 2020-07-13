@@ -27,7 +27,7 @@
 package ciliaQ_jnh;
 
 import java.awt.Color;
-
+import javax.swing.UIManager;
 import ij.ImagePlus;
 import ciliaQ_jnh.volumeViewer3D.Volume_Viewer;
 
@@ -70,6 +70,10 @@ public class Visualizer3D{
 	 * */
 	public Visualizer3D(ImagePlus imp, float scale){
 		this.imp = imp;
+		try  
+		  { UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName()); }
+		catch (Exception e)
+		  { e.printStackTrace(); }
 		setScale(scale);
 	}
 	
