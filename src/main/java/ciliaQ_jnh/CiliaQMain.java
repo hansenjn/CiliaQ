@@ -1,10 +1,10 @@
 package ciliaQ_jnh;
 /** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.1.2
+ * CiliaQ, a plugin for imagej - Version 0.1.3
  * 
  * Copyright (C) 2017-2020 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: July 13, 2020
+ * This Version: July 20, 2020
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -43,7 +43,7 @@ import ij.text.*;
 public class CiliaQMain implements PlugIn, Measurements {
 	//Name variables
 	static final String PLUGINNAME = "CiliaQ";
-	static final String PLUGINVERSION = "0.1.2";
+	static final String PLUGINVERSION = "0.1.3";
 	
 	//Fix fonts
 	static final Font SuperHeadingFont = new Font("Sansserif", Font.BOLD, 16);
@@ -3326,7 +3326,8 @@ private void saveSkeletonOverviewImageNonTimeLapse(String savePath, ImagePlus im
 		try {
 			ImagePlus imp3D;	
 			progress.updateBarText("Producing 3D NTL skeleton overview image...launch 3Dvis");
-			v3D = new Visualizer3D(imp, 3.0f);
+			v3D = new Visualizer3D(impOut, 3.0f);
+			v3D.setImage(impOut);
 			v3D.setAngle(10.0f, -10.0f, 0.0f);
 			v3D.setObjectLightValue(1.2f);
 			v3D.setLightPosX(-0.25f);
