@@ -3,5 +3,6 @@ An ImageJ plugin to quantify ciliary shape, length, and fluorescence in 2D, 3D, 
 
 Copyright (C) 2017-2020: Jan N. Hansen. CiliaQ has been developed in the research group Biophysical Imaging, Institute of Innate Immunity, Bonn, Germany (http://www.iii.uni-bonn.de/en/wachten_lab/).
 
-How to use and cite CiliaQ? Please contact jan.hansen(at)uni-bonn.de.
+## How to use and cite CiliaQ?
+We are currently writing a manuscript about CiliaQ, which will be submitted soon. We will also provide a detailed manual for CiliaQ soon in this repository. For use prior to publication and requesting the latest manual draft, please write to jan.hansen(at)uni-bonn.de.
 
