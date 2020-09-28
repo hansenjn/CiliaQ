@@ -21,7 +21,7 @@ Some CiliaQ plugins include packages developed by others, for which different li
 Some functions of CiliaQ Preparator (Hysteresis thresholding, Canny3D) require additional installation of the ['3D ImageJ Suite'](https://imagejdocu.tudor.lu/plugin/stacks/3d_ij_suite/start) to your ImageJ / FIJI distribution. The '3D ImageJ Suite' is licensed via a GPL - for license details visit the main page of the ['3D ImageJ Suite'](https://imagejdocu.tudor.lu/plugin/stacks/3d_ij_suite/start).
 
 ## How to cite?
-When using software from this toolbox, please cite:
+When using any of the CiliaQ plugins, please cite:
 
 Jan N. Hansen, Sebastian Rassmann, Birthe Stueven, Nathalie Jurisch-Yaksi, Dagmar Wachten. CiliaQ - a simple, open-source software for automated quantification of ciliary morphology and fluorescence in 2D, 3D, and 4D images. (**The preprint will soon be available, revisit this page in the next days to get the doi and a link to the manuscript**)
 
