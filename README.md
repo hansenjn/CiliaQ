@@ -51,7 +51,7 @@ Performing the analysis pipeline requires the installation of
 - Some functions (Hysteresis thresholding, Canny3D) in CiliaQ_Preparator require additional installation of the ['3D ImageJ Suite'](https://imagejdocu.tudor.lu/plugin/stacks/3d_ij_suite/start) to your FIJI / ImageJ distribution. To install the 3D ImageJ Suite, download the [core libary](https://imagejdocu.tudor.lu/_media/plugin/stacks/3d_ij_suite/mcib3d-core-3.96.jar) and the [plugin](https://imagejdocu.tudor.lu/_media/plugin/stacks/3d_ij_suite/mcib3d_plugins-3.96.jar) from 3D ImageJ Suite's download section and install them to your FIJI / ImageJ by drag and drop into the FIJI / ImageJ window.
 
 ### User Guide / Manual
-A User Guide for the whole CiliaQ pipeline is available (PDF WILL BE AVAILABLE SOON HERE - revisit this page in the next days to get the User Guide).
+A User Guide for the whole CiliaQ pipeline is available [here](https://github.com/hansenjn/CiliaQ/blob/master/Webfiles/20200928_CiliaQ_SOP.pdf).
 
 ### Source code
 The source code for the individual ImageJ plugins and java tools is available at the respective repositories:
