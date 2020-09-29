@@ -53,6 +53,8 @@ Performing the analysis pipeline requires the installation of
 ### User Guide / Manual
 A User Guide for the whole CiliaQ pipeline is available [here](https://github.com/hansenjn/CiliaQ/blob/master/Webfiles/20200928_CiliaQ_SOP.pdf).
 
+You want to be always up-to-date about CiliaQ and get news on CiliaQ (new features, updates, etc.)? Send an email with "Subscribe CiliaQ" to jan.hansen (at) uni-bonn.de or follow this repository on GitHub.
+
 ### Source code
 The source code for the individual ImageJ plugins and java tools is available at the respective repositories:
 - [CiliaQ_Preparator](https://github.com/hansenjn/CiliaQ_Preparator)
