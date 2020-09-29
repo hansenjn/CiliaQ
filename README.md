@@ -1,9 +1,7 @@
 # ![CiliaQ](https://github.com/hansenjn/CiliaQ/blob/master/Webfiles/20200618%20CiliaQ%20Logo%20Small.png?raw=true)
 An set of three ImageJ plugins to quantify ciliary shape, length, and fluorescence in 2D, 3D, and 4D images. The ImageJ plugins are published along:
 
-Jan N. Hansen, Sebastian Rassmann, Birthe Stueven, Nathalie Jurisch-Yaksi, Dagmar Wachten. CiliaQ - a simple, open-source software for automated quantification of ciliary morphology and fluorescence in 2D, 3D, and 4D images. 
-
-**NOTE: We have just submitted the manuscript - it will soon be available on a preprint server. Revisit this page in the next days to get the link to the manuscript.**
+Jan N. Hansen, Sebastian Rassmann, Birthe Stueven, Nathalie Jurisch-Yaksi, Dagmar Wachten. CiliaQ - a simple, open-source software for automated quantification of ciliary morphology and fluorescence in 2D, 3D, and 4D images. bioRxiv 2020.09.28.317065; doi: https://doi.org/10.1101/2020.09.28.317065 
 
 ## Included tools (ImageJ plugins)
 - **CiliaQ_Preparator**: An ImageJ plugin to preprocess and segment images for CiliaQ analysis.
@@ -23,7 +21,7 @@ Some functions of CiliaQ Preparator (Hysteresis thresholding, Canny3D) require a
 ## How to cite?
 When using any of the CiliaQ plugins, please cite:
 
-Jan N. Hansen, Sebastian Rassmann, Birthe Stueven, Nathalie Jurisch-Yaksi, Dagmar Wachten. CiliaQ - a simple, open-source software for automated quantification of ciliary morphology and fluorescence in 2D, 3D, and 4D images. (**The preprint will soon be available, revisit this page in the next days to get the doi and a link to the manuscript**)
+Jan N. Hansen, Sebastian Rassmann, Birthe Stueven, Nathalie Jurisch-Yaksi, Dagmar Wachten. CiliaQ - a simple, open-source software for automated quantification of ciliary morphology and fluorescence in 2D, 3D, and 4D images. bioRxiv 2020.09.28.317065; doi: https://doi.org/10.1101/2020.09.28.317065 
 
 ## Copyright notice and contacts
 Copyright (C) 2017-2020: Jan N. Hansen. 
