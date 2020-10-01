@@ -71,3 +71,6 @@ The source code for the individual ImageJ plugins and java tools is available at
 - [CiliaQ_Preparator](https://github.com/hansenjn/CiliaQ_Preparator)
 - [CiliaQ_Editor](https://github.com/hansenjn/CiliaQ_Editor)
 - [CiliaQ](https://github.com/hansenjn/CiliaQ)
+
+## Publications presenting an analysis based on CiliaQ
+- Hansen, J.N., Kaiser, F. et al. **2020**. Nanobody-directed targeting of optogenetic tools to study signaling in the primary cilium. *eLife* 9:e57907. https://doi.org/10.7554/eLife.57907
