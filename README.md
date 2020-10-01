@@ -40,7 +40,7 @@ Contacts:
 ImageJ/FIJI does not require any specific hardware and can also run on low-performing computers. However, a RAM is required that allows to load one image sequence that you aim to analyze into your RAM at least twice. ImageJ does not require any specific graphics card. The speed of the analysis depends mainly on the processor speed. Only the generation of 3D visualizations, an optional function of CiliaQ, will use the graphics card of the computer.
 
 #### Operating system
-The ImageJ plugins were developed and tested on Windows 8.1 and macOS Catalina (version 10.15.6). ImageJ is also available for Linux operating systems, where the ImageJ plugins and Java software in theory can be equally run.
+The ImageJ plugins were developed and tested on Windows 8.1, Windows 10, and macOS Catalina (version 10.15.6). ImageJ is also available for Linux operating systems, where the ImageJ plugins and Java software in theory can be equally run.
 
 #### Software requirements
 Performing the analysis pipeline requires the installation of
