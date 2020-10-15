@@ -1,5 +1,5 @@
 # ![CiliaQ](https://github.com/hansenjn/CiliaQ/blob/master/Webfiles/20200618%20CiliaQ%20Logo%20Small.png?raw=true)
-An set of three ImageJ plugins to quantify ciliary shape, length, and fluorescence in 2D, 3D, and 4D images. Scroll down for information on how to [use](https://github.com/hansenjn/CiliaQ#using-ciliaq), [cite](https://github.com/hansenjn/CiliaQ#how-to-cite), [report ideas, issues, improve](https://github.com/hansenjn/CiliaQ#ideas-missing-functions-issues-bugs-unclear-in-the-user-guide) CiliaQ. The ImageJ plugins are published along:
+An set of three ImageJ plugins to quantify ciliary shape, length, and fluorescence in 2D, 3D, and 4D images. Scroll down for information on how to [use](https://github.com/hansenjn/CiliaQ#using-ciliaq), [cite](https://github.com/hansenjn/CiliaQ#how-to-cite), [report ideas, issues, improve](https://github.com/hansenjn/CiliaQ#ideas-missing-functions-issues-bugs-unclear-in-the-user-guide) CiliaQ. Visit our [CiliaQ wiki](https://github.com/hansenjn/CiliaQ/wiki/Home/) where we provide a Q&A section. The ImageJ plugins are published along:
 
 Jan N. Hansen, Sebastian Rassmann, Birthe Stueven, Nathalie Jurisch-Yaksi, Dagmar Wachten. CiliaQ - a simple, open-source software for automated quantification of ciliary morphology and fluorescence in 2D, 3D, and 4D images. bioRxiv 2020.09.28.317065; doi: https://doi.org/10.1101/2020.09.28.317065 
 
@@ -52,6 +52,8 @@ Performing the analysis pipeline requires the installation of
 
 ### User Guide / Manual
 A User Guide for the whole CiliaQ pipeline is available [here](https://github.com/hansenjn/CiliaQ/blob/master/Webfiles/20200928_CiliaQ_SOP.pdf).
+
+A Q&A repository in the [CiliaQ wiki](https://github.com/hansenjn/CiliaQ/wiki/Home/) lists answers to common questions.
 
 ### How to stay up-to-date?
 You want to be always up-to-date about CiliaQ and get news on CiliaQ (new features, updates, etc.)? Watch this repository on GitHub (see Watch button on upper right) or send an email with "Subscribe CiliaQ" to jan.hansen (at) uni-bonn.de.
