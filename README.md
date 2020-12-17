@@ -64,6 +64,7 @@ Is an explanation missing in the User Guide?
 Are you encountering problems with CiliaQ?
 
 Please let us know and report this by submitting an issue using the issue tracking systems for the github repositories or sending a message to jan.hansen (at) uni-bonn.de:
+- For asking questions or propsing ideas, e-mail to jan.hansen (at) uni-bonn.de or use our discussions page: [CiliaQ Discussion](https://github.com/hansenjn/CiliaQ/discussions)
 - For general issues, CiliaQ, and User Guide: [CiliaQ issue system](https://github.com/hansenjn/CiliaQ/issues)
 - For issues concerning CiliaQ_Preparator only: [CiliaQ_Preparator issue system](https://github.com/hansenjn/CiliaQ_Preparator/issues)
 - For issues concerning CiliaQ_Editor only: [CiliaQ_Editor issue system](https://github.com/hansenjn/CiliaQ_Editor/issues)
