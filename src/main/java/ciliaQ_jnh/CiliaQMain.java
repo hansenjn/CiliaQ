@@ -306,10 +306,10 @@ public void run(String arg) {
 		   			imp = IJ.openImage(""+dir[task]+name[task]+"");			   			
 					imp.deleteRoi();
 		   		}else if(selectedTaskVariant.equals(taskVariant[0])){
-		   			imp = WindowManager.getCurrentImage();
+		   			imp = WindowManager.getCurrentImage().duplicate();
 		   			imp.deleteRoi();
 		   		}else{
-		   			imp = allImps[task];
+		   			imp = allImps[task].duplicate();
 		   			imp.deleteRoi();
 		   		}
 		   	}catch (Exception e) {
@@ -2368,8 +2368,11 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			saveImageAs3D(filePrefix + "_RP", reduceToMaskChannel(imp, channelReconstruction), false, true, false);
 		}		
 	}	
-	imp.changes = false;
-	imp.close();
+	
+	if(selectedTaskVariant.equals(taskVariant[1])) {
+		imp.changes = false;
+		imp.close();
+	}
 	progress.setBar(0.95);
 }
 
@@ -2712,8 +2715,10 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 					false, true, false);
 		}
 	}
-	imp.changes = false;
-	imp.close();
+	if(selectedTaskVariant.equals(taskVariant[1])) {
+		imp.changes = false;
+		imp.close();
+	}
 	progress.setBar(0.95);
 	System.gc();
 }
@@ -3751,7 +3756,7 @@ private boolean enterSettings() {
 	}
 
 	/**
-	 * Import settings from existing file
+	 * Import settings from existing "...CQ.txt" file
 	 */
 	private boolean importSettings() {
 		java.awt.FileDialog fd = new java.awt.FileDialog((Frame) null, "Select '..._CQ.txt' file to load settings!");
