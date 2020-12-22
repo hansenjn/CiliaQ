@@ -96,7 +96,7 @@ class Cilium{
 		SDC3Intensity = 0.0;
 	
 	//Skeleton-related parameters
-	double [][] skeletonPoints;
+//	double [][] skeletonPoints;
 	int foundSkl = 0,
 		branches = 0;
 	double treeLength = 0.0,
