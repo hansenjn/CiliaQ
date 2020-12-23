@@ -4140,10 +4140,14 @@ private boolean enterSettings() {
 							if(!Double.isNaN(tangents[p][2])) addStr += dformat6.format(tangents [p][2]);	// Tangent Z
 							addStr += "	";
 							if(!Double.isNaN(curvatures[p])) addStr += dformat6.format(curvatures [p]);	//Curvature
-							addStr += "	" + dformat6.format(cilia.get(cil).profileC2[p]);	//Intensity A
-							addStr += "	" + dformat6.format(cilia.get(cil).profileC3[p]);	//Intensity B
-							addStr += "	" + dformat6.format(cilia.get(cil).profileC2norm[p]);	//Intensity A Norm
-							addStr += "	" + dformat6.format(cilia.get(cil).profileC3norm[p]);	//Intensity B Norm
+							addStr += "	";
+							if(measureC2) addStr += dformat6.format(cilia.get(cil).profileC2[p]);	//Intensity A
+							addStr += "	";
+							if(measureC3) addStr += dformat6.format(cilia.get(cil).profileC3[p]);	//Intensity B
+							addStr += "	";
+							if(measureC2) addStr += dformat6.format(cilia.get(cil).profileC2norm[p]);	//Intensity A Norm
+							addStr += "	";
+							if(measureC3) addStr += dformat6.format(cilia.get(cil).profileC3norm[p]);	//Intensity B Norm
 							tp.append(addStr);
 						}
 					}
@@ -4235,10 +4239,14 @@ private boolean enterSettings() {
 						if(!Double.isNaN(tangents[p][2])) addStr += dformat6.format(tangents [p][2]);	// Tangent Z
 						addStr += "	";
 						if(!Double.isNaN(curvatures[p])) addStr += dformat6.format(curvatures [p]);	//Curvature
-						addStr += "	" + dformat6.format(cilia.get(cil).profileC2[p]);	//Intensity A
-						addStr += "	" + dformat6.format(cilia.get(cil).profileC3[p]);	//Intensity B
-						addStr += "	" + dformat6.format(cilia.get(cil).profileC2norm[p]);	//Intensity A Norm
-						addStr += "	" + dformat6.format(cilia.get(cil).profileC3norm[p]);	//Intensity B Norm
+						addStr += "	";
+						if(measureC2) addStr += dformat6.format(cilia.get(cil).profileC2[p]);	//Intensity A
+						addStr += "	";
+						if(measureC3) addStr += dformat6.format(cilia.get(cil).profileC3[p]);	//Intensity B
+						addStr += "	";
+						if(measureC2) addStr += dformat6.format(cilia.get(cil).profileC2norm[p]);	//Intensity A Norm
+						addStr += "	";
+						if(measureC3) addStr += dformat6.format(cilia.get(cil).profileC3norm[p]);	//Intensity B Norm
 						tp.append(addStr);
 						
 					}
