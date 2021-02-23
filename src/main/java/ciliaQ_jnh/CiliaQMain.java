@@ -2014,8 +2014,6 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 					txtID.setStrokeColor(Color.WHITE);
 				}
 				imp.getOverlay().add(txtID);
-				
-				progress.updateBarText("filter plaques... (" + (i+1) + "/" + cilia.size() + ")");
 			}else{
 				//write ID into image
 				txtID = new TextRoi((int)Math.round(cilia.get(i).xC/imp.getCalibration().pixelWidth), 
