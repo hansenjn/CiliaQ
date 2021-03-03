@@ -49,3 +49,6 @@ target/*
 
 # Mac related
 .DS_Store
+
+# R
+.Rhistory

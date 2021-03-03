@@ -1,0 +1,26 @@
+Starting date:	2021-03-03	21:13:13
+Image name:	MEF_SAG-treated_Example.tif
+Preparation settings:
+	Segmentation style:	Keep intensities above threshold (creates a background-removed image)
+	Segmented channel 1
+		Channel Nr:	3
+		Channel duplicated to include a copy of the channel that is not segmented.
+
+
+
+		Segmentation method:	applying intensity threshold based on the Triangle threshold algorithm.
+		Stack processing:	apply threshold determined in a maximum-intensity-projection
+
+
+
+Threshold(s) for channel 3
+	All timesteps:	400.000
+Channels in output image:
+Channel 1:	previous channel 1
+Channel 2:	previous channel 2
+Channel 3:	previous channel 3 (segmented)
+Channel 4:	previous channel 3
+
+Datafile was generated on 2021-03-03 21:13:13 by 'CiliaQ Preparator', an ImageJ plug-in by Jan Niklas Hansen (jan.hansen@uni-bonn.de, https://github.com/hansenjn/CiliaQ_Preparator).
+The plug-in 'CiliaQ Preparator' is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+Plug-in version:	V0.1.1

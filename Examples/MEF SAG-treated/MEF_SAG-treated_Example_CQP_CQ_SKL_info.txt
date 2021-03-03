@@ -1,0 +1,10 @@
+Channel information for skeleton results image - analysis of:	MEF_SAG-treated_Example_CQP.tif
+Saving date:	2021-03-03	21:15:20	Starting date:	2021-03-03	21:15:15
+
+Results image:	/MEF_SAG-treated_Example_CQP_CQ_SKL_Skl.tif
+	channel 1:	red	ciliary skeleton
+	channel 2:	white	detected base
+
+Datafile was generated on 2021-03-03 21:15:20 by the imagej plug-in 'CiliaQ', © 2017 - 2021 Jan Niklas Hansen (jan.hansen@uni-bonn.de).
+The plug-in 'CiliaQ' is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+Plug-in version:	V0.1.4
