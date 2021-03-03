@@ -1,4 +1,4 @@
-# ![CiliaQ](https://github.com/hansenjn/CiliaQ/blob/master/Webfiles/20200618%20CiliaQ%20Logo%20Small.png?raw=true) [Examples](https://github.com/hansenjn/CiliaQ/Examples)
+# ![CiliaQ](https://github.com/hansenjn/CiliaQ/blob/master/Webfiles/20200618%20CiliaQ%20Logo%20Small.png?raw=true) [Examples](https://github.com/hansenjn/CiliaQ/tree/master/Examples)
 To test and try CiliaQ, we here provide images from the data-sets presented in the [CiliaQ publication](https://doi.org/10.1101/2020.09.28.317065).
 
 ## Example: Confocal microscopy image of cultured cells
