@@ -283,6 +283,15 @@ public class ProgressDialog extends javax.swing.JFrame implements ActionListener
 		bgPanel.updateUI();
 	}
 	
+	public void notifyMessageWithTaskNr(String message, int type){
+		if(dataRight == null) {
+			notifyMessage("Task 1: " + message,type);
+		}else {
+			notifyMessage("Task " + (dataRight.length) + ": " + message,type);			
+		}
+	}
+	
+	
 	public void addToBar(double addFractionOfTask){
 		taskFraction += addFractionOfTask;
 		if(taskFraction >= 1.0){

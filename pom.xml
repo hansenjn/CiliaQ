@@ -11,7 +11,7 @@
  
  	<artifactId>CiliaQ_</artifactId>
  	<groupId>JNH</groupId>
-    <version>0.1.4-SNAPSHOT</version>
+    <version>0.1.5-SNAPSHOT</version>
     <name>CiliaQ</name>
     <description>A plugin to analyze cilia in 3D and 4D images.</description>
  

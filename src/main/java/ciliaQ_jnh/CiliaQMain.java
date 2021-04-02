@@ -1,6 +1,6 @@
 package ciliaQ_jnh;
 /** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.1.4
+ * CiliaQ, a plugin for imagej - Version 0.1.5
  * 
  * Copyright (C) 2017-2020 Jan Niklas Hansen
  * First version: June 30, 2017  
@@ -44,7 +44,7 @@ import ij.text.*;
 public class CiliaQMain implements PlugIn, Measurements {
 	//Name variables
 	static final String PLUGINNAME = "CiliaQ";
-	static final String PLUGINVERSION = "0.1.4";
+	static final String PLUGINVERSION = "0.1.5";
 	
 	//Fix fonts
 	static final Font SuperHeadingFont = new Font("Sansserif", Font.BOLD, 16);
@@ -1236,6 +1236,14 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 		}		
 	}
 	
+	if(nrOfPoints == imp.getNSlices()*imp.getNFrames()*imp.getWidth()*imp.getHeight()) {
+		progress.notifyMessageWithTaskNr("ERROR - The channel set for reconstruction is not segmented - make sure to set the correct channel nr for reconstruction in the preferences!", ProgressDialog.ERROR);
+		return new ArrayList<ArrayList<CellPoint>>(0);
+	}else if(nrOfPoints == 0) {
+		progress.notifyMessageWithTaskNr("ERROR - The channel for reconstruction is empty - no cilia found!", ProgressDialog.ERROR);
+		return new ArrayList<ArrayList<CellPoint>>(0);
+	}
+		
 	ArrayList<ArrayList<CellPoint>> particles = new ArrayList<ArrayList<CellPoint>>((int)Math.round((double)nrOfPoints/(double)minSize));
 	
 	int pc100 = nrOfPoints/100; if (pc100==0){pc100 = 1;}
@@ -1942,6 +1950,9 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	{
 		//Retrieving ciliary objects from the image
 		ArrayList<ArrayList<CellPoint>> ciliaParticles = getCiliaObjectsTimelapse(imp, channelReconstruction, increaseRangeCilia);	//Method changed on 23.04.2019
+		if(ciliaParticles.size() == 0) {
+			return;
+		}
 		System.gc();
 		progress.updateBarText("Structure reconstruction completed.");
 		//TODO implement method to move on if no cells detected
@@ -2401,6 +2412,9 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	{
 		//Retrieving ciliary objects from the image
 		ArrayList<ArrayList<CellPoint>> ciliaParticles = getCiliaObjectsTimelapse(imp, channelReconstruction, increaseRangeCilia);	//Method changed on 23.04.2019
+		if(ciliaParticles.size() == 0) {
+			return;
+		}
 		System.gc();
 		
 		progress.updateBarText("Cilia reconstruction completed.");
