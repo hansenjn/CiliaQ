@@ -10,6 +10,9 @@ Jan N. Hansen, Sebastian Rassmann, Birthe Stueven, Nathalie Jurisch-Yaksi, Dagma
 - **CiliaQ_Editor**: An ImageJ plugin to edit the segmented channel in images output by CiliaQ_Preparator before analysis with CiliaQ.
 - **CiliaQ**: An ImageJ plugin to quantify the ciliary shape, length, and fluorescence in images that were pre-processed with CiliaQ_Preparator (and eventually edited with CiliaQ_Editor).
 
+## Tools for post-hoc analysis of the output data
+See our [R scripts](https://github.com/hansenjn/CiliaQ/tree/master/R%20Scripts) provided for combining results produced with CiliaQ.
+
 ## Licenses
 The three CiliaQ plugins are published under the [GNU General Public License v3.0](https://github.com/hansenjn/CiliaQ/blob/master/LICENSE).
 
