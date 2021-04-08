@@ -19,7 +19,7 @@ When using any of the CiliaQ plugins, please cite:
 Jan N. Hansen, Sebastian Rassmann, Birthe Stueven, Nathalie Jurisch-Yaksi, Dagmar Wachten. CiliaQ: a simple, open-source software for automated quantification of ciliary morphology and fluorescence in 2D, 3D, and 4D images. Eur. Phys. J. E 44, 18 (2021). https://doi.org/10.1140/epje/s10189-021-00031-y
 
 ## Copyright notice and contacts
-Copyright (C) 2017-2020: Jan N. Hansen. 
+Copyright (C) 2017-2021: Jan N. Hansen. 
 
 CiliaQ has been developed in the research group Biophysical Imaging, Institute of Innate Immunity, Bonn, Germany (http://www.iii.uni-bonn.de/en/wachten_lab/).
 
