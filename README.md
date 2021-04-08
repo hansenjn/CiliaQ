@@ -13,16 +13,6 @@ Jan N. Hansen, Sebastian Rassmann, Birthe Stueven, Nathalie Jurisch-Yaksi, Dagma
 ## Tools for post-hoc analysis of the output data
 See our [R scripts](https://github.com/hansenjn/CiliaQ/tree/master/R%20Scripts) for combining results produced with CiliaQ.
 
-## Licenses
-The three CiliaQ plugins are published under the [GNU General Public License v3.0](https://github.com/hansenjn/CiliaQ/blob/master/LICENSE).
-
-Some CiliaQ plugins include packages developed by others, for which different licenses may apply:
-- The packages [ciliaQ_skeleton_analysis](https://github.com/hansenjn/CiliaQ/tree/master/src/main/java/ciliaQ_skeleton_analysis) and [ciliaQ_skeletonize3D](https://github.com/hansenjn/CiliaQ/tree/master/src/main/java/ciliaQ_skeletonize3D) in CiliaQ have been derived from the plugins AnalyzeSkeleton_ and Skeletonize3D_, respectively (Both: GNU General Public License, http://www.gnu.org/licenses/gpl.txt, author: Ignacio Arganda-Carreras).
-- The package [ciliaQ_jnh.volumeViewer3D ](https://github.com/hansenjn/CiliaQ/tree/master/src/main/java/ciliaQ_jnh/volumeViewer3D) in CiliaQ represents a customised version of the code from Volume Viewer 2.0 (author: Kai Uwe Barthel, date: 01.12.2012). Customised variants of the code are marked by additional comments. The original code was retrieved from https://github.com/fiji/Volume_Viewer, which is published under the license "Public Domain" in the software project FIJI.
-- The package [ciliaQ_Prep_jnh.canny3d-thresholder](https://github.com/hansenjn/CiliaQ_Preparator/tree/master/src/main/java/ciliaQ_Prep_jnh/canny3d_thresholder) in CiliaQ Preparator represents a customized version of the canny3d-thresholder (GNU General Public License v3.0, author: Sebastian Rassmann, GitHub repository: https://github.com/sRassmann/canny3d-thresholder).
-
-Some functions of CiliaQ Preparator (Hysteresis thresholding, Canny3D) require additional installation of the ['3D ImageJ Suite'](https://imagejdocu.tudor.lu/plugin/stacks/3d_ij_suite/start) to your ImageJ / FIJI distribution. The '3D ImageJ Suite' is licensed via a GPL - for license details visit the main page of the ['3D ImageJ Suite'](https://imagejdocu.tudor.lu/plugin/stacks/3d_ij_suite/start).
-
 ## How to cite?
 When using any of the CiliaQ plugins, please cite:
 
@@ -38,6 +28,16 @@ The project was mainly funded by the [DFG priority program SPP 1726 "Microswimme
 Contacts: 
 - jan.hansen (at) uni-bonn.de
 - dwachten (at) uni-bonn.de
+
+## Licenses
+The three CiliaQ plugins are published under the [GNU General Public License v3.0](https://github.com/hansenjn/CiliaQ/blob/master/LICENSE).
+
+Some CiliaQ plugins include packages developed by others, for which different licenses may apply:
+- The packages [ciliaQ_skeleton_analysis](https://github.com/hansenjn/CiliaQ/tree/master/src/main/java/ciliaQ_skeleton_analysis) and [ciliaQ_skeletonize3D](https://github.com/hansenjn/CiliaQ/tree/master/src/main/java/ciliaQ_skeletonize3D) in CiliaQ have been derived from the plugins AnalyzeSkeleton_ and Skeletonize3D_, respectively (Both: GNU General Public License, http://www.gnu.org/licenses/gpl.txt, author: Ignacio Arganda-Carreras).
+- The package [ciliaQ_jnh.volumeViewer3D ](https://github.com/hansenjn/CiliaQ/tree/master/src/main/java/ciliaQ_jnh/volumeViewer3D) in CiliaQ represents a customised version of the code from Volume Viewer 2.0 (author: Kai Uwe Barthel, date: 01.12.2012). Customised variants of the code are marked by additional comments. The original code was retrieved from https://github.com/fiji/Volume_Viewer, which is published under the license "Public Domain" in the software project FIJI.
+- The package [ciliaQ_Prep_jnh.canny3d-thresholder](https://github.com/hansenjn/CiliaQ_Preparator/tree/master/src/main/java/ciliaQ_Prep_jnh/canny3d_thresholder) in CiliaQ Preparator represents a customized version of the canny3d-thresholder (GNU General Public License v3.0, author: Sebastian Rassmann, GitHub repository: https://github.com/sRassmann/canny3d-thresholder).
+
+Some functions of CiliaQ Preparator (Hysteresis thresholding, Canny3D) require additional installation of the ['3D ImageJ Suite'](https://imagejdocu.tudor.lu/plugin/stacks/3d_ij_suite/start) to your ImageJ / FIJI distribution. The '3D ImageJ Suite' is licensed via a GPL - for license details visit the main page of the ['3D ImageJ Suite'](https://imagejdocu.tudor.lu/plugin/stacks/3d_ij_suite/start).
 
 ## Using CiliaQ
 ### System requirements
