@@ -81,4 +81,5 @@ The source code for the individual ImageJ plugins and java tools is available at
 - [CiliaQ](https://github.com/hansenjn/CiliaQ)
 
 ## Publications presenting an analysis based on CiliaQ
-- Hansen, J.N., Kaiser, F. et al. **2020**. Nanobody-directed targeting of optogenetic tools to study signaling in the primary cilium. *eLife* 9:e57907. https://doi.org/10.7554/eLife.57907
+- Hansen, J.N., Kaiser, F., et al. **2020**. Nanobody-directed targeting of optogenetic tools to study signaling in the primary cilium. *eLife* 9:e57907. https://doi.org/10.7554/eLife.57907
+- Arveseth, C.D., Happ, J.T., et al. **2021**. Smoothened transduces hedgehog signals via activity-dependent sequestration of PKA catalytic subunits. *PLOS Biology* 19(4): e3001191. https://doi.org/10.1371/journal.pbio.3001191
