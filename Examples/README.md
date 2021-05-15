@@ -1,5 +1,5 @@
 # ![CiliaQ](https://github.com/hansenjn/CiliaQ/blob/master/Webfiles/20200618%20CiliaQ%20Logo%20Small.png?raw=true) Examples
-To test and try CiliaQ, we here provide images from the data-sets presented in the [CiliaQ publication](https://doi.org/10.1101/2020.09.28.317065):
+To test and try CiliaQ, we here provide images from the data-sets presented in the [CiliaQ publication](https://doi.org/10.1101/2020.09.28.317065) along with instructions on how we analyzed them:
 - [Analysis of a confocal 3D image stack showing Mouse Embryonic Fibroblasts stimulated with Smoothened agonist (SAG)](https://github.com/hansenjn/CiliaQ/tree/master/Examples/MEF%20SAG-treated).
 
 *More data sets will follow soon...*
