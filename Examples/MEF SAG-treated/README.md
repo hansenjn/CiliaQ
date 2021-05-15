@@ -117,6 +117,6 @@ As a concluding note: To find a good "minimum cilium size" size threshold, you m
 </p>
 
 ## Copyright, licenses, and more information
-(c) Hansen et al. (https://doi.org/10.1101/2020.09.28.317065) 
+(c) Hansen et al. (https://dx.doi.org/10.1140/epje/s10189-021-00031-y) 
 
 CiliaQ represents a set of three ImageJ plugins to quantify ciliary shape, length, and fluorescence in 2D, 3D, and 4D images. Visit [main page](https://github.com/hansenjn/CiliaQ) of the repository for more information, such as how to [use](https://github.com/hansenjn/CiliaQ#using-ciliaq), [cite](https://github.com/hansenjn/CiliaQ#how-to-cite), [report ideas, issues, improve](https://github.com/hansenjn/CiliaQ#ideas-missing-functions-issues-bugs-unclear-in-the-user-guide) CiliaQ. 
