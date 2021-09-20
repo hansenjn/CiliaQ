@@ -83,4 +83,5 @@ The source code for the individual ImageJ plugins and java tools is available at
 ## Publications presenting an analysis based on CiliaQ
 - Hansen, J.N., Kaiser, F., et al. **2020**. Nanobody-directed targeting of optogenetic tools to study signaling in the primary cilium. *eLife* 9:e57907. https://doi.org/10.7554/eLife.57907
 - Arveseth, C.D., Happ, J.T., et al. **2021**. Smoothened transduces hedgehog signals via activity-dependent sequestration of PKA catalytic subunits. *PLOS Biology* 19(4): e3001191. https://doi.org/10.1371/journal.pbio.3001191
-- Sun, J., Shin, D.Y., Eiseman, M. et al. **2021** SLITRK5 is a negative regulator of hedgehog signaling in osteoblasts. *Nat Commun* 12, 4611. https://doi.org/10.1038/s41467-021-24819-w
+- Sun, J., Shin, D.Y., Eiseman, M. et al. **2021**. SLITRK5 is a negative regulator of hedgehog signaling in osteoblasts. *Nat Commun* 12, 4611. https://doi.org/10.1038/s41467-021-24819-w
+- Ancel, J., Belgacemi, R., Diabasana, Z., et al. **2021**. Impaired Ciliary Beat Frequency and Ciliogenesis Alteration during Airway Epithelial Cell Differentiation in COPD. *Diagnostics* 11(9):1579. https://doi.org/10.3390/diagnostics11091579 
