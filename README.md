@@ -21,7 +21,7 @@ Jan N. Hansen, Sebastian Rassmann, Birthe Stueven, Nathalie Jurisch-Yaksi, Dagma
 ## Copyright notice and contacts
 Copyright (C) 2017-2021: Jan N. Hansen. 
 
-CiliaQ has been developed in the research group Biophysical Imaging, Institute of Innate Immunity, Bonn, Germany (http://www.iii.uni-bonn.de/en/wachten_lab/).
+CiliaQ has been developed in the research group Biophysical Imaging, Institute of Innate Immunity, Bonn, Germany (https://www.iiibonn.de/dagmar-wachten-lab/dagmar-wachten-lab-science).
 
 The project was mainly funded by the [DFG priority program SPP 1726 "Microswimmers"](https://www.fz-juelich.de/ibi/ibi-5//EN/Leistungen/SPP1726/_node.html).
 
