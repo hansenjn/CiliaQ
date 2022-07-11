@@ -37,7 +37,7 @@ Some CiliaQ plugins include packages developed by others, for which different li
 - The package [ciliaQ_jnh.volumeViewer3D ](https://github.com/hansenjn/CiliaQ/tree/master/src/main/java/ciliaQ_jnh/volumeViewer3D) in CiliaQ represents a customised version of the code from Volume Viewer 2.0 (author: Kai Uwe Barthel, date: 01.12.2012). Customised variants of the code are marked by additional comments. The original code was retrieved from https://github.com/fiji/Volume_Viewer, which is published under the license "Public Domain" in the software project FIJI.
 - The package [ciliaQ_Prep_jnh.canny3d-thresholder](https://github.com/hansenjn/CiliaQ_Preparator/tree/master/src/main/java/ciliaQ_Prep_jnh/canny3d_thresholder) in CiliaQ Preparator represents a customized version of the canny3d-thresholder (GNU General Public License v3.0, author: Sebastian Rassmann, GitHub repository: https://github.com/sRassmann/canny3d-thresholder).
 
-Some functions of CiliaQ Preparator (Hysteresis thresholding, Canny3D) require additional installation of the ['3D ImageJ Suite'](https://imagejdocu.tudor.lu/plugin/stacks/3d_ij_suite/start) to your ImageJ / FIJI distribution. The '3D ImageJ Suite' is licensed via a GPL - for license details visit the main page of the ['3D ImageJ Suite'](https://imagejdocu.tudor.lu/plugin/stacks/3d_ij_suite/start).
+Some functions of CiliaQ Preparator (Hysteresis thresholding, Canny3D) require additional installation of the "core" and "plugins" file from the ['3D ImageJ Suite'](https://mcib3d.frama.io/3d-suite-imagej/) to your ImageJ / FIJI distribution. The '3D ImageJ Suite' is licensed via a GPL - for license details visit the main page of the ['3D ImageJ Suite'](https://mcib3d.frama.io/3d-suite-imagej/).
 
 ## Using CiliaQ
 ### System requirements
@@ -57,6 +57,8 @@ Performing the analysis pipeline requires the installation of
 
 ### User Guide / Manual
 A User Guide for the whole CiliaQ pipeline is available [here](https://github.com/hansenjn/CiliaQ/blob/master/Webfiles/CiliaQ_SOP.pdf).
+
+**Important Note**: Since last update of the Manual the link to the 3D ImageJ suite has changed (the link in the current Manual is wrong). Please find the "core" and "plugins" file for the 3D suite now at: https://mcib3d.frama.io/3d-suite-imagej/
 
 A Q&A repository in the [CiliaQ wiki](https://github.com/hansenjn/CiliaQ/wiki/Home/) lists answers to common questions.
 
