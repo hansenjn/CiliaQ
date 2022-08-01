@@ -606,7 +606,7 @@ class Cilium{
 			list.get(i).x += (xMin - 2 - (int) Math.round(gXY*2.5));
 			list.get(i).y += (yMin - 2 - (int) Math.round(gXY*2.5));
 			if(zMax - zMin == 0) {
-				list.get(i).z += (zMin) * voxelDepth;		
+				list.get(i).z += (zMin);		
 			}else {
 				list.get(i).z += (zMin - 1 - (int) Math.round(gZ*2.5));
 			}
