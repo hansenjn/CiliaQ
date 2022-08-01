@@ -408,7 +408,6 @@ class Cilium{
 //							+ " - " + imp.getCalibration().pixelHeight + " - " + imp.getCalibration().pixelDepth, ProgressDialog.LOG);
 				}
 			}
-			System.gc();
 			
 			int [] sBranches = sklRes.getBranches();
 			double [] sAvBrL = sklRes.getAverageBranchLength();
@@ -467,7 +466,6 @@ class Cilium{
 			maxTenPercentC3Intensity = getMaxTenPercent(values);
 		}		
 		values = null;
-		System.gc();
 	}	
 	
 	
@@ -907,7 +905,6 @@ class Cilium{
 		Arrays.sort(array);
 		double maxTenPercent = getAverageOfRange(array,list.length-(int)Math.round(list.length/10.0), list.length-1);
 		array = null;
-		System.gc();
 		return maxTenPercent;
 	}
 	

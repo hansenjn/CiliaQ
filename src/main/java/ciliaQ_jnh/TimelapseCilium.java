@@ -246,8 +246,7 @@ class TimelapseCilium{
 					
 			kineticList.clear();
 			kineticList = null;
-		}		
-		System.gc();
+		}
 	}
 			
 	/**
@@ -307,7 +306,6 @@ class TimelapseCilium{
 		IJ.run(imp, "Red", "");
 		imp.setDisplayRange(0, 4095);		
 		
-		System.gc();
 		return imp;
 	}
 }
