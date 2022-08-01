@@ -3414,7 +3414,8 @@ private void saveImageAs3D(String savePath, ImagePlus imp, boolean transparent, 
 		ImagePlus impCal, imp3D;	
 		int width = 10;
 		int height = 10;
-		Visualizer3D v3D;		
+		Visualizer3D v3D;
+		double calBarLength;
 		try {
 			v3D = new Visualizer3D(imp, 3.0f);
 			v3D.setAngle(10.0f, -10.0f, 0.0f);
@@ -3444,7 +3445,7 @@ private void saveImageAs3D(String savePath, ImagePlus imp, boolean transparent, 
 			Color txtc;
 			for(int i = 0; i < impOut.getNFrames(); i++){
 				impCal = getTimePointFor3D(impOut, i+1);
-				double calBarLength = addContainedScalerBarAndGetBarValue(impCal);
+				calBarLength = addContainedScalerBarAndGetBarValue(impCal);
 				convertToRGB(impCal);
 				if(impOut.getOverlay()!=null){
 	//				impCal.setSlice(impCal.getNSlices());
@@ -4043,7 +4044,11 @@ private boolean enterSettings() {
 				refDistance = (double) gd.getNextNumber();
 					
 				//read and process variables--------------------------------------------------
-				if (gd.wasCanceled()) return false;
+				if (gd.wasCanceled()) {
+					br.close();
+					fr.close();
+					return false;
+				}
 			}
 			br.close();
 			fr.close();
