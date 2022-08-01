@@ -1,10 +1,10 @@
 package ciliaQ_jnh;
 /** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.1.5
+ * CiliaQ, a plugin for imagej - Version 0.1.7
  * 
- * Copyright (C) 2017-2020 Jan Niklas Hansen
+ * Copyright (C) 2017-2022 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: December 21, 2020
+ * This Version: August 1, 2022
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -44,7 +44,7 @@ import ij.text.*;
 public class CiliaQMain implements PlugIn, Measurements {
 	//Name variables
 	static final String PLUGINNAME = "CiliaQ";
-	static final String PLUGINVERSION = "0.1.5";
+	static final String PLUGINVERSION = "0.1.7";
 	
 	//Fix fonts
 	static final Font SuperHeadingFont = new Font("Sansserif", Font.BOLD, 16);
@@ -125,7 +125,7 @@ public void run(String arg) {
 	gd.addHelp("https://github.com/hansenjn/CiliaQ#user-guide--manual");
 	//show Dialog-----------------------------------------------------------------
 	//Note: .setInsets(top, left, bottom)
-	gd.setInsets(0,0,0);	gd.addMessage(PLUGINNAME + ", Version " + PLUGINVERSION + ", \u00a9 2017 - 2020 JN Hansen", SuperHeadingFont);
+	gd.setInsets(0,0,0);	gd.addMessage(PLUGINNAME + ", Version " + PLUGINVERSION + ", \u00a9 2017 - 2022 JN Hansen", SuperHeadingFont);
 	gd.setInsets(0,0,0);	gd.addMessage("More information at https://github.com/hansenjn/CiliaQ.", InstructionsFont);
 	
 	gd.setInsets(20,0,0);	gd.addChoice("process ", taskVariant, selectedTaskVariant);
@@ -393,11 +393,9 @@ public void run(String arg) {
 		//size-filter images
 			if(measureC2local && minRestSize > 1){
 				this.filterChannel(imp, channelC2, "intensity A", minRestSize, increaseRangeRegions);
-				System.gc();
 			}			
 			if(measureC3local && minRestSize > 1){
 				this.filterChannel(imp, channelC3, "intensity B", minRestSize, increaseRangeRegions);
-				System.gc();
 			}
 		//size-filter images
 			
@@ -440,7 +438,6 @@ public void run(String arg) {
 	progress.updateBarText("finished!");
 	progress.setBar(1.0);
 	progress.moveTask(task);
-	System.gc();
 }
 }
 
@@ -553,8 +550,7 @@ void filterChannel(ImagePlus imp, int c, String particleLabel, int minSize, bool
 			for(int x = 0; x < imp.getWidth(); x++){
 				for(int y = 0; y < imp.getHeight(); y++){		
 					if(imp.getStack().getVoxel(x, y, imp.getStackIndex(c, z+1, 1)-1) > 0.0){
-						preliminaryParticle = new ArrayList<PartPoint>(nrOfPoints-floodFilledPc);		
-						System.gc();
+						preliminaryParticle = new ArrayList<PartPoint>(nrOfPoints-floodFilledPc);
 						preliminaryParticle.add(new PartPoint(x, y, z, t, refImp, c));
 						
 						imp.getStack().setVoxel(x, y, imp.getStackIndex(c, z+1, 1)-1, 0.0);
@@ -951,7 +947,6 @@ void filterChannel(ImagePlus imp, int c, String particleLabel, int minSize, bool
 	
 	refImp.changes = false;
 	refImp.close();
-	System.gc();
 	
 	//write back to image
 	{
@@ -1003,8 +998,7 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjects (ImagePlus imp, int c){
 //					touchesXY = false;
 //					touchesZ = false;
 					
-					preliminaryParticle = new ArrayList<CellPoint>(nrOfPoints-floodFilledPc);		
-					System.gc();
+					preliminaryParticle = new ArrayList<CellPoint>(nrOfPoints-floodFilledPc);
 					preliminaryParticle.add(new CellPoint(x, y, z, 0, refImp, c));
 					
 					imp.getStack().setVoxel(x, y, imp.getStackIndex(c, z+1, 1)-1, 0.0);
@@ -1193,7 +1187,6 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjects (ImagePlus imp, int c){
 	
 	refImp.changes = false;
 	refImp.close();
-	System.gc();
 	
 	progress.updateBarText("Reconstruction of ciliary structures complete: " + dformat3.format(((double)(floodFilledPc)/(double)(nrOfPoints))*100) + "%");
 	progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(nrOfPoints)));
@@ -1265,8 +1258,7 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 //						touchesXY = false;
 //						touchesZ = false;
 						
-						preliminaryParticle = new ArrayList<CellPoint>(nrOfPoints-floodFilledPc);		
-						System.gc();
+						preliminaryParticle = new ArrayList<CellPoint>(nrOfPoints-floodFilledPc);
 						preliminaryParticle.add(new CellPoint(x, y, z, t, refImp, c));
 						
 						imp.getStack().setVoxel(x, y, imp.getStackIndex(c, z+1, t+1)-1, 0.0);
@@ -1794,7 +1786,6 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 				
 	refImp.changes = false;
 	refImp.close();
-	System.gc();
 	
 	progress.updateBarText("Reconstruction of ciliary structures complete: " + dformat3.format(((double)(floodFilledPc)/(double)(nrOfPoints))*100) + "%");
 	progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(nrOfPoints)));
@@ -1905,8 +1896,7 @@ private double [] getIntensityThresholds(ImagePlus imp, ArrayList<ArrayList<Cell
 		allIntensities = null;
 		p = null;
 		counter = null;
-	}
-	System.gc();		
+	}	
 	return intensityThresholds;
 }
 
@@ -1953,7 +1943,6 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		if(ciliaParticles.size() == 0) {
 			return;
 		}
-		System.gc();
 		progress.updateBarText("Structure reconstruction completed.");
 		//TODO implement method to move on if no cells detected
 		
@@ -2040,7 +2029,6 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		
 		ciliaParticles.clear();
 		ciliaParticles.trimToSize();
-		System.gc(); 
 	}		
 	progress.updateBarText("" + cilia.size() + " cilia reconstructed!");
 	
@@ -2415,7 +2403,6 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		if(ciliaParticles.size() == 0) {
 			return;
 		}
-		System.gc();
 		
 		progress.updateBarText("Cilia reconstruction completed.");
 		//TODO implement method to move on if no cells detected
@@ -2505,7 +2492,6 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		
 		ciliaParticles.clear();
 		ciliaParticles.trimToSize();
-		System.gc(); 
 	}		
 	progress.updateBarText("" + timelapseCilia.size() + " cilia reconstructed!");
 	
@@ -2721,7 +2707,6 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			impC.close();			
 		}					
 	}
-	System.gc();
 	
 	//save 3D images
 	{		
@@ -2733,7 +2718,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			saveImageAs3D(filePrefix + "_RP", reduceToMaskChannel(imp, channelReconstruction), false, true, false);
 		}		
 	}
-	System.gc();
+	
 	if(saveSingleCilia3DImages){
 		for(int i = 0; i < timelapseCilia.size(); i++){
 			progress.updateBarText("Producing 3D images of individual cilia (" + i + "/" + timelapseCilia.size() + " done)");
@@ -2746,7 +2731,6 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		imp.close();
 	}
 	progress.setBar(0.95);
-	System.gc();
 }
 
 public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID, ImagePlus imp,
@@ -3213,7 +3197,6 @@ private void saveSkeletonOverviewImagesTimelapse(String savePath, ImagePlus imp,
 				+ "" + out,ProgressDialog.ERROR);
 		}
 		v3D = null;
-		System.gc();
 		
 		impOut.changes = false;
 		impOut.close();
@@ -3374,7 +3357,6 @@ private void saveSkeletonOverviewImageNonTimeLapse(String savePath, ImagePlus im
 				+ "" + out,ProgressDialog.ERROR);
 		}		
 		v3D = null;
-		System.gc();
 		impOut.changes = false;
 		impOut.close();
 		
@@ -3517,8 +3499,7 @@ private void saveImageAs3D(String savePath, ImagePlus imp, boolean transparent, 
 				+ "_3D.tif: Producing 3D image image failed - error message: \n"
 				+ "" + out,ProgressDialog.ERROR);
 		}
-		v3D = null;
-		System.gc();		
+		v3D = null;		
 		impOut.changes = false;
 		impOut.close();
 	}	
@@ -3780,7 +3761,6 @@ private boolean enterSettings() {
 		//read and process variables--------------------------------------------------
 		if (gd.wasCanceled()) return false;
 		
-		System.gc();
 		return true;
 	}
 

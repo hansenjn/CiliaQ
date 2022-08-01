@@ -102,7 +102,7 @@ class Cilium{
 	double treeLength = 0.0,
 		largestShortestPathOfLargest;
 	public boolean sklAvailable = false;
-	private ArrayList<SklPoint> sklPointList; 	// point list in raw coordinates
+	private ArrayList<SklPoint> sklPointList; 	// point list in calibrated coordinates, referring to the original image
 	
 	double arcLength [];
 	double profileC2 [], profileC3 [];
@@ -252,62 +252,105 @@ class Cilium{
 	}
 	
 	/**
-	 * Determines skeleton data
+	 * Determines skeleton data (3D)
 	 * */
 	private void reconstructSkeleton(double gXY, double gZ, boolean measureBasalBody, int basalBodyC, ImagePlus imp, 
 			boolean measureC2, int channel2, boolean measureC3, int channel3, int channelReconstruction,
 			ProgressDialog progress){
-		int width = xMax - xMin + 1 + 4,
-			height = yMax - yMin + 1 + 4,
-			slices = zMax - zMin + 1 + 2;
-	
+		int width = xMax - xMin + 1 + 4 + (int) Math.round(gXY*5.0),
+			height = yMax - yMin + 1 + 4 + (int) Math.round(gXY*5.0),
+			slices = zMax - zMin + 1 + 2 + (int) Math.round(gZ*5.0);
+		
 		//generate a binary image to calculate skeleton parameters
 		//TODO include intensity? currently neglected
-		ImagePlus particleImp = IJ.createImage("Particle image", "8-bit", width, height, 1, slices, 1);
-		particleImp.setCalibration(cal);
-		for(int i = 0; i < voxels; i++){
-			particleImp.getStack().setVoxel((int)Math.round(points [i][0] / calibration)+2-xMin,
-					(int)Math.round(points [i][1] / calibration)+2-yMin,
-					(int)Math.round(points [i][2] / voxelDepth)+1-zMin,
-					255.0);
-		}			
-			
-//		particleImp.show();
-//		new WaitForUserDialog("Test 1!").show();
 		
-		//Upscale image for higher precision
-		{
+		ImagePlus particleImp;		
+		if(zMax - zMin == 0) {
+			particleImp = IJ.createImage("Particle image", "8-bit", width, height, 1, 1, 1);
+			particleImp.setCalibration(cal);
+			for(int i = 0; i < voxels; i++){
+				particleImp.getStack().setVoxel((int)Math.round(points [i][0] / calibration) - xMin + 2 + (int) Math.round(gXY*2.5),
+						(int)Math.round(points [i][1] / calibration) - yMin + 2 + (int) Math.round(gXY*2.5),
+						0,
+						255.0);
+			}			
+				
 //			particleImp.show();
-//			new WaitForUserDialog("Test").show();
-//			particleImp.hide();
+//			new WaitForUserDialog("Test 1!").show();
 			
-			ScalerJNH scaler = new ScalerJNH();
-			particleImp = scaler.getScaled(particleImp, 3.0, 3.0, 3.0);
-			
-//			particleImp.show();
-//			new WaitForUserDialog("Test").show();
-//			particleImp.hide();
-		}
-		
-//		particleImp.show();
-//		new WaitForUserDialog("Pre Gauss!").show();
-//		particleImp.hide();
-		
-		//Gaussfilter
-			if(!(gXY == 0 && gZ == 0)){
-				DecimalFormat gaussformat = new DecimalFormat("#0.0");
-				gaussformat.setDecimalFormatSymbols(new DecimalFormatSymbols(Locale.US));
-				IJ.run(particleImp, "Gaussian Blur 3D...", "x=" + gaussformat.format(3*gXY) + " y=" + gaussformat.format(3*gXY) + " z=" + gaussformat.format(3*gZ));
+			//Upscale image for higher precision
+			{
 //				particleImp.show();
-//				new WaitForUserDialog("Post Gauss!").show();
+//				new WaitForUserDialog("Test").show();
 //				particleImp.hide();
-			}							
-		// Gaussfilter
+				
+				ScalerJNH scaler = new ScalerJNH();
+				particleImp = scaler.getScaled(particleImp, 3.0, 3.0, 1.0);
+				
+//				particleImp.show();
+//				new WaitForUserDialog("Test").show();
+//				particleImp.hide();
+			}
+			
+//			particleImp.show();
+//			new WaitForUserDialog("Pre Gauss!").show();
+//			particleImp.hide();
+			
+			//Gaussfilter
+				if(!(gXY == 0)){
+					particleImp.getProcessor().blurGaussian(3.0*gXY);
+//					particleImp.show();
+//					new WaitForUserDialog("Post Gauss!").show();
+//					particleImp.hide();
+				}							
+			// Gaussfilter
+		}else{
+			particleImp = IJ.createImage("Particle image", "8-bit", width, height, 1, slices, 1);
+			particleImp.setCalibration(cal);
+			for(int i = 0; i < voxels; i++){
+				particleImp.getStack().setVoxel((int)Math.round(points [i][0] / calibration) - xMin + 2 + (int) Math.round(gXY*2.5),
+						(int)Math.round(points [i][1] / calibration) - yMin + 2 + (int) Math.round(gXY*2.5),
+						(int)Math.round(points [i][2] / voxelDepth) - zMin + 1 + (int) Math.round(gZ*2.5),
+						255.0);
+			}
+						
+//			particleImp.show();
+//			new WaitForUserDialog("Test 1!").show();
+			
+			//Upscale image for higher precision
+			{
+//				particleImp.show();
+//				new WaitForUserDialog("Test").show();
+//				particleImp.hide();
+				
+				ScalerJNH scaler = new ScalerJNH();
+				particleImp = scaler.getScaled(particleImp, 3.0, 3.0, 3.0);
+				
+//				particleImp.show();
+//				new WaitForUserDialog("Test").show();
+//				particleImp.hide();
+			}
+			
+//			particleImp.show();
+//			new WaitForUserDialog("Pre Gauss!").show();
+//			particleImp.hide();
+			
+			//Gaussfilter
+				if(!(gXY == 0 && gZ == 0)){
+					DecimalFormat gaussformat = new DecimalFormat("#0.0");
+					gaussformat.setDecimalFormatSymbols(new DecimalFormatSymbols(Locale.US));
+					IJ.run(particleImp, "Gaussian Blur 3D...", "x=" + gaussformat.format(3*gXY) + " y=" + gaussformat.format(3*gXY) + " z=" + gaussformat.format(3*gZ));
+//					particleImp.show();
+//					new WaitForUserDialog("Post Gauss!").show();
+//					particleImp.hide();
+				}							
+			// Gaussfilter
+		}
 			
 		Skeletonize3D_ skelProc = new Skeletonize3D_();
 		skelProc.setup("", particleImp);
 		skelProc.run(particleImp.getProcessor());
-		
+//		
 //		particleImp.show();
 //		new WaitForUserDialog("Test 3!").show();
 //		particleImp.hide();
@@ -322,7 +365,8 @@ class Cilium{
 		if(foundSkl == 1){
 			ArrayList<ciliaQ_skeleton_analysis.Point>[] shortestPath = skel.getShortestPathPoints();	//Skl Points are integers
 			
-			sklPointList = getSortedList(shortestPath, sklRes, measureBasalBody, basalBodyC, imp, progress, particleImp);
+			//From v0.1.6 on, for simplicity, this command gives the coordinates matching to the original image
+			sklPointList = getSortedList(shortestPath, sklRes, measureBasalBody, basalBodyC, imp, progress, particleImp, gXY, gZ);
 		}		
 		if(foundSkl == 1 && sklPointList != null){
 			sklAvailable = true;
@@ -335,43 +379,34 @@ class Cilium{
 			profileC3norm = new double [sklPointList.size()];
 								
 			arcLength [0] = 0.0;
-						
-			SklPoint sklP;	
-			for(int i = 0; i < sklPointList.size(); i++){
-				sklP = new SklPoint(sklPointList.get(i));	
-//				progress.notifyMessage("old: x" + sklPointList.get(i).x + "y" + sklPointList.get(i).y + "z" + sklPointList.get(i).z, ProgressDialog.LOG);
-				sklP.x += (xMin-2) * calibration;
-				sklP.y += (yMin-2) * calibration;
-				sklP.z += (zMin-1) * voxelDepth;
-//				progress.notifyMessage("new: x" + sklP.x + "y" + sklP.y + "z" + sklP.z, ProgressDialog.LOG);
+			for(int i = 0; i < sklPointList.size(); i++){				
 				if(i!=0){
 					arcLength [i] = arcLength [i-1] + getDistance(sklPointList.get(i),sklPointList.get(i-1));					
 				}
-//				progress.notifyMessage("x	"+ sklP.x + "	y	" + sklP.y + "	z	" + sklP.z +"	al	" + i + ":	" 
-//					+ arcLength [i], ProgressDialog.LOG);
+//				progress.notifyMessage("x	"+ sklPointList.get(i).x + "	y	" + sklPointList.get(i).y + "	z	" + sklPointList.get(i).z 
+//					+ "	al	" + i + ":	" + arcLength [i], ProgressDialog.LOG);
 				
 				if(measureC2){
-					profileC2 [i] = this.getInterpolatedIntensity2D(imp, sklP, channel2, progress);
+					profileC2 [i] = this.getInterpolatedIntensity2D(imp, sklPointList.get(i), channel2, progress);
 //					progress.notifyMessage("C2: " + profileC2[i] + "; imp " + imp.getCalibration().pixelWidth 
 //							+ " - " + imp.getCalibration().pixelHeight + " - " + imp.getCalibration().pixelDepth, ProgressDialog.LOG);
 					if(profileC2 [i] >= Double.NaN){
-						profileC2norm [i] = profileC2 [i] / this.getInterpolatedIntensity2D(imp, sklP, channelReconstruction, progress);						
+						profileC2norm [i] = profileC2 [i] / this.getInterpolatedIntensity2D(imp, sklPointList.get(i), channelReconstruction, progress);						
 					}
 //					progress.notifyMessage("C2: " + profileC2[i] + "; imp " + imp.getCalibration().pixelWidth 
 //							+ " - " + imp.getCalibration().pixelHeight + " - " + imp.getCalibration().pixelDepth, ProgressDialog.LOG);
 					
 				}
 				if(measureC3){
-					profileC3 [i] = this.getInterpolatedIntensity2D(imp, sklP, channel3, progress);
+					profileC3 [i] = this.getInterpolatedIntensity2D(imp, sklPointList.get(i), channel3, progress);
 //					progress.notifyMessage("C3: " + profileC3[i] + "; imp " + imp.getCalibration().pixelWidth 
 //							+ " - " + imp.getCalibration().pixelHeight + " - " + imp.getCalibration().pixelDepth, ProgressDialog.LOG);
 					if(profileC3 [i] >= Double.NaN){
-						profileC3norm [i] = profileC3 [i] / this.getInterpolatedIntensity2D(imp, sklP, channelReconstruction, progress);
+						profileC3norm [i] = profileC3 [i] / this.getInterpolatedIntensity2D(imp, sklPointList.get(i), channelReconstruction, progress);
 					}
 //					progress.notifyMessage("C3: " + profileC3[i] + "; imp " + imp.getCalibration().pixelWidth 
 //							+ " - " + imp.getCalibration().pixelHeight + " - " + imp.getCalibration().pixelDepth, ProgressDialog.LOG);
-				}		
-				sklP = null;
+				}
 			}
 			System.gc();
 			
@@ -410,9 +445,9 @@ class Cilium{
 	public double [][] getSkeletonPointsForOriginalImage (){
 		double [][] output = new double [sklPointList.size()][3];
 		for(int i = 0; i < sklPointList.size(); i++){
-			output [i][0] = sklPointList.get(i).x + (xMin-2) * calibration;
-			output [i][1] = sklPointList.get(i).y + (yMin-2) * calibration;
-			output [i][2] = sklPointList.get(i).z + (zMin-1) * voxelDepth;
+			output [i][0] = sklPointList.get(i).x;
+			output [i][1] = sklPointList.get(i).y;
+			output [i][2] = sklPointList.get(i).z;
 		}
 		return output;
 	}
@@ -439,9 +474,10 @@ class Cilium{
 	/**
 	 * @return List of SklPoints on the largest shortest path, sorted from the start to the end
 	 * (x,y,z coordinates of the SklPoints are calibrated, so indicated in the calibration Unit)
+	 * (Since v0.1.6 on, for simplicity, this command gives the coordinates matching to the original image - before it referred to the particle image coordinates)
 	 * */
 	private ArrayList<SklPoint> getSortedList(ArrayList<Point>[] shortestPath, SkeletonResult sklRes, boolean measureBasalBody, int basalBodyC, ImagePlus imp,
-			ProgressDialog progress, ImagePlus sklImp){
+			ProgressDialog progress, ImagePlus sklImp, double gXY, double gZ){
 		if(shortestPath.equals(null) || shortestPath.length == 0){
 			return null;
 		}
@@ -566,6 +602,16 @@ class Cilium{
 			list.get(i).y /= 3.0;
 			list.get(i).z /= 3.0;			
 			
+			//Correct coordinates (remove extra added space in particle image)
+			list.get(i).x += (xMin - 2 - (int) Math.round(gXY*2.5));
+			list.get(i).y += (yMin - 2 - (int) Math.round(gXY*2.5));
+			if(zMax - zMin == 0) {
+				list.get(i).z += (zMin) * voxelDepth;		
+			}else {
+				list.get(i).z += (zMin - 1 - (int) Math.round(gZ*2.5));
+			}
+			
+			//Calibrate coordinates
 			list.get(i).x *= calibration;
 			list.get(i).y *= calibration;
 			list.get(i).z *= voxelDepth;			
@@ -573,15 +619,7 @@ class Cilium{
 		
 		SklPoint pFirst = new SklPoint(list.get(0));
 		SklPoint pLast = new SklPoint(list.get(list.size()-1));
-		
-		pFirst.x += (xMin-2) * calibration;
-		pFirst.y += (yMin-2) * calibration;
-		pFirst.z += (zMin-1) * voxelDepth;
-		
-		pLast.x += (xMin-2) * calibration;
-		pLast.y += (yMin-2) * calibration;
-		pLast.z += (zMin-1) * voxelDepth;
-		
+				
 		if(measureBasalBody){
 			//get statistics for first point
 			double roiRadius = 3.0; //in micron
@@ -795,28 +833,23 @@ class Cilium{
 		
 		//draw cilium
 		for(int i = 0; i < voxels; i++){
-			//[pointID][0=x,1=y,2=z,3=intensity,4=surface, 5=coveredSurface, 6 = coloc (if so 1, else 0)]	
-			int z = imp.getStackIndex(1,(int)Math.round(points [i][2] / voxelDepth)+1-zCorr+1,1)-1;	//getStackIndex(int channel,int slice,int frame);
+			//[pointID][0=x,1=y,2=z,3=intensity,4=surface, 5=coveredSurface, 6 = coloc (if so 1, else 0)]
 			imp.getStack().setVoxel((int)Math.round(points [i][0] / calibration)+2-xCorr,
-					(int)Math.round(points [i][1] / calibration)+2-yCorr, z, points [i][3]);
+					(int)Math.round(points [i][1] / calibration)+2-yCorr, 
+					imp.getStackIndex(1,(int)Math.round(points [i][2] / voxelDepth)+1-zCorr+1,1)-1,	//getStackIndex(int channel,int slice,int frame);
+					points [i][3]);
 		}
 		imp.setC(1);	
 		IJ.run(imp, "Cyan", "");
 		imp.setDisplayRange(0, 4095);
 		
 		//draw skeleton
-//		for(int i = 0; i < sklPointList.size(); i++){
-//			int z = imp.getStackIndex(2,(int)Math.round(sklPointList.get(i).z)+1-zCorr+1,1)-1;	//getStackIndex(int channel,int slice,int frame);
-//			imp.getStack().setVoxel((int)Math.round(sklPointList.get(i).x)+2-xCorr,
-//					(int)Math.round(sklPointList.get(i).y)+2-yCorr, z, 255.0);
-//			IJ.log("p" + sklPointList.get(i).x + "-" + sklPointList.get(i).y + "-" + sklPointList.get(i).z);
-//		}
-		
 		if(foundSkl != 0 && sklPointList != null){
 			for(int i = 0; i < sklPointList.size(); i++){
-				int z = imp.getStackIndex(2,(int)Math.round(sklPointList.get(i).z / voxelDepth)+1,1)-1;	//getStackIndex(int channel,int slice,int frame);
-				imp.getStack().setVoxel((int)Math.round(sklPointList.get(i).x / calibration),
-						(int)Math.round(sklPointList.get(i).y / calibration), z, maxValue);
+				imp.getStack().setVoxel((int)Math.round(sklPointList.get(i).x / calibration)+2-xCorr,
+						(int)Math.round(sklPointList.get(i).y / calibration)+2-yCorr, 
+						imp.getStackIndex(2,(int)Math.round(sklPointList.get(i).z / voxelDepth)+1-zCorr+1,1)-1,
+						maxValue);
 //				IJ.log("p" + sklPointList.get(i).x / calibration + "-" + sklPointList.get(i).y / calibration + "-" + sklPointList.get(i).z / voxelDepth);
 			}
 			imp.setC(2);	
@@ -827,10 +860,11 @@ class Cilium{
 		int cIndex = 3;
 		if(minC2Intensity != Double.POSITIVE_INFINITY){
 			for(int i = 0; i < voxels; i++){
-				//[pointID][0=x,1=y,2=z,3=intensity,4=surface, 5=coveredSurface, 6 = coloc (if so 1, else 0)]	
-				int z = imp.getStackIndex(cIndex,(int)Math.round(points [i][2] / voxelDepth)+1-zCorr+1,1)-1;	//getStackIndex(int channel,int slice,int frame);
+				//[pointID][0=x,1=y,2=z,3=intensity,4=surface, 5=coveredSurface, 6 = coloc (if so 1, else 0)]
 				imp.getStack().setVoxel((int)Math.round(points [i][0] / calibration)+2-xCorr,
-						(int)Math.round(points [i][1] / calibration)+2-yCorr, z, points [i][5]);
+						(int)Math.round(points [i][1] / calibration)+2-yCorr, 
+						imp.getStackIndex(cIndex,(int)Math.round(points [i][2] / voxelDepth)+1-zCorr+1,1)-1,	//getStackIndex(int channel,int slice,int frame);
+						points [i][5]);
 			}
 			imp.setC(cIndex);	
 			IJ.run(imp, "Green", "");
@@ -925,29 +959,23 @@ class Cilium{
 		
 		//draw cilium
 		for(int i = 0; i < voxels; i++){
-			//[pointID][0=x,1=y,2=z,3=intensity,4=surface, 5=coveredSurface, 6 = coloc (if so 1, else 0)]	
-			int z = imp.getStackIndex(1,(int)Math.round(points [i][2] / voxelDepth)+1-zCorr+1,1)-1;	//getStackIndex(int channel,int slice,int frame);
+			//[pointID][0=x,1=y,2=z,3=intensity,4=surface, 5=coveredSurface, 6 = coloc (if so 1, else 0)]
 			imp.getStack().setVoxel((int)Math.round(points [i][0] / calibration)+2-xCorr,
-					(int)Math.round(points [i][1] / calibration)+2-yCorr, z, points [i][3]);
+					(int)Math.round(points [i][1] / calibration)+2-yCorr, 
+					imp.getStackIndex(1,(int)Math.round(points [i][2] / voxelDepth)+1-zCorr+1,1)-1,		//getStackIndex(int channel,int slice,int frame);
+					points [i][3]);
 		}
 		imp.setC(1);	
 		IJ.run(imp, "Cyan", "");
 		imp.setDisplayRange(0, 4095);
 		
 		//draw skeleton
-//				for(int i = 0; i < sklPointList.size(); i++){
-//					int z = imp.getStackIndex(2,(int)Math.round(sklPointList.get(i).z)+1-zCorr+1,1)-1;	//getStackIndex(int channel,int slice,int frame);
-//					imp.getStack().setVoxel((int)Math.round(sklPointList.get(i).x)+2-xCorr,
-//							(int)Math.round(sklPointList.get(i).y)+2-yCorr, z, 255.0);
-//					IJ.log("p" + sklPointList.get(i).x + "-" + sklPointList.get(i).y + "-" + sklPointList.get(i).z);
-//				}
-		
 		if(foundSkl != 0 && sklPointList != null){
-			for(int i = 0; i < sklPointList.size(); i++){					
-				int z = imp.getStackIndex(2,(int)Math.round((sklPointList.get(i).z + (zMin-1) * voxelDepth) / voxelDepth)+1-zCorr+1,1)-1;	//getStackIndex(int channel,int slice,int frame);
-				imp.getStack().setVoxel((int)Math.round((sklPointList.get(i).x + (xMin-2) * calibration) / calibration)+2-xCorr,
-						(int)Math.round((sklPointList.get(i).y + (yMin-2) * calibration) / calibration)+2-yCorr, z, maxValue);
-//						IJ.log("p" + sklPointList.get(i).x / calibration + "-" + sklPointList.get(i).y / calibration + "-" + sklPointList.get(i).z / voxelDepth);
+			for(int i = 0; i < sklPointList.size(); i++){
+				imp.getStack().setVoxel((int)Math.round(sklPointList.get(i).x / calibration)+2-xCorr,
+						(int)Math.round(sklPointList.get(i).y / calibration)+2-yCorr, 
+						imp.getStackIndex(2,(int)Math.round(sklPointList.get(i).z / voxelDepth)+1-zCorr+1,1)-1, 	//getStackIndex(int channel,int slice,int frame);
+						maxValue);				
 			}				
 		}
 		imp.setC(2);	
