@@ -3402,6 +3402,7 @@ private void saveImageAs3D(String savePath, ImagePlus imp, boolean transparent, 
 		if(impOut.getBitDepth()==8){
 			impOut.setDisplayRange(0, 255);
 		}else if(impOut.getBitDepth()==16){
+			//TODO check which range applies
 			impOut.setDisplayRange(0, 4096);
 		}		
 	}	
@@ -3481,10 +3482,15 @@ private void saveImageAs3D(String savePath, ImagePlus imp, boolean transparent, 
 				imp3D.changes = false;
 				imp3D.close();
 			}
-			
+						
 			imp3D = IJ.createImage("3D", width, height, impOut.getNFrames(), 24);
 			imp3D.setStack(stackOut); 
-			IJ.saveAsTiff(imp3D, savePath + "_3D.tif");
+			
+			if(imp3D.getNFrames() == 1) {
+				IJ.saveAs(imp3D, "PNG", savePath + "_3D.png");
+			}else {
+				IJ.saveAsTiff(imp3D, savePath + "_3D.tif");				
+			}
 			
 			imp3D.changes = false;
 			imp3D.close();
