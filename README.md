@@ -88,4 +88,4 @@ The source code for the individual ImageJ plugins and java tools is available at
 - Sun, J., Shin, D.Y., Eiseman, M. et al. **2021**. SLITRK5 is a negative regulator of hedgehog signaling in osteoblasts. *Nat Commun* 12, 4611. https://dx.doi.org/10.1038/s41467-021-24819-w
 - Ancel, J., Belgacemi, R., Diabasana, Z., et al. **2021**. Impaired Ciliary Beat Frequency and Ciliogenesis Alteration during Airway Epithelial Cell Differentiation in COPD. *Diagnostics* 11(9):1579. https://doi.org/10.3390/diagnostics11091579
 - D’Gama, P.P., et al. **2021**. Diversity and function of motile ciliated cell types within ependymal lineages of the zebrafish brain. *Cell Rep.* 37. https://dx.doi.org/10.1016/j.celrep.2021.109775.
-- Hansen, J.N., et al. **2022**. A cAMP signalosome in primary cilia drives gene expression and kidney cyst formation. *EMBO Rep.* e54315. https://doi.org/10.15252/embr.202154315
+- Hansen, J.N., et al. **2022**. A cAMP signalosome in primary cilia drives gene expression and kidney cyst formation. *EMBO Rep.* e54315. https://dx.doi.org/10.15252/embr.202154315
