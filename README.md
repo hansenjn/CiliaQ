@@ -19,7 +19,7 @@ When using any of the CiliaQ plugins, please cite:
 Jan N. Hansen, Sebastian Rassmann, Birthe Stueven, Nathalie Jurisch-Yaksi, Dagmar Wachten. CiliaQ: a simple, open-source software for automated quantification of ciliary morphology and fluorescence in 2D, 3D, and 4D images. Eur. Phys. J. E 44, 18 (2021). https://doi.org/10.1140/epje/s10189-021-00031-y
 
 ## Copyright notice and contacts
-Copyright (C) 2017-2021: Jan N. Hansen. 
+Copyright (C) 2017-2022: Jan N. Hansen. 
 
 CiliaQ has been developed in the research group Biophysical Imaging, Institute of Innate Immunity, Bonn, Germany (https://www.iiibonn.de/dagmar-wachten-lab/dagmar-wachten-lab-science).
 
@@ -37,7 +37,7 @@ Some CiliaQ plugins include packages developed by others, for which different li
 - The package [ciliaQ_jnh.volumeViewer3D ](https://github.com/hansenjn/CiliaQ/tree/master/src/main/java/ciliaQ_jnh/volumeViewer3D) in CiliaQ represents a customised version of the code from Volume Viewer 2.0 (author: Kai Uwe Barthel, date: 01.12.2012). Customised variants of the code are marked by additional comments. The original code was retrieved from https://github.com/fiji/Volume_Viewer, which is published under the license "Public Domain" in the software project FIJI.
 - The package [ciliaQ_Prep_jnh.canny3d-thresholder](https://github.com/hansenjn/CiliaQ_Preparator/tree/master/src/main/java/ciliaQ_Prep_jnh/canny3d_thresholder) in CiliaQ Preparator represents a customized version of the canny3d-thresholder (GNU General Public License v3.0, author: Sebastian Rassmann, GitHub repository: https://github.com/sRassmann/canny3d-thresholder).
 
-Some functions of CiliaQ Preparator (Hysteresis thresholding, Canny3D) require additional installation of the "core" and "plugins" file from the ['3D ImageJ Suite'](https://mcib3d.frama.io/3d-suite-imagej/) to your ImageJ / FIJI distribution. The '3D ImageJ Suite' is licensed via a GPL - for license details visit the main page of the ['3D ImageJ Suite'](https://mcib3d.frama.io/3d-suite-imagej/).
+Some functions of CiliaQ Preparator (Hysteresis thresholding, Canny3D) require additional installation of the ['3D ImageJ Suite'](https://imagej.net/plugins/3d-imagej-suite/) to your ImageJ / FIJI distribution. The '3D ImageJ Suite' is licensed via a GPL - for license details visit the main page of the ['3D ImageJ Suite'](https://imagej.net/plugins/3d-imagej-suite/).
 
 ## Using CiliaQ
 ### System requirements
