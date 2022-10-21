@@ -53,7 +53,41 @@ Performing the analysis pipeline requires the installation of
 
 ### Installation instructions
 - The ImageJ plugins are directly downloaded from the release pages of the individual repositories (download the newest releases of [CiliaQ_Preparator](https://github.com/hansenjn/CiliaQ_Preparator/releases), [CiliaQ_Editor](https://github.com/hansenjn/CiliaQ_Editor/releases), and [CiliaQ](https://github.com/hansenjn/CiliaQ/releases). The plugins are installed by drag and drop into the ImageJ window (after opening ImageJ) and confirming the installation by pressing save. Next, ImageJ requires to be restarted. Typically the installation process of ImageJ plugins takes only few seconds / minutes (the time that your computer needs to launch ImageJ and relaunch it after placing the plugins).
-- Some functions (Hysteresis thresholding, Canny3D) in CiliaQ_Preparator require additional installation of the ['3D ImageJ Suite'](https://imagejdocu.tudor.lu/plugin/stacks/3d_ij_suite/start) to your FIJI / ImageJ distribution. To install the 3D ImageJ Suite, download the [core libary](https://imagejdocu.tudor.lu/_media/plugin/stacks/3d_ij_suite/mcib3d-core-3.96.jar) and the [plugin](https://imagejdocu.tudor.lu/_media/plugin/stacks/3d_ij_suite/mcib3d_plugins-3.96.jar) from 3D ImageJ Suite's download section and install them to your FIJI / ImageJ by drag and drop into the FIJI / ImageJ window.
+- Some functions (Hysteresis thresholding, Canny3D) in CiliaQ_Preparator require additional installation of the ['3D ImageJ Suite'](https://imagej.net/plugins/3d-imagej-suite/) to your FIJI / ImageJ distribution. To install the 3D ImageJ Suite, do the following:
+
+#### Installing 3D ImageJ Suite (required to use Hysteresis thresholding and Canny3D)
+
+Option 1 (preferred) - use the FIJI update service for installation:
+- Go to the menu entry Help > Update in your FIJI. This will show a dialog with a status bar that loads the following dialog.
+<p align="center">
+   <img src="https://user-images.githubusercontent.com/27991883/197245343-782ca198-cd6b-4d35-98bb-b6cdce067c19.png" width=400>
+</p>
+
+- In this dialog, click "Manage Update Sites". This will open another dialog, in which you need to tick the "3D ImageJ Suite" and press "Close".
+
+<p align="center">
+   <img src="https://user-images.githubusercontent.com/27991883/197245763-422784e0-a4bf-45cc-bec6-54c84c1e0254.png" width=600>
+</p>
+
+- Now, in the original update dialog you will see new modules added for installation. Click apply changes.
+
+<p align="center">
+   <img src="https://user-images.githubusercontent.com/27991883/197246032-3911d44e-69eb-4d84-848d-8e180dd015fe.png" width=400>
+</p>
+
+- The installation process may take some time, depending on the download speed. The installation process terminates with the following dialog:
+
+<p align="center">
+   <img src="https://user-images.githubusercontent.com/27991883/197246209-2538ee74-9da8-40d4-b849-8b562cb6f06e.png" width=200>
+</p>
+
+- Close FIJI and restart. Now the 3D Suite should be installed. To check that the 3D suite is installed, verify that the menu entry Plugins > 3DSuite is available.
+
+Option 2 (custom installation - not recommended, perform only if the other approach is not possible, e.g., in case you cannot access the internet from your FIJI / ImageJ):
+- Download the core .jar and the plugin .jar file provided on [this webpage](https://mcib3d.frama.io/3d-suite-imagej/) from 3D ImageJ Suite's download section and install them to your FIJI / ImageJ by drag and drop into the FIJI / ImageJ window.
+
+NOTE: The webpage for download is external and has been changing over the last years. If the webpage looks awkward, check the ['3D ImageJ Suite'](https://imagej.net/plugins/3d-imagej-suite/) forum entry to see where the webpage has been moved.
+
 
 ### User Guide / Manual
 A User Guide for the whole CiliaQ pipeline is available [here](https://github.com/hansenjn/CiliaQ/blob/master/Webfiles/CiliaQ_SOP.pdf).
