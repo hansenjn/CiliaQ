@@ -125,3 +125,4 @@ The source code for the individual ImageJ plugins and java tools is available at
 - Hansen, J.N., et al. **2022**. A cAMP signalosome in primary cilia drives gene expression and kidney cyst formation. *EMBO Rep.* e54315. https://dx.doi.org/10.15252/embr.202154315
 - Dewees, S.I., et al. **2022**. Phylogenetic profiling and cellular analyses of ARL16 reveal roles in traffic of IFT140 and INPP5E. *Mol. Biol. Cell* 33(4):ar33. https://dx.doi.org/10.1091/mbc.E21-10-0509-T
 - Sheu, S.H., et al. **2022**. A serotonergic axon-cilium synapse drives nuclear signaling to alter chromatin accessibility. *Cell*. 185(18):3390-3407.e18. https://dx.doi.org/10.1016/j.cell.2022.07.026
+- Happ, J.T., et al. **2022**. A PKA inhibitor motif within SMOOTHENED controls Hedgehog signal transduction. *Nat. Struct. Mol. Biol.* 29, 990–999. https://dx.doi.org/10.1038/s41594-022-00838-z
