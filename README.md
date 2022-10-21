@@ -92,8 +92,6 @@ NOTE: The webpage for download is external and has been changing over the last y
 ### User Guide / Manual
 A User Guide for the whole CiliaQ pipeline is available [here](https://github.com/hansenjn/CiliaQ/blob/master/Webfiles/CiliaQ_SOP.pdf).
 
-**Important Note**: Since last update of the Manual the link to the 3D ImageJ suite has changed (the link in the current Manual is wrong). Please find the "core" and "plugins" file for the 3D suite now at: https://mcib3d.frama.io/3d-suite-imagej/
-
 A Q&A repository in the [CiliaQ wiki](https://github.com/hansenjn/CiliaQ/wiki/Home/) lists answers to common questions.
 
 ### How to stay up-to-date?
