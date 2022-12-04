@@ -1,5 +1,5 @@
 # ![CiliaQ](https://github.com/hansenjn/CiliaQ/blob/master/Webfiles/20200618%20CiliaQ%20Logo%20Small.png?raw=true)
-An set of three ImageJ plugins to quantify ciliary shape, length, and fluorescence in 2D, 3D, and 4D images. Scroll down for information on how to [use](https://github.com/hansenjn/CiliaQ#using-ciliaq), [cite](https://github.com/hansenjn/CiliaQ#how-to-cite), [report ideas, issues, improve](https://github.com/hansenjn/CiliaQ#ideas-missing-functions-issues-bugs-unclear-in-the-user-guide) CiliaQ. Visit our [CiliaQ wiki](https://github.com/hansenjn/CiliaQ/wiki/Home/) with Tutorials and a Q&A section or [try out](https://github.com/hansenjn/CiliaQ/tree/master/Examples) CiliaQ using an example image. 
+A set of three ImageJ plugins to quantify ciliary shape, length, and fluorescence in 2D, 3D, and 4D images. Scroll down for information on how to [use](https://github.com/hansenjn/CiliaQ#using-ciliaq), [cite](https://github.com/hansenjn/CiliaQ#how-to-cite), [report ideas, issues, improve](https://github.com/hansenjn/CiliaQ#ideas-missing-functions-issues-bugs-unclear-in-the-user-guide) CiliaQ. Visit our [CiliaQ wiki](https://github.com/hansenjn/CiliaQ/wiki/Home/) with Tutorials and a Q&A section or [try out](https://github.com/hansenjn/CiliaQ/tree/master/Examples) CiliaQ using an example image. 
 
 The ImageJ plugins are published along:
 
