@@ -34,9 +34,9 @@
 	<developers>
         <developer>
             <id></id>
-            <name>Jan Niklas Hansen</name>
+            <name>Jan N. Hansen</name>
             <email>jan.hansen@uni-bonn.de</email>
-            <url>r</url>
+            <url>https://github.com/hansenjn</url>
             <organization></organization>
             <organizationUrl></organizationUrl>
             <roles>
@@ -100,9 +100,6 @@
     </dependencies>  
     
     <build>
-<!--        <directory>target</directory> -->
-<!--     	<outputDirectory>target/classes</outputDirectory> -->
-<!--     	<finalName>${artifactId}-${version}</finalName> -->
 		<plugins>
 			<!--         avoid errors in java doc creation -->			
 			<plugin>
