@@ -30,18 +30,8 @@ Contacts:
 - dwachten (at) uni-bonn.de
 
 ## Using CiliaQ
-### System requirements
-#### Hardware requirements
-ImageJ/FIJI does not require any specific hardware and can also run on low-performing computers. However, a RAM is required that allows to load one image sequence that you aim to analyze into your RAM at least twice. ImageJ does not require any specific graphics card. The speed of the analysis depends mainly on the processor speed. Only the generation of 3D visualizations, an optional function of CiliaQ, will use the graphics card of the computer.
-
-#### Operating system
-The ImageJ plugins were developed and tested on Windows 8.1, Windows 10, and macOS Catalina (version 10.15.6). ImageJ is also available for Linux operating systems, where the ImageJ plugins and Java software in theory can be equally run.
-
-#### Software requirements
-Performing the analysis pipeline requires the installation of [ImageJ](https://imagej.net/Downloads) (tested on versions 1.51r, 1.51u, and 1.52i) or ideally, the ImageJ distribution [Fiji](https://imagej.net/Fiji/Downloads) (tested with Fiji including ImageJ version 1.51r).
-
 ### Getting started
-To install ImageJ/FIJI and CiliaQ on your computer, please follow the [installation instructions in the CiliaQ Wiki](https://github.com/hansenjn/CiliaQ/wiki/Installing-CiliaQ).
+For information on hardware and software requirements and a guide on how to get CiliaQ running on your computer, please follow the [installation instructions in the CiliaQ Wiki](https://github.com/hansenjn/CiliaQ/wiki/Installing-CiliaQ).
 
 ### User Guide / Manual
 A very detailed User Guide for the whole CiliaQ pipeline is available [here](https://github.com/hansenjn/CiliaQ/blob/master/Webfiles/CiliaQ_SOP.pdf) as a PDF.
