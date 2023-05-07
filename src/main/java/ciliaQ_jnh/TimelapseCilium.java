@@ -1,10 +1,10 @@
 package ciliaQ_jnh;
 /** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.0.5
+ * CiliaQ, a plugin for imagej - Version 0.1.7
  * 
  * Copyright (C) 2017-2019 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: December 09, 2019
+ * This Version: May 07, 2023
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).

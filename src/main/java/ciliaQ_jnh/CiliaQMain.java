@@ -2,7 +2,7 @@ package ciliaQ_jnh;
 /** ===============================================================================
  * CiliaQ, a plugin for imagej - Version 0.1.7
  * 
- * Copyright (C) 2017-2022 Jan Niklas Hansen
+ * Copyright (C) 2017-2023 Jan Niklas Hansen
  * First version: June 30, 2017  
  * This Version: May 7, 2023
  * 
