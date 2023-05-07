@@ -4,7 +4,7 @@ package ciliaQ_jnh;
  * 
  * Copyright (C) 2017-2022 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: August 1, 2022
+ * This Version: May 7, 2023
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -435,6 +435,7 @@ public void run(String arg) {
 	processingDone = true;
 	break running;
 	}	
+	System.gc();
 	progress.updateBarText("finished!");
 	progress.setBar(1.0);
 	progress.moveTask(task);
@@ -2367,7 +2368,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	}		
 	{		
 		progress.updateBarText("Producing Overview Images");
-		if(skeletonize && saveOverview3DImages){
+		if(skeletonize){
 			saveSkeletonOverviewImageNonTimeLapse(filePrefix + "_SKL", imp, cilia,
 					name, dir, currentDate, startDate);
 		}
