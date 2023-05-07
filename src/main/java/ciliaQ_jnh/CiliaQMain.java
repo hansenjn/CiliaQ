@@ -125,10 +125,15 @@ public void run(String arg) {
 	gd.addHelp("https://github.com/hansenjn/CiliaQ#user-guide--manual");
 	//show Dialog-----------------------------------------------------------------
 	//Note: .setInsets(top, left, bottom)
-	gd.setInsets(0,0,0);	gd.addMessage(PLUGINNAME + ", Version " + PLUGINVERSION + ", \u00a9 2017 - 2022 JN Hansen", SuperHeadingFont);
+	gd.setInsets(0,0,0);	gd.addMessage(PLUGINNAME + ", Version " + PLUGINVERSION + ", \u00a9 2017 - 2023 JN Hansen", SuperHeadingFont);
 	gd.setInsets(0,0,0);	gd.addMessage("More information at https://github.com/hansenjn/CiliaQ.", InstructionsFont);
 	
-	gd.setInsets(20,0,0);	gd.addChoice("process ", taskVariant, selectedTaskVariant);
+	gd.setInsets(0,0,0);		gd.addMessage("This is a new version of CiliaQ (v0.1.7 from May 07, 2023). Length measurements were improved.", InstructionsFont, Color.MAGENTA);
+	gd.setInsets(-5,0,0);	gd.addMessage("Do not mix results from this version with results from previous versions.", InstructionsFont, Color.MAGENTA);
+	gd.setInsets(-5,0,0);	gd.addMessage("Find out more at the release notes (https://github.com/hansenjn/CiliaQ/releases/tag/v0.1.7).", InstructionsFont, Color.MAGENTA);
+		
+	
+	gd.setInsets(10,0,0);	gd.addChoice("process ", taskVariant, selectedTaskVariant);
 	
 //	gd.setInsets(10,0,0);	gd.addMessage("Calibration", HeadingFont);
 	gd.setInsets(10,0,0);	gd.addMessage("Calibration settings", SubHeadingFont);
