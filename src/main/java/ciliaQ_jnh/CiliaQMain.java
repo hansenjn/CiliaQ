@@ -249,7 +249,7 @@ public void run(String arg) {
 				dir [0] = info.directory;	//get directory
 				tasks = 1;
 			}catch(Exception e) {
-				new WaitForUserDialog("Error when loading the active image!\nLikely the image you tried to process was not saved.\nThus CiliaQ could not determine the output path!\nSave the image and retry...").show();
+				new WaitForUserDialog("Error when loading the active image!\nLikely the image you tried to process was not saved or opened in Virtual Stack mode.\nThus CiliaQ could not determine the output path!\nSave the image or make sure it is not in Virtual Stack mode and retry...").show();
 				return;
 			}			
 		}else if(selectedTaskVariant.equals(taskVariant[2])){	// all open images
@@ -277,7 +277,7 @@ public void run(String arg) {
 					}		
 				}
 			}catch(Exception e) {
-				new WaitForUserDialog("Error when loading the active images!\nLikely an active image you tried to process was not saved.\nThus CiliaQ could not determine the output path!\nMake sure all images are saved and retry...").show();
+				new WaitForUserDialog("Error when loading the active images!\nLikely an active image you tried to process was not saved or opened in Virtual Stack mode.\nThus CiliaQ could not determine the output path!\nMake sure all images are saved and not in Virtual Stack mode and retry...").show();
 				return;
 			}	
 		}
