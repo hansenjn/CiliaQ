@@ -1,10 +1,10 @@
 package ciliaQ_jnh;
 /** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.1.7
+ * CiliaQ, a plugin for imagej - Version 0.1.8
  * 
  * Copyright (C) 2017-2023 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: May 7, 2023
+ * This Version: September 18, 2023
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -44,7 +44,7 @@ import ij.text.*;
 public class CiliaQMain implements PlugIn, Measurements {
 	//Name variables
 	static final String PLUGINNAME = "CiliaQ";
-	static final String PLUGINVERSION = "0.1.7";
+	static final String PLUGINVERSION = "0.1.8";
 	
 	//Fix fonts
 	static final Font SuperHeadingFont = new Font("Sansserif", Font.BOLD, 16);
@@ -239,38 +239,47 @@ public void run(String arg) {
 				dir[task] = od.filesToOpen.get(task).getParent() + System.getProperty("file.separator");
 			}		
 		}else if(selectedTaskVariant.equals(taskVariant[0])){
-			if(WindowManager.getIDList()==null){
-				new WaitForUserDialog("Plugin canceled - no image open in FIJI!").show();
-				return;
-			}
-			FileInfo info = WindowManager.getCurrentImage().getOriginalFileInfo();
-			name [0] = info.fileName;	//get name
-			dir [0] = info.directory;	//get directory
-			tasks = 1;
-		}else if(selectedTaskVariant.equals(taskVariant[2])){	// all open images
-			if(WindowManager.getIDList()==null){
-				new WaitForUserDialog("Plugin canceled - no image open in FIJI!").show();
-				return;
-			}
-			int IDlist [] = WindowManager.getIDList();
-			tasks = IDlist.length;	
-			if(tasks == 1){
-				selectedTaskVariant=taskVariant[0];
+			try {
+				if(WindowManager.getIDList()==null){
+					new WaitForUserDialog("Plugin canceled - no image open in FIJI!").show();
+					return;
+				}
 				FileInfo info = WindowManager.getCurrentImage().getOriginalFileInfo();
 				name [0] = info.fileName;	//get name
 				dir [0] = info.directory;	//get directory
-			}else{
-				name = new String [tasks];
-				dir = new String [tasks];
-				allImps = new ImagePlus [tasks];
-				for(int i = 0; i < tasks; i++){
-					allImps[i] = WindowManager.getImage(IDlist[i]); 
-					FileInfo info = allImps[i].getOriginalFileInfo();
-					name [i] = info.fileName;	//get name
-					dir [i] = info.directory;	//get directory
-				}		
-			}
-					
+				tasks = 1;
+			}catch(Exception e) {
+				new WaitForUserDialog("Error when loading the active image!\nLikely the image you tried to process was not saved.\nThus CiliaQ could not determine the output path!\nSave the image and retry...").show();
+				return;
+			}			
+		}else if(selectedTaskVariant.equals(taskVariant[2])){	// all open images
+			try {
+				if(WindowManager.getIDList()==null){
+					new WaitForUserDialog("Plugin canceled - no image open in FIJI!").show();
+					return;
+				}
+				int IDlist [] = WindowManager.getIDList();
+				tasks = IDlist.length;	
+				if(tasks == 1){
+					selectedTaskVariant=taskVariant[0];
+					FileInfo info = WindowManager.getCurrentImage().getOriginalFileInfo();
+					name [0] = info.fileName;	//get name
+					dir [0] = info.directory;	//get directory
+				}else{
+					name = new String [tasks];
+					dir = new String [tasks];
+					allImps = new ImagePlus [tasks];
+					for(int i = 0; i < tasks; i++){
+						allImps[i] = WindowManager.getImage(IDlist[i]); 
+						FileInfo info = allImps[i].getOriginalFileInfo();
+						name [i] = info.fileName;	//get name
+						dir [i] = info.directory;	//get directory
+					}		
+				}
+			}catch(Exception e) {
+				new WaitForUserDialog("Error when loading the active images!\nLikely an active image you tried to process was not saved.\nThus CiliaQ could not determine the output path!\nMake sure all images are saved and retry...").show();
+				return;
+			}	
 		}
 	}
 	 	
