@@ -39,7 +39,6 @@ import ij.measure.*;
 import ij.plugin.*;
 import ij.process.ImageConverter;
 import ij.process.LUT;
-import ij.text.*;
 
 public class CiliaQMain implements PlugIn, Measurements {
 	//Name variables
@@ -461,15 +460,14 @@ public void run(String arg) {
 }
 }
 
-public void addFooter(TextPanel tp, Date currentDate){
+public void addFooter(OutputTextFile tp, Date currentDate){
 	tp.append("");
 	tp.append("Datafile was generated on " + FullDateFormatter2.format(currentDate) + " by the imagej plug-in '"+PLUGINNAME+"', " 
 			+ "\u00a9 2017 - " + YearOnly.format(new Date()) + " Jan Niklas Hansen (jan.hansen@uni-bonn.de).");
 	tp.append("The plug-in '"+PLUGINNAME+"' is distributed in the hope that it will be useful,"
 			+ " but WITHOUT ANY WARRANTY; without even the implied warranty of"
 			+ " MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.");
-	tp.append("Plug-in version:	V"+PLUGINVERSION);
-	
+	tp.append("Plug-in version:	V"+PLUGINVERSION);	
 }
 
 public String getOneRowFooter(Date currentDate){
@@ -482,7 +480,7 @@ public String getOneRowFooter(Date currentDate){
 	return appendTxt;
 }
 
-private void addSettingsBlockToPanel(TextPanel tp, Date currentDate, Date startDate, String name, ImagePlus imp, 
+private void addSettingsBlockToPanel(OutputTextFile tp, Date currentDate, Date startDate, String name, ImagePlus imp, 
 		boolean measureC2local, boolean measureC3local, boolean measureBasalLocal, double [] intensityThresholds,
 		int excludedCilia, int totalCilia){
 	tp.append("Saving date:	" + FullDateFormatter.format(currentDate)
@@ -2078,7 +2076,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			if(cilia.get(i).excluded) continue;
 			progress.updateBarText("Writing single cilia images (" + i + "/" + cilia.size() + " done)");
 			//save channel information
-			TextPanel tp =new TextPanel("channel-info");
+			OutputTextFile tp = new OutputTextFile("");
 			tp.append("Channel information for results images obtained by analysis of:	" + name);
 			tp.append("Saving date:	" + FullDateFormatter.format(currentDate)
 			+ "	Starting date:	" + FullDateFormatter.format(startDate));
@@ -2091,7 +2089,9 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			tp.append("	channel 4 (red):	" + "intensity B");
 			
 			addFooter(tp, currentDate);					
-			tp.saveAs(subfolderPrefix + "_P" + dformat0.format(i+1) + "_ci.txt");
+			if(!tp.saveAndFinish(subfolderPrefix + "_P" + dformat0.format(i+1) + "_ci.txt")) {
+				progress.notifyMessage("IO ERROR when saving file " + (subfolderPrefix + "_P" + dformat0.format(i+1) + "_ci.txt"), ProgressDialog.ERROR);
+			}
 			
 			ImagePlus impC = cilia.get(i).getCiliumImp(intensityThresholds, channelC2, channelC3);
 			IJ.saveAsTiff(impC, subfolderPrefix + "_C" + dformat0.format(i+1) + ".tif"); 
@@ -2106,10 +2106,10 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	//Output images
 			
 	//Save Textfile--------------------------------------	
-	TextPanel tw1 =new TextPanel("results");
-	TextPanel tw2 =new TextPanel("short results");
+	OutputTextFile tw1 = new OutputTextFile("");
+	OutputTextFile tw2 = new OutputTextFile("");
 	
-	this.addSettingsBlockToPanel(tw1, currentDate, startDate, name, imp, 
+	addSettingsBlockToPanel(tw1, currentDate, startDate, name, imp, 
 			measureC2local, measureC3local, measureBasalLocal, intensityThresholds, excludedCilia, cilia.size());
 	
 	tw1.append("Results:");				
@@ -2359,11 +2359,15 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		tw2.append(""+appendTxt);
 	}
 	
-	addFooter(tw1, currentDate);				
-	tw1.saveAs(filePrefix + ".txt");
+	addFooter(tw1, currentDate);
+	if(!tw1.saveAndFinish(filePrefix + ".txt")) {
+		progress.notifyMessage("IO ERROR when saving file " + filePrefix + ".txt", ProgressDialog.ERROR);
+	}
 	
 	//save one row results file
-	tw2.saveAs(filePrefix + "s.txt");
+	if(!tw2.saveAndFinish(filePrefix + "s.txt")) {
+		progress.notifyMessage("IO ERROR when saving file " + (filePrefix + "s.txt"), ProgressDialog.ERROR);
+	}
 	
 	//save profile text file
 	saveSkeletonPoints(cilia, dir, name, filePrefix + "l.txt", currentDate);
@@ -2546,10 +2550,10 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	//Output images
 			
 	//Save Textfile--------------------------------------	
-	TextPanel tw1 =new TextPanel("results");
-	TextPanel tw2 =new TextPanel("short results");
+	OutputTextFile tw1 = new OutputTextFile ("");
+	OutputTextFile tw2 = new OutputTextFile ("");
 	
-	this.addSettingsBlockToPanel(tw1, currentDate, startDate, name, imp, 
+	addSettingsBlockToPanel(tw1, currentDate, startDate, name, imp, 
 			measureC2local, measureC3local, measureBasalLocal, intensityThresholds, excludedCilia, timelapseCilia.size());
 	
 	tw1.append("Averaged results of the time-course analysis:");				
@@ -2685,10 +2689,14 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	}
 	
 	addFooter(tw1, currentDate);				
-	tw1.saveAs(filePrefix + ".txt");
+	if(!tw1.saveAndFinish(filePrefix + ".txt")) {
+		progress.notifyMessage("IO ERROR when saving file " + filePrefix + ".txt", ProgressDialog.ERROR);
+	}
 	
 	//save one row results file
-	tw2.saveAs(filePrefix + "s.txt");
+	if(!tw2.saveAndFinish(filePrefix + "s.txt")) {
+		progress.notifyMessage("IO ERROR when saving file " + (filePrefix + "s.txt"), ProgressDialog.ERROR);
+	}
 	//Save Textfile--------------------------------------
 	
 	//save profile text file
@@ -2705,7 +2713,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			if(timelapseCilia.get(i).excluded) continue;
 			
 			//save channel information
-			TextPanel tp =new TextPanel("channel-info");
+			OutputTextFile tp = new OutputTextFile ("");
 			tp.append("Channel information for results images obtained by analysis of:	" + name);
 			tp.append("Cilium:	" + dformat0.format(i+1));
 			tp.append("Saving date:	" + FullDateFormatter.format(currentDate)
@@ -2718,8 +2726,11 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			tp.append("	channel 3 (green):	" + "intensity A");
 			tp.append("	channel 4 (red):	" + "intensity B");
 			
-			addFooter(tp, currentDate);					
-			tp.saveAs(subfolderPrefix + "_C" + dformat0.format(i+1) + "_img.txt");
+			addFooter(tp, currentDate);			
+			if(!tp.saveAndFinish(subfolderPrefix + "_C" + dformat0.format(i+1) + "_img.txt")) {
+				progress.notifyMessage("IO ERROR when saving file " + (subfolderPrefix + "_C" + dformat0.format(i+1) + "_img.txt"), ProgressDialog.ERROR);
+			}
+			
 			
 			impC = timelapseCilia.get(i).getCiliumImp(intensityThresholds, channelC2, channelC3, progress);
 			IJ.saveAsTiff(impC, subfolderPrefix + "_C" + dformat0.format(i+1) + ".tif"); 
@@ -2759,10 +2770,10 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 	String filePrefix, String subfolderPrefix, 
 	double [] intensityThresholds, int excludedCilia, int totalCilia){
 	//Save Textfile--------------------------------------	
-	TextPanel tw1 =new TextPanel("results");
-	TextPanel tw2 =new TextPanel("short results");
+	OutputTextFile tw1 = new OutputTextFile ("");
+	OutputTextFile tw2 = new OutputTextFile ("");
 	
-	this.addSettingsBlockToPanel(tw1, currentDate, startDate, name, imp, 
+	addSettingsBlockToPanel(tw1, currentDate, startDate, name, imp, 
 			measureC2local, measureC3local, measureBasalLocal, intensityThresholds, excludedCilia, totalCilia);
 	
 	tw1.append("Results for Cilium " + ciliumID + ":");				
@@ -3043,10 +3054,15 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 	progress.updateBarText("Save text file cilium " + ciliumID);	
 	
 	addFooter(tw1, currentDate);				
-	tw1.saveAs(subfolderPrefix + ".txt");
+	
+	if(!tw1.saveAndFinish(subfolderPrefix + ".txt")) {
+		progress.notifyMessage("IO ERROR when saving file " + subfolderPrefix + ".txt", ProgressDialog.ERROR);
+	}
 	
 	//save one row results file
-	tw2.saveAs(subfolderPrefix + "s.txt");
+	if(!tw2.saveAndFinish(subfolderPrefix + "s.txt")) {
+		progress.notifyMessage("IO ERROR when saving file " + subfolderPrefix + "s.txt", ProgressDialog.ERROR);
+	}
 }
 
 /**
@@ -3122,7 +3138,7 @@ private void saveSkeletonOverviewImagesTimelapse(String savePath, ImagePlus imp,
 	IJ.saveAsTiff(impOut, savePath + ".tif"); 
 		
 	//save channel information
-	TextPanel tp =new TextPanel("channel-info");
+	OutputTextFile tp = new OutputTextFile ("");
 	tp.append("Channel information for skeleton results image - analysis of:	" + name);
 	tp.append("Saving date:	" + FullDateFormatter.format(currentDate)
 	+ "	Starting date:	" + FullDateFormatter.format(startDate));
@@ -3132,8 +3148,10 @@ private void saveSkeletonOverviewImagesTimelapse(String savePath, ImagePlus imp,
 	tp.append("	channel 1:	red	" + "ciliary skeleton");
 	tp.append("	channel 2:	white	" + "detected base");
 	
-	addFooter(tp, currentDate);					
-	tp.saveAs(savePath + "_info.txt");
+	addFooter(tp, currentDate);
+	if(!tp.saveAndFinish(savePath + "_info.txt")) {
+		progress.notifyMessage("IO ERROR when saving file " + savePath + "_info.txt", ProgressDialog.ERROR);
+	}
 	
 	// make 3D visualization
 	if(saveOverview3DImages){
@@ -3296,7 +3314,7 @@ private void saveSkeletonOverviewImageNonTimeLapse(String savePath, ImagePlus im
 		
 	//save channel information
 	progress.updateBarText("Writing metadata text file for non-timelapse skeleton overview image...");
-	TextPanel tp =new TextPanel("channel-info");
+	OutputTextFile tp =new OutputTextFile ("");
 	tp.append("Channel information for skeleton results image - analysis of:	" + name);
 	tp.append("Saving date:	" + FullDateFormatter.format(currentDate)
 	+ "	Starting date:	" + FullDateFormatter.format(startDate));
@@ -3306,8 +3324,10 @@ private void saveSkeletonOverviewImageNonTimeLapse(String savePath, ImagePlus im
 	tp.append("	channel 1:	red	" + "ciliary skeleton");
 	tp.append("	channel 2:	white	" + "detected base");
 	
-	addFooter(tp, currentDate);					
-	tp.saveAs(savePath + "_info.txt");
+	addFooter(tp, currentDate);
+	if(!tp.saveAndFinish(savePath + "_info.txt")) {
+		progress.notifyMessage("IO ERROR when saving file " + savePath + "_info.txt", ProgressDialog.ERROR);
+	}
 	
 	// make 3D visualization
 	if(saveOverview3DImages){
@@ -4091,93 +4111,95 @@ private boolean enterSettings() {
 	 * */
 	private void saveSkeletonPoints(ArrayList<Cilium> cilia, String dir, String name, String path, Date date) {
 		// create file
-				TextPanel tp =new TextPanel("Skeleton Points");
-				
-				// write file
-				{
-					// write column names
-					String addStr = "Directory";
-					addStr += "	" + "File name"
-							+ "	" + "ID"
-							+ "	" + "Point-ID"
-							+ "	" + "T [frames]"
-							+ "	" + "X [" + calibrationDimension + "]"
-							+ "	" + "Y [" + calibrationDimension + "]"
-							+ "	" + "Z [" + calibrationDimension + "]"
-							+ "	" + "Arc length  [" + calibrationDimension + "]"
-							+ "	" + "Tangent vector X [" + calibrationDimension + "]"
-							+ "	" + "Tangent vector Y [" + calibrationDimension + "]"
-							+ "	" + "Tangent vector Z [" + calibrationDimension + "]"
-							+ "	" + "Curvature [" + calibrationDimension + "^(-1)]"
-							+ "	" + "Intensity A"
-							+ "	" + "Intensity B"
-							+ "	" + "Intensity A (normalized to reconstruction channel)"
-							+ "	" + "Intensity B (normalized to reconstruction channel)";
-					tp.append(addStr + this.getOneRowFooter(date));
-					
-					// write content
-					int ciliumID;
-					double points [][], tangents [][], curvatures [];
+		OutputTextFile tp =new OutputTextFile("");
+		
+		// write file
+		{
+			// write column names
+			String addStr = "Directory";
+			addStr += "	" + "File name"
+					+ "	" + "ID"
+					+ "	" + "Point-ID"
+					+ "	" + "T [frames]"
+					+ "	" + "X [" + calibrationDimension + "]"
+					+ "	" + "Y [" + calibrationDimension + "]"
+					+ "	" + "Z [" + calibrationDimension + "]"
+					+ "	" + "Arc length  [" + calibrationDimension + "]"
+					+ "	" + "Tangent vector X [" + calibrationDimension + "]"
+					+ "	" + "Tangent vector Y [" + calibrationDimension + "]"
+					+ "	" + "Tangent vector Z [" + calibrationDimension + "]"
+					+ "	" + "Curvature [" + calibrationDimension + "^(-1)]"
+					+ "	" + "Intensity A"
+					+ "	" + "Intensity B"
+					+ "	" + "Intensity A (normalized to reconstruction channel)"
+					+ "	" + "Intensity B (normalized to reconstruction channel)";
+			tp.append(addStr + this.getOneRowFooter(date));
+			
+			// write content
+			int ciliumID;
+			double points [][], tangents [][], curvatures [];
 
-					double arclength = 0.0;
-					
-					for(int cil = 0; cil < cilia.size(); cil++) {
-						if(cilia.get(cil).excluded){
-							continue;
-						}
-						
-						if(!cilia.get(cil).sklAvailable) {
-							continue;
-						}
-						
-						ciliumID = cil + 1;
-						progress.updateBarText("Saving individual cilia points (" + cil + "/" + cilia.size() + " done)");
-						
-						points = cilia.get(cil).getSkeletonPointsForOriginalImage();
-						tangents = getTangents(points);
-						curvatures = getCurvatures(points, tangents);
-						
-						arclength = 0.0;
-						
-						for(int p = 0; p < points.length; p++) {
-							addStr = dir 
-									+ "	" + name 
-									+ "	" + ciliumID 
-									+ "	" + (p+1);
-							addStr += "	" + cilia.get(cil).t;	//T
-							addStr += "	" + dformat6.format(points [p][0]);	//X
-							addStr += "	" + dformat6.format(points [p][1]);	//Y
-							addStr += "	" + dformat6.format(points [p][2]);	//Z
-							if(p == 0) {
-								addStr += "	" + dformat6.format(0.0);	//Arc length
-							}else {
-								arclength += getDistance(points [p][0],points [p][1],points [p][2],
-										points [p-1][0],points [p-1][1],points [p-1][2]);
-								addStr += "	" + dformat6.format(arclength);	//Arc length
-							}
-							addStr += "	";
-							if(!Double.isNaN(tangents[p][0])) addStr += dformat6.format(tangents [p][0]);	// Tangent X
-							addStr += "	";
-							if(!Double.isNaN(tangents[p][1])) addStr += dformat6.format(tangents [p][1]);	// Tangent Y
-							addStr += "	";
-							if(!Double.isNaN(tangents[p][2])) addStr += dformat6.format(tangents [p][2]);	// Tangent Z
-							addStr += "	";
-							if(!Double.isNaN(curvatures[p])) addStr += dformat6.format(curvatures [p]);	//Curvature
-							addStr += "	";
-							if(measureC2) addStr += dformat6.format(cilia.get(cil).profileC2[p]);	//Intensity A
-							addStr += "	";
-							if(measureC3) addStr += dformat6.format(cilia.get(cil).profileC3[p]);	//Intensity B
-							addStr += "	";
-							if(measureC2) addStr += dformat6.format(cilia.get(cil).profileC2norm[p]);	//Intensity A Norm
-							addStr += "	";
-							if(measureC3) addStr += dformat6.format(cilia.get(cil).profileC3norm[p]);	//Intensity B Norm
-							tp.append(addStr);
-						}
-					}
+			double arclength = 0.0;
+			
+			for(int cil = 0; cil < cilia.size(); cil++) {
+				if(cilia.get(cil).excluded){
+					continue;
 				}
-								
-				// save file
-				tp.saveAs(path);
+				
+				if(!cilia.get(cil).sklAvailable) {
+					continue;
+				}
+				
+				ciliumID = cil + 1;
+				progress.updateBarText("Saving individual cilia points (" + cil + "/" + cilia.size() + " done)");
+				
+				points = cilia.get(cil).getSkeletonPointsForOriginalImage();
+				tangents = getTangents(points);
+				curvatures = getCurvatures(points, tangents);
+				
+				arclength = 0.0;
+				
+				for(int p = 0; p < points.length; p++) {
+					addStr = dir 
+							+ "	" + name 
+							+ "	" + ciliumID 
+							+ "	" + (p+1);
+					addStr += "	" + cilia.get(cil).t;	//T
+					addStr += "	" + dformat6.format(points [p][0]);	//X
+					addStr += "	" + dformat6.format(points [p][1]);	//Y
+					addStr += "	" + dformat6.format(points [p][2]);	//Z
+					if(p == 0) {
+						addStr += "	" + dformat6.format(0.0);	//Arc length
+					}else {
+						arclength += getDistance(points [p][0],points [p][1],points [p][2],
+								points [p-1][0],points [p-1][1],points [p-1][2]);
+						addStr += "	" + dformat6.format(arclength);	//Arc length
+					}
+					addStr += "	";
+					if(!Double.isNaN(tangents[p][0])) addStr += dformat6.format(tangents [p][0]);	// Tangent X
+					addStr += "	";
+					if(!Double.isNaN(tangents[p][1])) addStr += dformat6.format(tangents [p][1]);	// Tangent Y
+					addStr += "	";
+					if(!Double.isNaN(tangents[p][2])) addStr += dformat6.format(tangents [p][2]);	// Tangent Z
+					addStr += "	";
+					if(!Double.isNaN(curvatures[p])) addStr += dformat6.format(curvatures [p]);	//Curvature
+					addStr += "	";
+					if(measureC2) addStr += dformat6.format(cilia.get(cil).profileC2[p]);	//Intensity A
+					addStr += "	";
+					if(measureC3) addStr += dformat6.format(cilia.get(cil).profileC3[p]);	//Intensity B
+					addStr += "	";
+					if(measureC2) addStr += dformat6.format(cilia.get(cil).profileC2norm[p]);	//Intensity A Norm
+					addStr += "	";
+					if(measureC3) addStr += dformat6.format(cilia.get(cil).profileC3norm[p]);	//Intensity B Norm
+					tp.append(addStr);
+				}
+			}
+		}
+						
+		// save file
+		if(!tp.saveAndFinish(path)) {
+			progress.notifyMessage("IO ERROR when saving file " + path, ProgressDialog.ERROR);
+		}
 	}
 	
 	/**
@@ -4187,7 +4209,7 @@ private boolean enterSettings() {
 	 * */
 	private void saveTimelapseSkeletonPoints(ArrayList<TimelapseCilium> tlCilia, String dir, String name, String path, Date date) {
 		// create file
-		TextPanel tp =new TextPanel("Skeleton Points");
+		OutputTextFile tp =new OutputTextFile("");
 		
 		// write file
 		{
@@ -4278,7 +4300,9 @@ private boolean enterSettings() {
 		}
 						
 		// save file
-		tp.saveAs(path);
+		if(!tp.saveAndFinish(path)) {
+			progress.notifyMessage("IO ERROR when saving file " + path, ProgressDialog.ERROR);
+		}
 	}
 	
 	/**
