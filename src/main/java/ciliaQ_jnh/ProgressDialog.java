@@ -49,7 +49,7 @@ public class ProgressDialog extends javax.swing.JFrame implements ActionListener
 	static final int ERROR = 0, NOTIFICATION = 1, LOG = 2;;
 	JPanel bgPanel;
 	JScrollPane jScrollPaneLeft, jScrollPaneRight, jScrollPaneBottom;
-	JList ListeLeft, ListeRight, ListeBottom;
+	JList <String> ListeLeft, ListeRight, ListeBottom;
 	
 	private JProgressBar progressBar = new JProgressBar();
 	private double taskFraction = 0.0;
@@ -104,8 +104,8 @@ public class ProgressDialog extends javax.swing.JFrame implements ActionListener
 						jScrollPaneLeft.setPreferredSize(new java.awt.Dimension((int)((double)(subXSize/2.0)-10), subYSize-60));
 						imPanel.add(jScrollPaneLeft,BorderLayout.CENTER); 
 						{
-							ListModel ListeModel = new DefaultComboBoxModel(new String[] { "" });
-							ListeLeft = new JList();
+							ListModel <String> ListeModel = new DefaultComboBoxModel <String> (new String[] { "" });
+							ListeLeft = new JList <String> ();
 							jScrollPaneLeft.setViewportView(ListeLeft);
 							ListeLeft.setModel(ListeModel);
 						}
@@ -130,8 +130,8 @@ public class ProgressDialog extends javax.swing.JFrame implements ActionListener
 						jScrollPaneRight.setPreferredSize(new java.awt.Dimension((int)((double)(subXSize/2.0)-10), subYSize-60));
 						imPanel.add(jScrollPaneRight,BorderLayout.CENTER); 
 						{
-							ListModel ListeModel = new DefaultComboBoxModel(new String[] { "" });
-							ListeRight = new JList();
+							ListModel <String> ListeModel = new DefaultComboBoxModel <String> (new String[] { "" });
+							ListeRight = new JList <String> ();
 							jScrollPaneRight.setViewportView(ListeRight);
 							ListeRight.setModel(ListeModel);
 						}
@@ -179,8 +179,8 @@ public class ProgressDialog extends javax.swing.JFrame implements ActionListener
 					jScrollPaneBottom.setPreferredSize(new java.awt.Dimension(prefXSize, 100));
 					imPanel.add(jScrollPaneBottom, BorderLayout.CENTER);
 					{
-						ListModel ListeModel = new DefaultComboBoxModel(new String[] { "" });
-						ListeBottom = new JList();
+						ListModel <String> ListeModel = new DefaultComboBoxModel <String> (new String[] { "" });
+						ListeBottom = new JList <String> ();
 						jScrollPaneBottom.setViewportView(ListeBottom);
 						ListeBottom.setModel(ListeModel);
 					}
@@ -192,7 +192,7 @@ public class ProgressDialog extends javax.swing.JFrame implements ActionListener
 	
 	@Override
 	public void actionPerformed(ActionEvent ae) {
-		Object eventQuelle = ae.getSource();
+//		Object eventQuelle = ae.getSource();
 //		if (eventQuelle == abortButton){
 //			abort = true;
 ////			updateDisplay();
