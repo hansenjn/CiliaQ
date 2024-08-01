@@ -241,7 +241,7 @@ public void run(String arg) {
 		}else if(selectedTaskVariant.equals(taskVariant[0])){
 			try {
 				if(WindowManager.getIDList()==null){
-					new WaitForUserDialog("Plugin canceled - no image open in FIJI!").show();
+					IJ.error("Plugin canceled - no image open in FIJI!");
 					return;
 				}
 				FileInfo info = WindowManager.getCurrentImage().getOriginalFileInfo();
@@ -249,13 +249,16 @@ public void run(String arg) {
 				dir [0] = info.directory;	//get directory
 				tasks = 1;
 			}catch(Exception e) {
-				new WaitForUserDialog("Error when loading the active image!\nLikely the image you tried to process was not saved or opened in Virtual Stack mode.\nThus CiliaQ could not determine the output path!\nSave the image or make sure it is not in Virtual Stack mode and retry...").show();
+				IJ.error("Error when loading the active image!\n"
+						+ "Likely the image you tried to process was not saved or opened in Virtual Stack mode.\n"
+						+ "Thus CiliaQ could not determine the output path!\n"
+						+ "Save the image or make sure it is not in Virtual Stack mode and retry...");
 				return;
 			}			
 		}else if(selectedTaskVariant.equals(taskVariant[2])){	// all open images
 			try {
 				if(WindowManager.getIDList()==null){
-					new WaitForUserDialog("Plugin canceled - no image open in FIJI!").show();
+					IJ.error("Plugin canceled - no image open in FIJI!");
 					return;
 				}
 				int IDlist [] = WindowManager.getIDList();
@@ -277,7 +280,9 @@ public void run(String arg) {
 					}		
 				}
 			}catch(Exception e) {
-				new WaitForUserDialog("Error when loading the active images!\nLikely an active image you tried to process was not saved or opened in Virtual Stack mode.\nThus CiliaQ could not determine the output path!\nMake sure all images are saved and not in Virtual Stack mode and retry...").show();
+				IJ.error("Error when loading the active images!\nLikely an active image you tried to process was not saved or opened in Virtual Stack mode.\n"
+						+ "Thus CiliaQ could not determine the output path!\n"
+						+ "Make sure all images are saved and not in Virtual Stack mode and retry...");
 				return;
 			}	
 		}
