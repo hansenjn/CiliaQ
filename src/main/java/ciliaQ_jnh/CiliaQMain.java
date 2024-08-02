@@ -4,7 +4,7 @@ package ciliaQ_jnh;
  * 
  * Copyright (C) 2017-2023 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: September 18, 2023
+ * This Version: August 2, 2024
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -439,15 +439,26 @@ public void run(String arg) {
 			filePrefix = dir[task] + filePrefix;
 		//Define Output File Names
 			
+		//Check whether exclude selection matches and customize if needed	
+			String tempExcludeSelection = excludeSelection;
+			if(imp.getNSlices() == 1 && (excludeSelection.equals(excludeOptions [2]) || excludeSelection.equals(excludeOptions [3]))){
+				tempExcludeSelection = excludeOptions [1];
+				progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": This is a 2D image - setting '"
+						+ excludeSelection
+						+ "' was switched to '"
+						+ tempExcludeSelection
+						+ "' for this image, to ensure that cilia can be detected.", ProgressDialog.NOTIFICATION);
+			}
+			
 		//Get cilia data and save them
 			if(imp.getNFrames()!=1){
 				//Timelapse Mode
 				progress.notifyMessage("Timelapse workflow started...", ProgressDialog.LOG);
-				this.analyzeCiliaIn4DAndSaveResults(imp, measureC2local, measureC3local, measureBasalLocal, name[task], dir[task], startDate, filePrefix, subfolderPrefix);
+				this.analyzeCiliaIn4DAndSaveResults(imp, measureC2local, measureC3local, measureBasalLocal, name[task], dir[task], startDate, filePrefix, subfolderPrefix, tempExcludeSelection);
 			}else{
 				//Single-frame Mode
 				progress.notifyMessage("Single-timepoint workflow started...", ProgressDialog.LOG);
-				this.analyzeCiliaIn3DAndSaveResults(imp, measureC2local, measureC3local, measureBasalLocal, name[task], dir[task], startDate, filePrefix, subfolderPrefix);
+				this.analyzeCiliaIn3DAndSaveResults(imp, measureC2local, measureC3local, measureBasalLocal, name[task], dir[task], startDate, filePrefix, subfolderPrefix, tempExcludeSelection);
 			}			
 		//Get cilia data and save them
 	processingDone = true;
@@ -1946,7 +1957,7 @@ private static ImagePlus getChannel(ImagePlus imp, int channel){
  * Workflow for non-timelapse analysis
  * */
 private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2local, boolean measureC3local, boolean measureBasalLocal, 
-		String name, String dir, Date startDate, String filePrefix, String subfolderPrefix){
+		String name, String dir, Date startDate, String filePrefix, String subfolderPrefix, String tempExcludeSelection){
 	ArrayList<Cilium> cilia = new ArrayList<Cilium>();
 	double intensityThresholds [] = new double[imp.getNChannels()]; //for each channel individual
 	
@@ -1980,7 +1991,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			if(cilia.size()!=i+1)	progress.notifyMessage("Error while measuring cilium " + (i+1), ProgressDialog.NOTIFICATION);
 			
 			//Exclude cilia if selected
-			if(!excludeSelection.equals(excludeOptions[0])){
+			if(!tempExcludeSelection.equals(excludeOptions[0])){
 				progress.updateBarText("Quantifying cilia objects (" + i + "/" + ciliaParticles.size() + " done): checking xyz borders...");
 				touchesXY = false; touchesZ = false;
 				Arrays.fill(sliceCounter, 0);
@@ -1996,7 +2007,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 						touchesXY = true;
 						break;
 					}
-					if(excludeSelection.equals(excludeOptions[2])
+					if(tempExcludeSelection.equals(excludeOptions[2])
 							&& (cilia.get(i).points [j][2] == 0 
 							|| (int)Math.round(cilia.get(i).points [j][2] / imp.getCalibration().pixelDepth) == imp.getNSlices()-1)){
 						touchesZ = true;
@@ -2008,11 +2019,11 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				
 				if(touchesXY){
 					cilia.get(i).excluded = true;
-				}else if(excludeSelection.equals(excludeOptions[2])){
+				}else if(tempExcludeSelection.equals(excludeOptions[2])){
 					if(touchesZ){
 						cilia.get(i).excluded = true;
 					}
-				}else if(excludeSelection.equals(excludeOptions[3])){
+				}else if(tempExcludeSelection.equals(excludeOptions[3])){
 					//check where most points are located
 					if(tools.getMaximumIndex(sliceCounter) == 0 ||
 							tools.getMaximumIndex(sliceCounter) == imp.getNSlices()-1){
@@ -2412,7 +2423,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
  * Workflow for TIMELAPSE analysis
  * */
 private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2local, boolean measureC3local, boolean measureBasalLocal, 
-		String name, String dir, Date startDate, String filePrefix, String subfolderPrefix){
+		String name, String dir, Date startDate, String filePrefix, String subfolderPrefix, String tempExcludeSelection){
 	ArrayList<TimelapseCilium> timelapseCilia = new ArrayList<TimelapseCilium>();
 	double intensityThresholds [] = new double[imp.getNChannels()]; //for each channel individual
 	
@@ -2447,7 +2458,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			if(timelapseCilia.size()!=i+1)	progress.notifyMessage("Error while measuring cilium " + (i+1), ProgressDialog.NOTIFICATION);
 			
 			//Exclude cilia if selected
-			if(!excludeSelection.equals(excludeOptions[0])){
+			if(!tempExcludeSelection.equals(excludeOptions[0])){
 				progress.updateBarText("Quantifying cilia (" + i + "/" + ciliaParticles.size() + " done): checking xyz borders...");
 				touchesXY = false; touchesZ = false;
 				Arrays.fill(sliceCounter, 0);
@@ -2463,7 +2474,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 							touchesXY = true;
 							break;
 						}
-						if(excludeSelection.equals(excludeOptions[2])
+						if(tempExcludeSelection.equals(excludeOptions[2])
 								&& (timelapseCilia.get(i).cilia.get(k).points [j][2] == 0 
 								|| (int)Math.round(timelapseCilia.get(i).cilia.get(k).points [j][2] / imp.getCalibration().pixelDepth) == imp.getNSlices()-1)){
 							touchesZ = true;
@@ -2475,11 +2486,11 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 								
 				if(touchesXY){
 					timelapseCilia.get(i).excluded = true;
-				}else if(excludeSelection.equals(excludeOptions[2])){
+				}else if(tempExcludeSelection.equals(excludeOptions[2])){
 					if(touchesZ){
 						timelapseCilia.get(i).excluded = true;
 					}
-				}else if(excludeSelection.equals(excludeOptions[3])){
+				}else if(tempExcludeSelection.equals(excludeOptions[3])){
 					//check where most points are located
 					if(tools.getMaximumIndex(sliceCounter) == 0 ||
 							tools.getMaximumIndex(sliceCounter) == imp.getNSlices()-1){
