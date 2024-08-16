@@ -130,7 +130,7 @@ public void run(String arg) {
     		&& Macro.getOptions() != null
     		&& Macro.getOptions().length()>0) {
     	
-    	readSettingsFromMacroString(Macro.getOptions(), true);
+    	readSettingsFromMacroString(Macro.getOptions(), true); //TODO Make log false
     			
         showDialog = false;
     }
@@ -251,7 +251,7 @@ public void run(String arg) {
     if (record) {  
     	String recordString = createRecordString();
 		Recorder.record = true;
-    	Recorder.recordString("run(\"" + PLUGINNAME + " (" + PLUGINVERSION + ")\",\"" + recordString + "\");\n");    	
+    	Recorder.recordString("run(\"" + PLUGINNAME + " v" + PLUGINVERSION + "\",\"" + recordString + "\");\n");    	
     }
     
 	
