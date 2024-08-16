@@ -3094,11 +3094,19 @@ private void saveSkeletonOverviewImagesTimelapse(String savePath, ImagePlus imp,
 		for(int j = 0; j < cilia.get(i).cilia.size(); j++){
 			if(!cilia.get(i).cilia.get(j).sklAvailable) continue;
 			points = cilia.get(i).cilia.get(j).getSkeletonPointsForOriginalImage();
+			
+			/*
+			 * Determining skeleton base position
+			 */
 			sklBaseX = (int)Math.round(points[0][0]/impOut.getCalibration().pixelWidth);
 			sklBaseY = (int)Math.round(points[0][1]/impOut.getCalibration().pixelHeight);
 			sklBaseZ = impOut.getStackIndex(2, 
 					(int)Math.round(points[0][2]/impOut.getCalibration().pixelDepth)+1, 
 					cilia.get(i).cilia.get(j).t+1)-1;
+
+			/*
+			 * Writing base intoimage
+			 */
 			impOut.getStack().setVoxel(sklBaseX,sklBaseY,sklBaseZ,255.0);
 			if(sklBaseX>0) 						impOut.getStack().setVoxel(sklBaseX-1,sklBaseY,sklBaseZ,255.0);
 			if(sklBaseX<impOut.getWidth()-1)	impOut.getStack().setVoxel(sklBaseX+1,sklBaseY,sklBaseZ,255.0);
@@ -3119,13 +3127,9 @@ private void saveSkeletonOverviewImagesTimelapse(String savePath, ImagePlus imp,
 				255.0);
 			}
 			
-//			impOut.getStack().setVoxel((int)Math.round(points[0][0]/impOut.getCalibration().pixelWidth),
-//					(int)Math.round(points[0][1]/impOut.getCalibration().pixelHeight),
-//					impOut.getStackIndex(2, 
-//							(int)Math.round(points[0][2]/impOut.getCalibration().pixelDepth)+1, 
-//							cilia.get(i).cilia.get(j).t+1)-1,
-//					255.0);
-						
+			/*
+			 * Write skeleton into image
+			 */
 			for(int k = 0; k < points.length; k++){
 				impOut.getStack().setVoxel((int)Math.round(points[k][0]/impOut.getCalibration().pixelWidth),
 											(int)Math.round(points[k][1]/impOut.getCalibration().pixelHeight),
@@ -3262,51 +3266,48 @@ private void saveSkeletonOverviewImageNonTimeLapse(String savePath, ImagePlus im
 	impOut.setOverlay(imp.getOverlay());
 	impOut.setCalibration(imp.getCalibration());
 	
-	double points [][];
+	int points [][];
 	int sklBaseX, sklBaseY, sklBaseZ;
 	for(int j = 0; j < cilia.size(); j++){
 		if(!cilia.get(j).sklAvailable) continue;
 		progress.updateBarText("Producing non-timelapse skeleton overview image (" + (j+1) + "/" + cilia.size() + ")");
-		points = cilia.get(j).getSkeletonPointsForOriginalImage();
+		points = cilia.get(j).getSkeletonPointsForOriginalImageInPixel();
 		
-		sklBaseX = (int)Math.round(points[0][0]/impOut.getCalibration().pixelWidth);
-		sklBaseY = (int)Math.round(points[0][1]/impOut.getCalibration().pixelHeight);
-		sklBaseZ = impOut.getStackIndex(2, 
-				(int)Math.round(points[0][2]/impOut.getCalibration().pixelDepth)+1, 
-				1)-1;
+		/*
+		 * Calculating ciliary base position
+		 */
+		//Determining base position
+		sklBaseX = points[0][0];
+		sklBaseY = points[0][1];
+		sklBaseZ = impOut.getStackIndex(2,points[0][2]+1,1)-1;
+
+		/*
+		 * Writing ciliary base into image
+		 */
 		impOut.getStack().setVoxel(sklBaseX,sklBaseY,sklBaseZ,255.0);
 		if(sklBaseX>0) 						impOut.getStack().setVoxel(sklBaseX-1,sklBaseY,sklBaseZ,255.0);
 		if(sklBaseX<impOut.getWidth()-1)	impOut.getStack().setVoxel(sklBaseX+1,sklBaseY,sklBaseZ,255.0);
 		if(sklBaseY>0) 						impOut.getStack().setVoxel(sklBaseX,sklBaseY-1,sklBaseZ,255.0);
 		if(sklBaseY<impOut.getHeight()-1)	impOut.getStack().setVoxel(sklBaseX,sklBaseY+1,sklBaseZ,255.0);
-		if((int)Math.round(points[0][2]/impOut.getCalibration().pixelDepth)>0){
+		
+		if(points[0][2]>0){
 			impOut.getStack().setVoxel(sklBaseX,sklBaseY,
-					impOut.getStackIndex(2, 
-							(int)Math.round(points[0][2]/impOut.getCalibration().pixelDepth)+1-1, 
-							1)-1,
+					impOut.getStackIndex(2, points[0][2]+1-1,1)-1,
 					255.0);
 		}
-		if((int)Math.round(points[0][2]/impOut.getCalibration().pixelDepth)<impOut.getNSlices()-1){
+		if(points[0][2]<impOut.getNSlices()-1){
 			impOut.getStack().setVoxel(sklBaseX,sklBaseY,
-					impOut.getStackIndex(2, 
-					(int)Math.round(points[0][2]/impOut.getCalibration().pixelDepth)+1+1, 
-					1)-1,
+					impOut.getStackIndex(2,points[0][2]+1+1,1)-1,
 			255.0);
-		}
-		
-		
-		impOut.getStack().setVoxel((int)Math.round(points[0][0]/impOut.getCalibration().pixelWidth),
-				(int)Math.round(points[0][1]/impOut.getCalibration().pixelHeight),
-				impOut.getStackIndex(2, 
-						(int)Math.round(points[0][2]/impOut.getCalibration().pixelDepth)+1, 
-						1)-1,
-				255.0);
+		}		
+
+		/*
+		 * Writing skeleton into image
+		 */		
 		for(int k = 0; k < points.length; k++){
-			impOut.getStack().setVoxel((int)Math.round(points[k][0]/impOut.getCalibration().pixelWidth),
-										(int)Math.round(points[k][1]/impOut.getCalibration().pixelHeight),
-										impOut.getStackIndex(1, 
-												(int)Math.round(points[k][2]/impOut.getCalibration().pixelDepth)+1, 
-												1)-1,
+			impOut.getStack().setVoxel(points[k][0],
+										points[k][1],
+										impOut.getStackIndex(1,points[k][2]+1,1)-1,
 										255.0);
 		}
 	}
@@ -3321,9 +3322,11 @@ private void saveSkeletonOverviewImageNonTimeLapse(String savePath, ImagePlus im
 //	new WaitForUserDialog("impOut").show();
 //	impOut.hide();
 	
-	IJ.saveAsTiff(impOut, savePath + ".tif"); 
-		
-	//save channel information
+	IJ.saveAsTiff(impOut, savePath + ".tif");
+			
+	/*
+	 * save channel information in a text file
+	 */
 	progress.updateBarText("Writing metadata text file for non-timelapse skeleton overview image...");
 	OutputTextFile tp =new OutputTextFile ("");
 	tp.append("Channel information for skeleton results image - analysis of:	" + name);

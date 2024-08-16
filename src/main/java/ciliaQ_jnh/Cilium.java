@@ -434,7 +434,8 @@ class Cilium{
 					/ Math.sqrt(Math.pow(orientationVector [0], 2.0) + Math.pow(orientationVector [1], 2.0) + Math.pow(orientationVector [2], 2.0));
 		}
 		
-		IJ.run(particleImp, "Close", "No");		
+		particleImp.changes = false;
+		particleImp.close();
 	}
 	
 	/**
@@ -447,6 +448,21 @@ class Cilium{
 			output [i][0] = sklPointList.get(i).x;
 			output [i][1] = sklPointList.get(i).y;
 			output [i][2] = sklPointList.get(i).z;
+		}
+		return output;
+	}
+	
+	/**
+	 * @return first array dimension: points; 
+	 * second array dimension: 0 = x, 1 = y, 2 = z
+	 * The values will be in voxel units and not in the calibrated units 
+	 * */
+	public int [][] getSkeletonPointsForOriginalImageInPixel (){
+		int [][] output = new int [sklPointList.size()][3];
+		for(int i = 0; i < sklPointList.size(); i++){
+			output [i][0] = (int)Math.round(sklPointList.get(i).x / calibration);
+			output [i][1] = (int)Math.round(sklPointList.get(i).y / calibration);
+			output [i][2] = (int)Math.round(sklPointList.get(i).z / voxelDepth);
 		}
 		return output;
 	}
