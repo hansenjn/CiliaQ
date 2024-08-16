@@ -860,10 +860,10 @@ private void readSettingsFromMacroString(String macroOptions, boolean logDetecti
 
 	if(macroOptions.contains("showgui") || macroOptions.contains("showGUI") || macroOptions.contains("SHOWGUI")){
 		showGUIs = true;
-		if(logDetection) IJ.log("detected noGUIs: " + showGUIs);
+		if(logDetection) IJ.log("detected show GUIs: " + showGUIs);
 	}else {
 		showGUIs = false;
-		if(logDetection) IJ.log("detected noGUIs: " + showGUIs);
+		if(logDetection) IJ.log("detected show GUIs: " + showGUIs);
 	}
 }
 
