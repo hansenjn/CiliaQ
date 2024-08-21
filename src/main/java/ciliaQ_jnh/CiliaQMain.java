@@ -1,10 +1,10 @@
 package ciliaQ_jnh;
 /** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.1.8
+ * CiliaQ, a plugin for imagej - Version 0.2.0
  * 
  * Copyright (C) 2017-2023 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: August 2, 2024
+ * This Version: August 20, 2024
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -40,11 +40,12 @@ import ij.plugin.*;
 import ij.plugin.frame.Recorder;
 import ij.process.ImageConverter;
 import ij.process.LUT;
+import ij.Prefs;
 
 public class CiliaQMain implements PlugIn, Measurements {
 	//Name variables
 	static final String PLUGINNAME = "CiliaQ";
-	static final String PLUGINVERSION = "0.1.8";
+	static final String PLUGINVERSION = "0.2.0";
 	
 	//Fix fonts
 	static final Font SuperHeadingFont = new Font("Sansserif", Font.BOLD, 16);
@@ -147,7 +148,30 @@ public void run(String arg) {
     		record = true;
     		Recorder.record = false;
     	}
+    	
+    	/** 
+    	 * Display warning dialog
+    	 */
+    	    	
+    	if(Prefs.get("ciliaQ.v0.2.0.showVersionWarning", "TRUE") == "TRUE"){
+        	GenericDialog gdW = new GenericDialog(PLUGINNAME + " on " + System.getProperty("os.name") + " - Version Warning!");
+        	
+    		gdW.setInsets(0,0,0);	gdW.addMessage("Hello! This is a new version of CiliaQ: Version v0.2.0.", InstructionsFont, Color.MAGENTA);
+    		gdW.setInsets(10,0,0);	gdW.addMessage("Length measurements were improved in version v0.1.7!", InstructionsFont, Color.MAGENTA);
+    		gdW.setInsets(-5,0,0);	gdW.addMessage("Do not mix results from this version with results from versions prior to v0.1.7.", InstructionsFont, Color.MAGENTA);
+    		gdW.setInsets(-5,0,0);	gdW.addMessage("Find out more at the release notes: https://github.com/hansenjn/CiliaQ/releases/tag/v0.1.7 and.", InstructionsFont, Color.MAGENTA);
 
+    		gdW.addCheckbox("Never show this warning again", false);
+    		
+    		gdW.addHelp("https://github.com/hansenjn/CiliaQ");
+    		
+    		gdW.showDialog();
+    		
+    		if(gdW.getNextBoolean()) {
+    			Prefs.set("ciliaQ.v0.2.0.showVersionWarning", "FALSE");
+    			Prefs.savePreferences();
+    		}    		
+    	}
 
     	//&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
     	//-------------------------GenericDialog--------------------------------------
@@ -159,12 +183,7 @@ public void run(String arg) {
 		//Note: .setInsets(top, left, bottom)
 		gd.setInsets(0,0,0);	gd.addMessage(PLUGINNAME + ", Version " + PLUGINVERSION + ", \u00a9 2017 - 2023 JN Hansen", SuperHeadingFont);
 		gd.setInsets(0,0,0);	gd.addMessage("More information at https://github.com/hansenjn/CiliaQ.", InstructionsFont);
-		
-		gd.setInsets(0,0,0);		gd.addMessage("This is a new version of CiliaQ (v0.1.7 from May 07, 2023). Length measurements were improved.", InstructionsFont, Color.MAGENTA);
-		gd.setInsets(-5,0,0);	gd.addMessage("Do not mix results from this version with results from previous versions.", InstructionsFont, Color.MAGENTA);
-		gd.setInsets(-5,0,0);	gd.addMessage("Find out more at the release notes (https://github.com/hansenjn/CiliaQ/releases/tag/v0.1.7).", InstructionsFont, Color.MAGENTA);
 			
-		
 		gd.setInsets(10,0,0);	gd.addChoice("process ", taskVariant, selectedTaskVariant);
 		
 //    	gd.setInsets(10,0,0);	gd.addMessage("Calibration", HeadingFont);
@@ -2488,7 +2507,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				progress.updateBarText("Quantifying cilia objects (" + i + "/" + ciliaParticles.size() + " done)");
 			}
 			cilia.add(new Cilium(ciliaParticles.get(i), imp, measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC, 
-					channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize));
+					channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, showGUIs));
 			if(cilia.size()!=i+1) {
 				if(showGUIs) {
 					progress.notifyMessage("Error while measuring cilium " + (i+1), ProgressDialog.NOTIFICATION);
@@ -2983,7 +3002,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		for(int i = 0; i < ciliaParticles.size(); i++){
 			if(showGUIs)	progress.updateBarText("Quantifying cilia (" + i + "/" + ciliaParticles.size() + " done)");
 			timelapseCilia.add(new TimelapseCilium(ciliaParticles.get(i), imp, measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC, 
-					channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize));
+					channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, segmentedBB, showGUIs));
 			if(timelapseCilia.size()!=i+1) {
 				if(showGUIs) {
 					progress.notifyMessage("Error while measuring cilium " + (i+1), ProgressDialog.NOTIFICATION);
