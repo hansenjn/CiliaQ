@@ -29,6 +29,7 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.Locale;
 
@@ -95,6 +96,13 @@ class Cilium{
 		averageC3Intensity = 0.0,
 		SDC3Intensity = 0.0;
 	
+	//Basal Body parameters (if applicable)
+	boolean bbAvailable = false;
+	int bbX, bbY, bbZ;
+	double bbCenterIntensityC2, bbCenterIntensityC3;
+	double bbIntensityRadius1C2, bbIntensityRadius1C3;
+	double bbIntensityRadius2C2, bbIntensityRadius2C3;
+	
 	//Skeleton-related parameters
 //	double [][] skeletonPoints;
 	int foundSkl = 0,
@@ -114,7 +122,7 @@ class Cilium{
 	public Cilium(ArrayList<CellPoint> ciliaPoints, ImagePlus imp, 
 			boolean measureC2, int channel2, boolean measureC3, int channel3, boolean measureBasalBody, int channelBasalBody,
 			int channelReconstruction, double gXY, double gZ, double intensityThresholds [], ProgressDialog progress,
-			boolean skeletonize){
+			boolean skeletonize, boolean showGUIs){
 		
 		bitDepth = imp.getBitDepth();
 		cal = imp.getCalibration().copy();
@@ -139,7 +147,11 @@ class Cilium{
 					t = p.t;
 				}else{
 					if(t!=p.t){
-						progress.notifyMessage("Cilium not correctly assembled - inhomogeneous time", ProgressDialog.ERROR);
+						if(showGUIs) {
+							progress.notifyMessage("Cilium not correctly assembled - inhomogeneous time", ProgressDialog.ERROR);
+						}else {
+							System.out.println("Cilium not correctly assembled - inhomogeneous time");
+						}
 					}
 				}
 				points [i][0] = p.x * calibration;
@@ -244,19 +256,19 @@ class Cilium{
 		Arrays.fill(orientationVector, Double.NaN);
 		if(skeletonize){
 			this.reconstructSkeleton(gXY, gZ, measureBasalBody, channelBasalBody, imp, 
-					measureC2, channel2, measureC3, channel3, channelReconstruction, progress);
+					measureC2, channel2, measureC3, channel3, channelReconstruction, progress, showGUIs);
 		}
 		
 		//determine maxTenPercent Data
 		this.determineMaxTenPercentIntensityValues(measureC2, measureC3);
 	}
-	
+		
 	/**
 	 * Determines skeleton data (3D)
 	 * */
 	private void reconstructSkeleton(double gXY, double gZ, boolean measureBasalBody, int basalBodyC, ImagePlus imp, 
 			boolean measureC2, int channel2, boolean measureC3, int channel3, int channelReconstruction,
-			ProgressDialog progress){
+			ProgressDialog progress, boolean showGUIs){
 		int width = xMax - xMin + 1 + 4 + (int) Math.round(gXY*5.0),
 			height = yMax - yMin + 1 + 4 + (int) Math.round(gXY*5.0),
 			slices = zMax - zMin + 1 + 2 + (int) Math.round(gZ*5.0);
@@ -383,28 +395,28 @@ class Cilium{
 				if(i!=0){
 					arcLength [i] = arcLength [i-1] + getDistance(sklPointList.get(i),sklPointList.get(i-1));					
 				}
-//				progress.notifyMessage("x	"+ sklPointList.get(i).x + "	y	" + sklPointList.get(i).y + "	z	" + sklPointList.get(i).z 
+//				if(showGUIs)	progress.notifyMessage("x	"+ sklPointList.get(i).x + "	y	" + sklPointList.get(i).y + "	z	" + sklPointList.get(i).z 
 //					+ "	al	" + i + ":	" + arcLength [i], ProgressDialog.LOG);
 				
 				if(measureC2){
 					profileC2 [i] = this.getInterpolatedIntensity2D(imp, sklPointList.get(i), channel2, progress);
-//					progress.notifyMessage("C2: " + profileC2[i] + "; imp " + imp.getCalibration().pixelWidth 
+//					if(showGUIs)	progress.notifyMessage("C2: " + profileC2[i] + "; imp " + imp.getCalibration().pixelWidth 
 //							+ " - " + imp.getCalibration().pixelHeight + " - " + imp.getCalibration().pixelDepth, ProgressDialog.LOG);
 					if(profileC2 [i] >= Double.NaN){
 						profileC2norm [i] = profileC2 [i] / this.getInterpolatedIntensity2D(imp, sklPointList.get(i), channelReconstruction, progress);						
 					}
-//					progress.notifyMessage("C2: " + profileC2[i] + "; imp " + imp.getCalibration().pixelWidth 
+//					if(showGUIs)	progress.notifyMessage("C2: " + profileC2[i] + "; imp " + imp.getCalibration().pixelWidth 
 //							+ " - " + imp.getCalibration().pixelHeight + " - " + imp.getCalibration().pixelDepth, ProgressDialog.LOG);
 					
 				}
 				if(measureC3){
 					profileC3 [i] = this.getInterpolatedIntensity2D(imp, sklPointList.get(i), channel3, progress);
-//					progress.notifyMessage("C3: " + profileC3[i] + "; imp " + imp.getCalibration().pixelWidth 
+//					if(showGUIs)	progress.notifyMessage("C3: " + profileC3[i] + "; imp " + imp.getCalibration().pixelWidth 
 //							+ " - " + imp.getCalibration().pixelHeight + " - " + imp.getCalibration().pixelDepth, ProgressDialog.LOG);
 					if(profileC3 [i] >= Double.NaN){
 						profileC3norm [i] = profileC3 [i] / this.getInterpolatedIntensity2D(imp, sklPointList.get(i), channelReconstruction, progress);
 					}
-//					progress.notifyMessage("C3: " + profileC3[i] + "; imp " + imp.getCalibration().pixelWidth 
+//					if(showGUIs)	progress.notifyMessage("C3: " + profileC3[i] + "; imp " + imp.getCalibration().pixelWidth 
 //							+ " - " + imp.getCalibration().pixelHeight + " - " + imp.getCalibration().pixelDepth, ProgressDialog.LOG);
 				}
 			}
@@ -436,6 +448,344 @@ class Cilium{
 		
 		particleImp.changes = false;
 		particleImp.close();
+	}
+	
+	/**
+	 * Adds a basal body to cilium, compute BB parameters, readjust the cilium length accordingly
+	 * In turn the length and profile is going to be adjusted based on the BB coordinate
+	 * @param pointBB: The PartPoint describing the center of the basal body in the original image, in Pixel/Voxel
+	 * @param imp: The input image
+	 * @param measureC2: from user settings, referring to whether intensity in channel 2 (= "A") shall be measured
+	 * @param channel2: from user settings, describing the channel ID for channel 2 = "channel A" (>=1, <= number of channels)
+	 * @param measureC3: from user settings, referring to whether intensity in channel 3 (= "B") shall be measured
+	 * @param channel3: from user settings, describing the channel ID for channel 3 = "channel B" (>=1, <= number of channels)
+	 * @param channelReconstruction: from user settings, describing the channel ID for the channel with the segmented cilia
+	 * @param progress: The ProgressDialog attached to this
+	 * @param showGUIs: Whether ProgressDialog is used or not (boolean)
+	 * @return true if successful, otherwise returns false
+	 * 
+	 * New in CiliaQ v0.2.0
+	 */
+	public boolean addBasalBody(PartPoint pointBB,
+			ImagePlus imp, 
+			boolean measureC2, int channel2, 
+			boolean measureC3, int channel3, 
+			int channelReconstruction,
+			ProgressDialog progress,
+			boolean showGUIs) {
+		
+		this.bbX = pointBB.x;
+		this.bbY = pointBB.y;
+		this.bbZ = pointBB.z;
+		
+		if(!this.computeBBIntensityParameters(pointBB, imp, measureC2, channel2, measureC3, channel3, channelReconstruction, progress, showGUIs)) {
+			System.out.println("BB Intensity parameters incomplete.");
+		}
+		
+		if(!this.addBBToSkeleton(pointBB, imp, measureC2, channel2, measureC3, channel3, channelReconstruction, progress, showGUIs)) {
+			System.out.println("BB Skeleton parameters incomplete.");
+		}
+		
+		bbAvailable = true;
+		
+		return true;
+	}
+	
+	/**
+	 * Determine basal body Intensity parameters
+	 * @param pointBB: The PartPoint describing the center of the basal body in the original image, in Pixel/Voxel
+	 * @param imp: The input image
+	 * @param measureC2: from user settings, referring to whether intensity in channel 2 (= "A") shall be measured
+	 * @param channel2: from user settings, describing the channel ID for channel 2 = "channel A" (>=1, <= number of channels)
+	 * @param measureC3: from user settings, referring to whether intensity in channel 3 (= "B") shall be measured
+	 * @param channel3: from user settings, describing the channel ID for channel 3 = "channel B" (>=1, <= number of channels)
+	 * @param channelReconstruction: from user settings, describing the channel ID for the channel with the segmented cilia
+	 * @param progress: The ProgressDialog attached to this
+	 * @param showGUIs: Whether ProgressDialog is used or not (boolean)
+	 * @return true if successful, otherwise returns false 
+	 * 
+	 * New in CiliaQ v0.2.0
+	 */
+	private boolean computeBBIntensityParameters(PartPoint pointBB,
+			ImagePlus imp, 
+			boolean measureC2, int channelC2, 
+			boolean measureC3, int channelC3, 
+			int channelReconstruction,
+			ProgressDialog progress,
+			boolean showGUIs) {
+		
+		if(measureC2) {
+			this.bbCenterIntensityC2 = getInterpolatedIntensity2D(imp,
+					new SklPoint (pointBB.x*calibration, pointBB.y*calibration, pointBB.z*calibration),
+					channelC2, 
+					progress);
+			this.bbIntensityRadius1C2 = this.getIntensityWithinRadius(imp,
+					channelC2, 
+					pointBB.x*calibration, pointBB.y*calibration, pointBB.z*calibration,
+					1.0);			
+			this.bbIntensityRadius2C2 = this.getIntensityInRing(imp,
+					channelC2, 
+					pointBB.x*calibration, pointBB.y*calibration, pointBB.z*calibration,
+					1.0, 2.0);
+		}
+		if(measureC3) {
+			this.bbCenterIntensityC3 = getInterpolatedIntensity2D(imp,
+					new SklPoint (pointBB.x*calibration, pointBB.y*calibration, pointBB.z*calibration),
+					channelC3, 
+					progress);
+			this.bbIntensityRadius1C3 = this.getIntensityWithinRadius(imp,
+					channelC3, 
+					pointBB.x*calibration, pointBB.y*calibration, pointBB.z*calibration,
+					1.0);
+			this.bbIntensityRadius2C3 = this.getIntensityInRing(imp,
+					channelC3, 
+					pointBB.x*calibration, pointBB.y*calibration, pointBB.z*calibration,
+					1.0, 2.0);
+		}	
+		
+		return true;
+	}
+	
+	/**
+	 * Measure the average intensity within a circle around a point of interest
+	 * New: August 20, 2024
+	 * @param imp: The image to measure in.
+	 * @param channel: the channel to measure in. 1 <= channel <= nr of channels.
+	 * @param pointX: the x coordinate of the point to measure around, specified in calibrated units.
+	 * @param pointY: the y coordinate of the point to measure around, specified in calibrated units.
+	 * @param pointZ: the z/slice coordinate of the point to measure around, specified in calibrated units.
+	 * @param radius: the radius around the point to measure within, specified in calibrated units.
+	 * @return the average pixel intensity within the radius specified
+	 * 
+	 * New in CiliaQ v0.2.0
+	 */
+	private double getIntensityWithinRadius(ImagePlus imp, int channel, double pointX, double pointY, double pointZ, double radius) {
+		double intensity = 0.0;
+		int ct = 0;
+		for(int iz = (int) Math.round((pointZ - radius)/ voxelDepth); iz <= (int) Math.round((pointZ + radius)/ voxelDepth); iz++){
+			for(int ix = (int) Math.round((pointX - radius)/ calibration); ix <= (int) Math.round((pointX + radius)/ calibration); ix++){
+				for(int iy = (int) Math.round((pointY - radius)/ calibration); iy <= (int) Math.round((pointY + radius)/ calibration); iy++){
+					if(getDistance(new SklPoint(ix*calibration,iy*calibration,iz*voxelDepth), new SklPoint(pointX,pointY,pointZ)) <= radius){
+						if(ix >= 0 && ix < imp.getWidth() && iy >= 0 && iy < imp.getHeight() 
+								&& imp.getStackIndex(channel, iz+1, t+1) >= 0 
+								&& imp.getStackIndex(channel, iz+1, t+1) < imp.getStackSize()){
+							
+							// TEMPORARY LOG FOR CHECKING - TODO REMOVE
+							IJ.log("Measure around [" + pointX + "," + pointY + "," + pointZ 
+									+ "]: Add coordinate [" + ix + "," + iy + "," + iz 
+									+ "] = [" + ix*calibration + "," + iy*calibration + "," + iz*voxelDepth + "] with intensity " 
+									+ imp.getStack().getVoxel(ix,iy,imp.getStackIndex(channel, iz+1, t+1)-1)
+									+ " (Radius: " + radius + ")");
+							
+							intensity += imp.getStack().getVoxel(ix,iy,imp.getStackIndex(channel, iz+1, t+1)-1);
+							ct++;
+						}							
+					}
+				}
+			}
+		}
+		intensity /= (double)ct;
+	
+		return intensity;
+	}
+	
+	/**
+	 * Measure the average intensity within a circular ring around a point of interest
+	 * New: August 20, 2024
+	 * @param imp: The image to measure in.
+	 * @param channel: the channel to measure in. 1 <= channel <= nr of channels.
+	 * @param pointX: the x coordinate of the point to measure around, specified in calibrated units.
+	 * @param pointY: the y coordinate of the point to measure around, specified in calibrated units.
+	 * @param pointZ: the z/slice coordinate of the point to measure around, specified in calibrated units.
+	 * @param innerRadius: the minimum radius for pixels to be included in average, specified in calibrated units.
+	 * @param outerRadius: the maximum radius for pixels to be included in average, specified in calibrated units.
+	 * @return the average pixel intensity within the radius specified
+	 * 
+	 * New in CiliaQ v0.2.0
+	 */
+	private double getIntensityInRing(ImagePlus imp, int channel, 
+			double pointX, double pointY, double pointZ,
+			double innerRadius, double outerRadius) {
+		double intensity = 0.0;
+		int ct = 0;
+		for(int iz = (int) Math.round((pointZ - outerRadius)/ voxelDepth); iz <= (int) Math.round((pointZ + outerRadius)/ voxelDepth); iz++){
+			for(int ix = (int) Math.round((pointX - outerRadius)/ calibration); ix <= (int) Math.round((pointX + outerRadius)/ calibration); ix++){
+				for(int iy = (int) Math.round((pointY - outerRadius)/ calibration); iy <= (int) Math.round((pointY + outerRadius)/ calibration); iy++){
+					if(getDistance(new SklPoint(ix*calibration,iy*calibration,iz*voxelDepth), new SklPoint(pointX,pointY,pointZ)) >= innerRadius){
+						if(getDistance(new SklPoint(ix*calibration,iy*calibration,iz*voxelDepth), new SklPoint(pointX,pointY,pointZ)) <= outerRadius){
+							if(ix >= 0 && ix < imp.getWidth() && iy >= 0 && iy < imp.getHeight() 
+									&& imp.getStackIndex(channel, iz+1, t+1) >= 0 
+									&& imp.getStackIndex(channel, iz+1, t+1) < imp.getStackSize()){
+								
+								// TEMPORARY LOG FOR CHECKING - TODO REMOVE
+								IJ.log("Measure in ring around [" + pointX + "," + pointY + "," + pointZ 
+										+ "]: Add coordinate [" + ix + "," + iy + "," + iz 
+										+ "] = [" + ix*calibration + "," + iy*calibration + "," + iz*voxelDepth + "] with intensity " 
+										+ imp.getStack().getVoxel(ix,iy,imp.getStackIndex(channel, iz+1, t+1)-1)
+										+" (Radii: " + innerRadius + ", " + outerRadius + ")");
+								
+								intensity += imp.getStack().getVoxel(ix,iy,imp.getStackIndex(channel, iz+1, t+1)-1);
+								ct++;
+							}
+						}							
+					}
+				}
+			}
+		}
+		intensity /= (double)ct;
+	
+		return intensity;
+	}
+	
+	/**
+	 * Adds the basal body to the length skeleton and recalculates results.
+	 * @param pointBB: The PartPoint describing the center of the basal body in the original image, in Pixel/Voxel
+	 * @param imp: The input image
+	 * @param measureC2: from user settings, referring to whether intensity in channel 2 (= "A") shall be measured
+	 * @param channel2: from user settings, describing the channel ID for channel 2 = "channel A" (>=1, <= number of channels)
+	 * @param measureC3: from user settings, referring to whether intensity in channel 3 (= "B") shall be measured
+	 * @param channel3: from user settings, describing the channel ID for channel 3 = "channel B" (>=1, <= number of channels)
+	 * @param channelReconstruction: from user settings, describing the channel ID for the channel with the segmented cilia
+	 * @param progress: The ProgressDialog attached to this
+	 * @param showGUIs: Whether ProgressDialog is used or not (boolean)
+	 * @return true if successful, otherwise returns false
+	 * 
+	 * New in CiliaQ v0.2.0
+	 */
+	private boolean addBBToSkeleton(PartPoint pointBB, 
+			ImagePlus imp, 
+			boolean measureC2, int channel2, 
+			boolean measureC3, int channel3, 
+			int channelReconstruction,
+			ProgressDialog progress,
+			boolean showGUIs){
+		if(foundSkl !=1) {
+			/*
+			 * No skeleton available. Thus, we create one based on the basal body coordinate and the center of the cilium.
+			 */
+			double [] centerCoord = new double [] {xC*calibration, yC*calibration, zC*voxelDepth};
+			double sklBBDistance = getDistanceInPx(pointBB,centerCoord);
+			
+			sklPointList = new ArrayList<SklPoint>((int)Math.round(sklBBDistance*3.0)+1);
+			for(int p = 0; p < sklBBDistance*3; p++) {
+				sklPointList.add(new SklPoint(centerCoord[0] + p / (sklBBDistance*3.0) * (pointBB.x*calibration-centerCoord[0]),
+						centerCoord[1] + p / (sklBBDistance*3.0) * (pointBB.y*calibration-centerCoord[1]),
+						centerCoord[2] + p / (sklBBDistance*3.0) * (pointBB.z*voxelDepth-centerCoord[2])));
+			}
+			sklPointList.add(new SklPoint(pointBB.x * calibration,pointBB.y * calibration,pointBB.z * voxelDepth));			
+			Collections.reverse(sklPointList);
+			sklAvailable = true;
+			
+			largestShortestPathOfLargest = getRealDistance(pointBB,centerCoord); // This corresponds to the parameter called length in output file
+		}else if(foundSkl == 1 && sklPointList != null){
+			/*
+			 * Skeleton is available, so we add basal body to it.
+			 */
+			sklPointList.trimToSize();
+			
+			/*
+			 *  Check which point is closer to BB, begin or end.
+			 *  If end closer then we do not need to reverse it now that we are adding the BB to the end.
+			 *  Otherwise we need to reverse here.
+			 *  The list is reversed back at the end when BB has been added to end.
+			 */
+			if(getRealDistance(pointBB,this.getFirstSkeletonCoordinate()) < getRealDistance(pointBB,this.getLastSkeletonCoordinate()) ){
+				Collections.reverse(sklPointList);
+			}
+									
+			/**
+			 * Add to the end of the point list points between first skeleton point and basal body
+			 */
+			double [] lastCoord = getLastSkeletonCoordinate();
+			double sklBBDistance = getDistanceInPx(pointBB,lastCoord);
+			sklPointList.ensureCapacity(sklPointList.size()+(int)Math.round(sklBBDistance*3.0));
+			for(int p = 1; p < sklBBDistance*3; p++) {
+				sklPointList.add(new SklPoint(lastCoord[0] + p / (sklBBDistance*3.0) * (pointBB.x*calibration-lastCoord[0]),
+						lastCoord[1] + p / (sklBBDistance*3.0) * (pointBB.y*calibration-lastCoord[1]),
+						lastCoord[2] + p / (sklBBDistance*3.0) * (pointBB.z*voxelDepth-lastCoord[2])));
+			}
+			sklPointList.add(new SklPoint(pointBB.x * calibration,pointBB.y * calibration,pointBB.z * voxelDepth));		
+			sklPointList.trimToSize();	
+			Collections.reverse(sklPointList);
+			sklAvailable = true;
+			
+			largestShortestPathOfLargest += getRealDistance(pointBB,lastCoord); // This corresponds to the parameter called length in output file
+		}else {
+			return false;
+		}
+				
+		/**
+		 * Recalculating the skeleton results
+		 */		
+		arcLength = new double [sklPointList.size()];
+		profileC2 = new double [sklPointList.size()];
+		profileC3 = new double [sklPointList.size()];
+		profileC2norm = new double [sklPointList.size()];
+		profileC3norm = new double [sklPointList.size()];
+							
+		arcLength [0] = 0.0;
+		for(int i = 0; i < sklPointList.size(); i++){				
+			if(i!=0){
+				arcLength [i] = arcLength [i-1] + getDistance(sklPointList.get(i),sklPointList.get(i-1));					
+			}
+//				if(showGUIs)	progress.notifyMessage("x	"+ sklPointList.get(i).x + "	y	" + sklPointList.get(i).y + "	z	" + sklPointList.get(i).z 
+//					+ "	al	" + i + ":	" + arcLength [i], ProgressDialog.LOG);
+			
+			if(measureC2){
+				profileC2 [i] = this.getInterpolatedIntensity2D(imp, sklPointList.get(i), channel2, progress);
+//					if(showGUIs)	progress.notifyMessage("C2: " + profileC2[i] + "; imp " + imp.getCalibration().pixelWidth 
+//							+ " - " + imp.getCalibration().pixelHeight + " - " + imp.getCalibration().pixelDepth, ProgressDialog.LOG);
+				if(profileC2 [i] >= Double.NaN){
+					profileC2norm [i] = profileC2 [i] / this.getInterpolatedIntensity2D(imp, sklPointList.get(i), channelReconstruction, progress);						
+				}
+//					if(showGUIs)	progress.notifyMessage("C2: " + profileC2[i] + "; imp " + imp.getCalibration().pixelWidth 
+//							+ " - " + imp.getCalibration().pixelHeight + " - " + imp.getCalibration().pixelDepth, ProgressDialog.LOG);
+				
+			}
+			if(measureC3){
+				profileC3 [i] = this.getInterpolatedIntensity2D(imp, sklPointList.get(i), channel3, progress);
+//					if(showGUIs)	progress.notifyMessage("C3: " + profileC3[i] + "; imp " + imp.getCalibration().pixelWidth 
+//							+ " - " + imp.getCalibration().pixelHeight + " - " + imp.getCalibration().pixelDepth, ProgressDialog.LOG);
+				if(profileC3 [i] >= Double.NaN){
+					profileC3norm [i] = profileC3 [i] / this.getInterpolatedIntensity2D(imp, sklPointList.get(i), channelReconstruction, progress);
+				}
+//					if(showGUIs)	progress.notifyMessage("C3: " + profileC3[i] + "; imp " + imp.getCalibration().pixelWidth 
+//							+ " - " + imp.getCalibration().pixelHeight + " - " + imp.getCalibration().pixelDepth, ProgressDialog.LOG);
+			}
+		}
+				
+		orientationVector [0] = sklPointList.get(sklPointList.size()-1).x - sklPointList.get(0).x;
+		orientationVector [1] = sklPointList.get(sklPointList.size()-1).y - sklPointList.get(0).y;
+		orientationVector [2] = sklPointList.get(sklPointList.size()-1).z - sklPointList.get(0).z;
+		
+		//arcLength / eucledian distance of first to last point
+		bendingIndex = arcLength[arcLength.length-1] 
+				/ Math.sqrt(Math.pow(orientationVector [0], 2.0) + Math.pow(orientationVector [1], 2.0) + Math.pow(orientationVector [2], 2.0));
+		
+		return true;
+	}
+	
+	
+	/**
+	 * @return a double array containing the x,y,z,t coordinate in of the first length/profile/skeleton point stored 
+	 * x,y,z will be in metric units (e.g. micron)
+	 * t will be in frames (integer)
+	 * 
+	 * New in CiliaQ v0.2.0
+	 */
+	public double [] getFirstSkeletonCoordinate() {
+		return new double [] {sklPointList.get(0).x,sklPointList.get(0).y,sklPointList.get(0).z,t};
+	}
+
+	/**
+	 * @return a double array containing the x,y,z,t coordinate of the last length/profile/skeleton point stored  
+	 * x,y,z will be in metric units (e.g. micron)
+	 * t will be in frames (integer)
+	 * 
+	 * New in CiliaQ v0.2.0
+	 */
+	public double [] getLastSkeletonCoordinate() {
+		return new double [] {sklPointList.get((sklPointList.size()-1)).x,sklPointList.get((sklPointList.size()-1)).y,sklPointList.get((sklPointList.size()-1)).z,t};
 	}
 	
 	/**
@@ -513,7 +863,7 @@ class Cilium{
 		SklPoint startEnd = new SklPoint(Math.round(sklRes.getSpStartPosition()[chosenShortestPath][0] / calibration * 3.0),
 				Math.round(sklRes.getSpStartPosition()[chosenShortestPath][1] / calibration * 3.0),
 				Math.round(sklRes.getSpStartPosition()[chosenShortestPath][2] / voxelDepth * 3.0));
-//		progress.notifyMessage("start " + startEnd.x + " " + startEnd.y + " " + startEnd.z, ProgressDialog.LOG);
+//		if(showGUIs)	progress.notifyMessage("start " + startEnd.x + " " + startEnd.y + " " + startEnd.z, ProgressDialog.LOG);
 		if(nPoints == 0 || startEnd.equals(null)){
 			return null;
 		}
@@ -577,20 +927,20 @@ class Cilium{
 					}
 					if(check){
 						//all remaining points not included are junction voxels and can be removed
-//						progress.notifyMessage("Info for expert users: rmp " + unsortedList.size() + " from profile.", ProgressDialog.LOG);
+//						if(showGUIs)	progress.notifyMessage("Info for expert users: rmp " + unsortedList.size() + " from profile.", ProgressDialog.LOG);
 //						sklImp.show();
 //						for(int uI = 0; uI < unsortedList.size(); uI++){
-//							progress.notifyMessage("Info for expert users: uL x " + unsortedList.get(uI).x 
+//							if(showGUIs)	progress.notifyMessage("Info for expert users: uL x " + unsortedList.get(uI).x 
 //									+ " y " + unsortedList.get(uI).y
 //									+ " z " + unsortedList.get(uI).z, ProgressDialog.LOG);
 //						}
 //						for(int uI = 0; uI < junctions.size(); uI++){
-//							progress.notifyMessage("Info for expert users: jnc x " + junctions.get(uI).x 
+//							if(showGUIs)	progress.notifyMessage("Info for expert users: jnc x " + junctions.get(uI).x 
 //									+ " y " + junctions.get(uI).y
 //									+ " z " + junctions.get(uI).z, ProgressDialog.LOG);
 //						}
 //						for(int uI = 0; uI < list.size(); uI++){
-//							progress.notifyMessage("Info for expert users: sL x " + list.get(uI).x 
+//							if(showGUIs)	progress.notifyMessage("Info for expert users: sL x " + list.get(uI).x 
 //									+ " y " + list.get(uI).y
 //									+ " z " + list.get(uI).z, ProgressDialog.LOG);
 //						}
@@ -635,42 +985,13 @@ class Cilium{
 		SklPoint pLast = new SklPoint(list.get(list.size()-1));
 				
 		if(measureBasalBody){
-			//get statistics for first point
-			double roiRadius = 3.0; //in micron
-			double intensitySumStart = 0.0;
-			for(int is = (int) Math.round((pFirst.z - roiRadius)/ voxelDepth); is <= (int) Math.round((pFirst.z + roiRadius)/ voxelDepth); is++){
-				for(int ix = (int) Math.round((pFirst.x - roiRadius)/ calibration); ix <= (int) Math.round((pFirst.x + roiRadius)/ calibration); ix++){
-					for(int iy = (int) Math.round((pFirst.y - roiRadius)/ calibration); iy <= (int) Math.round((pFirst.y + roiRadius)/ calibration); iy++){
-						if((((Math.pow((ix*calibration-pFirst.x),2.0))/(Math.pow(roiRadius,2.0)))
-							+((Math.pow((iy*calibration-pFirst.y),2.0))/(Math.pow(roiRadius,2.0)))
-							+((Math.pow((is*voxelDepth-pFirst.z),2.0))/(Math.pow(roiRadius,2.0)))) <= 1.0){
-							if(ix >= 0 && ix < imp.getWidth() && iy >= 0 && iy < imp.getHeight() 
-									&& imp.getStackIndex(basalBodyC, is+1, t+1) >= 0 
-									&& imp.getStackIndex(basalBodyC, is+1, t+1) < imp.getStackSize()){
-								intensitySumStart += imp.getStack().getVoxel(ix,iy,imp.getStackIndex(basalBodyC, is+1, t+1)-1);
-							}							
-						}
-					}
-				}
-			}
-									
+			//get statistics for first point - method changed in v0.2.0 from 3 to 1 micron distance
+			double intensitySumStart = this.getIntensityWithinRadius(imp, basalBodyC, 
+					pFirst.x, pFirst.y, pFirst.z, 1.0);
+												
 			//get statistics for last point
-			double intensitySumEnd = 0.0;
-			for(int is = (int) Math.round((pLast.z - roiRadius)/ voxelDepth); is <= (int) Math.round((pLast.z + roiRadius)/ voxelDepth); is++){
-				for(int ix = (int) Math.round((pLast.x - roiRadius)/ calibration); ix <= (int) Math.round((pLast.x + roiRadius)/ calibration); ix++){
-					for(int iy = (int) Math.round((pLast.y - roiRadius)/ calibration); iy <= (int) Math.round((pLast.y + roiRadius)/ calibration); iy++){
-						if((((Math.pow((ix*calibration-pLast.x),2.0))/(Math.pow(roiRadius,2.0)))
-								+((Math.pow((iy*calibration-pLast.y),2.0))/(Math.pow(roiRadius,2.0)))
-								+((Math.pow((is*voxelDepth-pLast.z),2.0))/(Math.pow(roiRadius,2.0)))) <= 1.0){
-							if(ix >= 0 && ix < imp.getWidth() && iy >= 0 && iy < imp.getHeight() 
-									&& imp.getStackIndex(basalBodyC, is+1, t+1) >= 0 
-									&& imp.getStackIndex(basalBodyC, is+1, t+1) < imp.getStackSize()){
-								intensitySumEnd += imp.getStack().getVoxel(ix,iy,imp.getStackIndex(basalBodyC, is+1, t+1)-1);
-							}							
-						}
-					}
-				}
-			}
+			double intensitySumEnd =  this.getIntensityWithinRadius(imp, basalBodyC, 
+					pLast.x, pLast.y, pLast.z, 1.0);
 			
 			//if first point is actually last point reverse list
 			if(intensitySumStart < intensitySumEnd){
@@ -1036,7 +1357,34 @@ class Cilium{
 		imp.setActiveChannels(active);	//display all channels		
 		return imp;
 	}
-			
+	
+	/**
+	 * @return 3D distance between two SklPoints with coordinates (x,y,z)
+	 * @param p, PartPoint (integer values for x,y,z)
+	 * @param q, a double array with the metric coordinates (e.g. in micron) in order x,y,z
+	 * */
+	private double getDistanceInPx(PartPoint p, double q []) {
+		return Math.sqrt(Math.pow(p.x-(int)Math.round(q[0] / calibration),2.0)+Math.pow(p.y-(int)Math.round(q[1] / calibration),2.0)+Math.pow(p.z-(int)Math.round(q[2] / voxelDepth),2.0));
+	}
+	
+	/**
+	 * @return 3D distance between two SklPoints with coordinates (x,y,z)
+	 * @param p, PartPoint (integer values for x,y,z)
+	 * @param q, a double array with the metric coordinates (e.g. in micron) in order x,y,z
+	 * */
+	private double getDistanceInPxNoCalib(PartPoint p, double q []) {
+		return Math.sqrt(Math.pow(p.x-(int)Math.round(q[0]),2.0)+Math.pow(p.y-(int)Math.round(q[1]),2.0)+Math.pow(p.z-(int)Math.round(q[2]),2.0));
+	}
+	
+	/**
+	 * @return 3D distance between two SklPoints with coordinates (x,y,z)
+	 * @param p, PartPoint (integer values for x,y,z)
+	 * @param q, a double array with the metric coordinates (e.g. in micron) in order x,y,z
+	 * */
+	private double getRealDistance(PartPoint p, double q []) {
+		return Math.sqrt(Math.pow(p.x*calibration-q[0],2.0)+Math.pow(p.y*calibration-q[1],2.0)+Math.pow(p.z*voxelDepth-q[2],2.0));
+	}
+				
 //	private double getDistance(ciliaQ_skeleton_analysis.Point p, ciliaQ_skeleton_analysis.Point q) {
 //		return Math.sqrt(Math.pow(p.x-q.x,2.0)+Math.pow(p.y-q.y,2.0)+Math.pow(p.z-q.z,2.0));
 //	}	
