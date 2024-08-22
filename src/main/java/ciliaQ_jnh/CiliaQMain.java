@@ -64,6 +64,9 @@ public class CiliaQMain implements PlugIn, Measurements {
 	static final String[] nrFormats = {"US (0.00...)", "Germany (0,00...)"};
 	static final String[] excludeOptions = {"nothing", "cilia touching x or y borders", "cilia touching x or y or z borders",
 			"cilia touching x or y borders or whose thickest part is located at the z border"};
+	static final String[] bbCOptions = {"not available - ignore channel ID specified below", "available - use channel to orient cilia", "segmented - detect and quantify BBs from channel (set-up detection in next dialog)"};
+	static final String[] bbAssignmentOptions = {"each BB to closest cilium"};
+	static final String[] bbCiliaFilterOptions = {"nothing based on BB-cilia-linking", "BBs without cilia", "cilia without BBs", "cilia without BBs and BBs without cilia"};
 	
 	static SimpleDateFormat NameDateFormatter = new SimpleDateFormat("yyMMdd_HHmmss");
 	static SimpleDateFormat FullDateFormatter = new SimpleDateFormat("yyyy-MM-dd	HH:mm:ss");
@@ -97,19 +100,31 @@ public class CiliaQMain implements PlugIn, Measurements {
 	
 	int channelReconstruction = 1, channelC2 = 2, channelC3 = 3, basalStainC = 4;
 	int minSize = 10,
-		minRestSize = 1;
+		minRestSize = 1,
+		minBBSize = 1; // New function in v0.2.0
 	boolean increaseRangeCilia = true,
-			increaseRangeRegions = true;
+			increaseRangeRegions = true,
+			increaseRangeBB = true;
 	String excludeSelection = excludeOptions [2];
 	boolean measureC2 = true,
 			measureC3 = true,
-			measureBasal = false;
+			measureBasal = false,
+			segmentedBB = false; // New function in v0.2.0
+
+	//Basal body settings
+	String bbCSelection = bbCOptions [0];
+	String bbAssignmentSelection = bbAssignmentOptions [0];
+	String bbCiliaFilterSelection = bbCiliaFilterOptions [3];
+	
 	
 	//Skeletons
 	boolean skeletonize = true;
 	double gXY = 2.0;
 	double gZ = 0.0;
 	double refDistance = 1.0;
+	
+	//Basal body segmentation based
+	double maxDistanceBBCiliumEnd = 2.0;
 	
 	boolean saveDate = false;	
 	boolean saveSingleCiliaTifs = false, saveSingleCilia3DImages = false, saveOverview3DImages = true;
@@ -153,24 +168,35 @@ public void run(String arg) {
     	 * Display warning dialog
     	 */
     	    	
-    	if(Prefs.get("ciliaQ.v0.2.0.showVersionWarning", "TRUE") == "TRUE"){
+    	if(Prefs.getBoolean("ciliaQ.v0.2.0.showVersionWarning", true)){
         	GenericDialog gdW = new GenericDialog(PLUGINNAME + " on " + System.getProperty("os.name") + " - Version Warning!");
         	
-    		gdW.setInsets(0,0,0);	gdW.addMessage("Hello! This is a new version of CiliaQ: Version v0.2.0.", InstructionsFont, Color.MAGENTA);
-    		gdW.setInsets(10,0,0);	gdW.addMessage("Length measurements were improved in version v0.1.7!", InstructionsFont, Color.MAGENTA);
-    		gdW.setInsets(-5,0,0);	gdW.addMessage("Do not mix results from this version with results from versions prior to v0.1.7.", InstructionsFont, Color.MAGENTA);
-    		gdW.setInsets(-5,0,0);	gdW.addMessage("Find out more at the release notes: https://github.com/hansenjn/CiliaQ/releases/tag/v0.1.7 and.", InstructionsFont, Color.MAGENTA);
+    		gdW.setInsets(0,0,0);	gdW.addMessage("WARNING", HeadingFont, Color.MAGENTA);
+    		gdW.setInsets(0,0,0);	gdW.addMessage("Hello CiliaQ-user! This is a new version of CiliaQ: Version v0.2.0.", InstructionsFont);
+    		gdW.setInsets(10,0,0);	gdW.addMessage("Length measurements were improved in version v0.1.7!", InstructionsFont);
+    		gdW.setInsets(0,0,0);	gdW.addMessage("Do not mix results from this version with results from versions prior to v0.1.7.", InstructionsFont);
+    		gdW.setInsets(0,0,0);	gdW.addMessage("Find out more about changes in length determination introduced in v0.1.7 at:", InstructionsFont);
+    		gdW.setInsets(0,0,0);	gdW.addMessage("https://github.com/hansenjn/CiliaQ/releases/tag/v0.1.7", InstructionsFont);
+    		gdW.setInsets(10,0,0);	gdW.addMessage("This version (v0.2.0) additionally has new functions for tracking the basal body.", InstructionsFont);
+    		gdW.setInsets(0,0,0);	gdW.addMessage("Thus, some menu options have changed.", InstructionsFont);
+    		gdW.setInsets(0,0,0);	gdW.addMessage("Find out more at the release notes for v0.2.0: https://github.com/hansenjn/CiliaQ/releases/tag/v0.2.0.", InstructionsFont);
+    		gdW.setInsets(10,0,0);	gdW.addMessage("If your FIJI automatically updated to this verison and you want to return to a previous version follow this wiki post:", InstructionsFont);    		
+    		gdW.setInsets(0,0,0);	gdW.addMessage("https://github.com/hansenjn/CiliaQ/wiki/Q&A:-How-to-install-a-specific-version-of-a-CiliaQ-plugin%3F", InstructionsFont);
 
-    		gdW.addCheckbox("Never show this warning again", false);
+    		gdW.addCheckbox("Check this box if you never want to see this warning again", false);
     		
-    		gdW.addHelp("https://github.com/hansenjn/CiliaQ");
+    		gdW.addHelp("https://github.com/hansenjn/CiliaQ/releases/");
     		
     		gdW.showDialog();
     		
     		if(gdW.getNextBoolean()) {
-    			Prefs.set("ciliaQ.v0.2.0.showVersionWarning", "FALSE");
+    			Prefs.set("ciliaQ.v0.2.0.showVersionWarning", false);
     			Prefs.savePreferences();
-    		}    		
+    		}
+    		
+    		if(gdW.wasCanceled()) {
+    			return;
+    		}
     	}
 
     	//&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
@@ -181,7 +207,7 @@ public void run(String arg) {
 		gd.addHelp("https://github.com/hansenjn/CiliaQ#user-guide--manual");
 		//show Dialog-----------------------------------------------------------------
 		//Note: .setInsets(top, left, bottom)
-		gd.setInsets(0,0,0);	gd.addMessage(PLUGINNAME + ", Version " + PLUGINVERSION + ", \u00a9 2017 - 2023 JN Hansen", SuperHeadingFont);
+		gd.setInsets(0,0,0);	gd.addMessage(PLUGINNAME + ", Version " + PLUGINVERSION + ", \u00a9 2017 - 2024 JN Hansen", SuperHeadingFont);
 		gd.setInsets(0,0,0);	gd.addMessage("More information at https://github.com/hansenjn/CiliaQ.", InstructionsFont);
 			
 		gd.setInsets(10,0,0);	gd.addChoice("process ", taskVariant, selectedTaskVariant);
@@ -773,7 +799,15 @@ private void readSettingsFromMacroString(String macroOptions, boolean logDetecti
 	}else {
 		measureBasal = false;
 	}
-
+	
+	// TODO Implement new basal body settings
+//	segmentedBB
+//	minBBSize
+//	increaseRangeBB
+//	bbAssignmentSelection
+//	maxDistanceBBCiliumEnd
+//	bbCiliaFilterSelection
+	
 	if(macroOptions.contains("minimum-cilium-size=")){
 		temp = macroOptions.substring(macroOptions.indexOf("minimum-cilium-size="));
 		temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
@@ -982,7 +1016,7 @@ public String getOneRowFooter(Date currentDate){
 
 private void addSettingsBlockToPanel(OutputTextFile tp, Date currentDate, Date startDate, String name, ImagePlus imp, 
 		boolean measureC2local, boolean measureC3local, boolean measureBasalLocal, double [] intensityThresholds,
-		int excludedCilia, int totalCilia){
+		int excludedCilia, int totalCilia, int excludedBBs, int totalBBs){
 	tp.append("Saving date:	" + FullDateFormatter.format(currentDate)
 	+ "	Starting date:	" + FullDateFormatter.format(startDate));
 	tp.append("image name:	" + name);
@@ -1000,11 +1034,29 @@ private void addSettingsBlockToPanel(OutputTextFile tp, Date currentDate, Date s
 	tp.append("	Channels:	Reconstruction	" + dformat0.format(channelReconstruction));
 	if(measureC2local){tp.append("		A	" + dformat0.format(channelC2));}else{tp.append("");}
 	if(measureC3local){tp.append("		B	" + dformat0.format(channelC3));}else{tp.append("");}
-	if(measureBasalLocal){tp.append("		basal stain	" + dformat0.format(basalStainC));}else{tp.append("");}
-	tp.append("	Minimum cilium size	" + dformat0.format(minSize) + "	Increase range for connecting cilia	" + increaseRangeCilia);
-	tp.append("	Additional filtering	" + excludeSelection + " excluded	# excluded:	" + excludedCilia + "	of total #:	" + totalCilia);
+	if(measureBasalLocal){
+		//From v0.2.0 on more information is stored here
+		String temp = "		basal stain	" + dformat0.format(basalStainC);
+		if(segmentedBB) {
+			temp += "	(segmented)	Assignment:	" + bbAssignmentSelection 
+					+ "	max BB-Cilium-distance ["+ calibrationDimension +"]:	" + dformat6.format(maxDistanceBBCiliumEnd); // NEW TODO add to settings reading
+		}		
+		tp.append(temp);
+	}else{
+		tp.append("");
+	}
+	if(measureBasalLocal && segmentedBB) {
+		//New in V0.2.0 - BB detection requires more settings here.
+		tp.append("	Minimum cilium size	" + dformat0.format(minSize) + "	Increase range for connecting cilia	" + increaseRangeCilia
+				+ "	Minimum basal body size	" + dformat0.format(minBBSize) + "	Increase range for connecting basal bodies	" + increaseRangeBB); // NEW TODO add to settings reading
+		tp.append("	Additional filtering	" + excludeSelection + " excluded	# excluded:	" + excludedCilia + "	of total #:	" + totalCilia
+			+ "	" + bbCiliaFilterSelection + " excluded	#BBs excluded:	" + excludedBBs + "	of total #BB:	" + totalBBs);
+	}else{
+		tp.append("	Minimum cilium size	" + dformat0.format(minSize) + "	Increase range for connecting cilia	" + increaseRangeCilia);
+		tp.append("	Additional filtering	" + excludeSelection + " excluded	# excluded:	" + excludedCilia + "	of total #:	" + totalCilia);
+	}
 	tp.append("	Minimum size of particles in A or B	" + dformat0.format(minRestSize) 
-	+ "	Increase range for connecting particles in intensity regions	" + increaseRangeRegions);
+		+ "	Increase range for connecting particles in intensity regions	" + increaseRangeRegions);
 	if(skeletonize) {
 		tp.append("	Skeleton analysis - Gauss XY sigma	" + dformat6.format(gXY) 
 		+ "	Skeleton analysis - reference distance [" + calibrationDimension + "]	" + dformat6.format(refDistance) );
@@ -2659,7 +2711,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	OutputTextFile tw2 = new OutputTextFile("");
 	
 	addSettingsBlockToPanel(tw1, currentDate, startDate, name, imp, 
-			measureC2local, measureC3local, measureBasalLocal, intensityThresholds, excludedCilia, cilia.size());
+			measureC2local, measureC3local, measureBasalLocal, intensityThresholds, excludedCilia, cilia.size(),0,0); //TODO Detect and save excluded BBs
 	
 	tw1.append("Results:");				
 	String appendTxt = "	";	
@@ -3122,7 +3174,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	OutputTextFile tw2 = new OutputTextFile ("");
 	
 	addSettingsBlockToPanel(tw1, currentDate, startDate, name, imp, 
-			measureC2local, measureC3local, measureBasalLocal, intensityThresholds, excludedCilia, timelapseCilia.size());
+			measureC2local, measureC3local, measureBasalLocal, intensityThresholds, excludedCilia, timelapseCilia.size(),0,0); //TODO Detect and save excluded BBs
 	
 	tw1.append("Averaged results of the time-course analysis:");				
 	String appendTxt = "	";	
@@ -3354,7 +3406,7 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 	OutputTextFile tw2 = new OutputTextFile ("");
 	
 	addSettingsBlockToPanel(tw1, currentDate, startDate, name, imp, 
-			measureC2local, measureC3local, measureBasalLocal, intensityThresholds, excludedCilia, totalCilia);
+			measureC2local, measureC3local, measureBasalLocal, intensityThresholds, excludedCilia, totalCilia,0,0); //TODO Detect and save excluded BBs
 	
 	tw1.append("Results for Cilium " + ciliumID + ":");				
 	String appendTxt = "		ID";	
@@ -4372,65 +4424,132 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 }
 
 
-/**
- * Shows a Generic Dialog allowing to enter the detection settings.
- * @returns true if settings were successfully entered and false if the user has canceled the dialog.
- * */
-private boolean enterSettings() {
-	//&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-	//-------------------------GenericDialog-------------------------------------- TODO
-	//&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+	/**
+	 * Shows a Generic Dialog allowing to enter the detection settings.
+	 * @returns true if settings were successfully entered and false if the user has canceled the dialog.
+	 * Modified in v0.2.0 to provide also a dialog for detecting and assigning basal bodies.
+	 * */
+	private boolean enterSettings() {
+		//&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+		//-------------------------GenericDialog-------------------------------------- TODO
+		//&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+		{
 		
-		GenericDialog gd = new GenericDialog(PLUGINNAME + " on " + System.getProperty("os.name") + " - detection preferences");	
-		//show Dialog-----------------------------------------------------------------
-		//.setInsets(top, left, bottom)
-		gd.setInsets(0,0,0);	gd.addMessage("Detection", SubHeadingFont);
-		gd.setInsets(5,0,0);	gd.addCheckbox("measure intensity A: ", measureC2);
-		gd.setInsets(5,0,0);	gd.addCheckbox("measure intensity B: ", measureC3);
-		gd.setInsets(5,0,0);	gd.addCheckbox("basal stain present", measureBasal);
-		gd.setInsets(0,0,0);	gd.addNumericField("channels (Reconstruction / (opt. intensity A) / (opt. intensity B) / (basal stain)): ", channelReconstruction, 0);
-		gd.setInsets(-23,55,0);	gd.addNumericField("", channelC2, 0);
-		gd.setInsets(-23,110,0);	gd.addNumericField("", channelC3, 0);
-		gd.setInsets(-23,165,0);gd.addNumericField("", basalStainC, 0);	
-		gd.setInsets(5,0,0);	gd.addNumericField("minimum cilium size [voxel]: ", minSize, 0);	
-		gd.setInsets(0,0,0);	gd.addCheckbox("Increase range for connecting cilia", increaseRangeCilia);	
-		gd.setInsets(0,0,0);	gd.addChoice("additionally exclude...", excludeOptions, excludeSelection);
-		gd.setInsets(0,0,0);	gd.addNumericField("minimum size of intensity regions (for A and B) [voxel]: ", minRestSize, 0);
-		gd.setInsets(0,0,0);	gd.addCheckbox("Increase range for connecting intensity regions", increaseRangeRegions);	
-				
-		gd.setInsets(10,0,0);	gd.addCheckbox("Determine skeleton-based results (e.g. length)", skeletonize);
-		gd.setInsets(0,0,0);	gd.addNumericField("before skeletonization: gauss filter XY and Z sigma: ", gXY, 2);
-		gd.setInsets(-23,55,0);	gd.addNumericField("", gZ, 2);
-		gd.setInsets(0,0,0);	gd.addNumericField("Reference distance for tangents and curvature [calibration unit (e.g. µm)]: ", refDistance, 2);
-		
-		
-		gd.showDialog();
-		//show Dialog-----------------------------------------------------------------
-
-		//read and process variables--------------------------------------------------
-		measureC2 = gd.getNextBoolean();
-		measureC3 = gd.getNextBoolean();
-		measureBasal = gd.getNextBoolean();
-		channelReconstruction = (int) gd.getNextNumber();
-		channelC2 = (int) gd.getNextNumber();
-		channelC3 = (int) gd.getNextNumber();
-		basalStainC = (int) gd.getNextNumber();
-		
-		minSize = (int) gd.getNextNumber();
-		increaseRangeCilia = gd.getNextBoolean();
-		excludeSelection = gd.getNextChoice();
-		minRestSize = (int) gd.getNextNumber();
-		increaseRangeRegions = gd.getNextBoolean();
-		
-		skeletonize = gd.getNextBoolean();
-		gXY = (double) gd.getNextNumber();
-		gZ = (double) gd.getNextNumber();
-		refDistance = (double) gd.getNextNumber();
+			GenericDialog gd = new GenericDialog(PLUGINNAME + " on " + System.getProperty("os.name") + " - detection preferences");
+			gd.addHelp("https://github.com/hansenjn/CiliaQ#user-guide--manual");
 			
-		//read and process variables--------------------------------------------------
-		if (gd.wasCanceled()) return false;
-		
-		return true;
+			//show Dialog-----------------------------------------------------------------
+			//.setInsets(top, left, bottom)
+			gd.setInsets(0,0,0);	gd.addMessage("Detection", SubHeadingFont);
+			gd.setInsets(5,0,0);	gd.addCheckbox("measure intensity A: ", measureC2);
+			gd.setInsets(5,0,0);	gd.addCheckbox("measure intensity B: ", measureC3);
+			
+			gd.setInsets(0,0,0);	gd.addChoice("channel with basal (body) stain ...", bbCOptions, bbCSelection);
+			
+			gd.setInsets(0,0,0);	gd.addNumericField("channels (Reconstruction / (opt. intensity A) / (opt. intensity B) / (basal stain)): ", channelReconstruction, 0);
+			gd.setInsets(-23,55,0);	gd.addNumericField("", channelC2, 0);
+			gd.setInsets(-23,110,0);	gd.addNumericField("", channelC3, 0);
+			gd.setInsets(-23,165,0);gd.addNumericField("", basalStainC, 0);	
+			gd.setInsets(5,0,0);	gd.addNumericField("minimum cilium size [voxel]: ", minSize, 0);
+			gd.setInsets(0,0,0);	gd.addCheckbox("Increase range for connecting cilia", increaseRangeCilia);
+			gd.setInsets(0,0,0);	gd.addChoice("additionally exclude...", excludeOptions, excludeSelection);
+			gd.setInsets(0,0,0);	gd.addNumericField("minimum size of intensity regions (for A and B) [voxel]: ", minRestSize, 0);
+			gd.setInsets(0,0,0);	gd.addCheckbox("Increase range for connecting intensity regions", increaseRangeRegions);	
+					
+			gd.setInsets(10,0,0);	gd.addCheckbox("Determine skeleton-based results (e.g. length)", skeletonize);
+			gd.setInsets(0,0,0);	gd.addNumericField("before skeletonization: gauss filter XY and Z sigma: ", gXY, 2);
+			gd.setInsets(-23,55,0);	gd.addNumericField("", gZ, 2);
+			gd.setInsets(0,0,0);	gd.addNumericField("Reference distance for tangents and curvature [calibration unit (e.g. µm)]: ", refDistance, 2);
+			
+			
+			gd.showDialog();
+			//show Dialog-----------------------------------------------------------------
+	
+			//read and process variables--------------------------------------------------
+			measureC2 = gd.getNextBoolean();
+			measureC3 = gd.getNextBoolean();
+			
+			bbCSelection = gd.getNextChoice();
+			if(bbCSelection == bbCOptions[0]) {
+				measureBasal = false;
+				segmentedBB = false;
+			}else if(bbCSelection == bbCOptions[1]) {
+				measureBasal = true;
+				segmentedBB = false;
+			}else if(bbCSelection == bbCOptions[2]) {
+				measureBasal = true;
+				segmentedBB = true;			
+			}
+			
+			channelReconstruction = (int) gd.getNextNumber();
+			channelC2 = (int) gd.getNextNumber();
+			channelC3 = (int) gd.getNextNumber();
+			basalStainC = (int) gd.getNextNumber();
+			
+			minSize = (int) gd.getNextNumber();
+			increaseRangeCilia = gd.getNextBoolean();
+			excludeSelection = gd.getNextChoice();
+			minRestSize = (int) gd.getNextNumber();
+			increaseRangeRegions = gd.getNextBoolean();
+			
+			skeletonize = gd.getNextBoolean();
+			gXY = (double) gd.getNextNumber();
+			gZ = (double) gd.getNextNumber();
+			refDistance = (double) gd.getNextNumber();
+				
+			//read and process variables--------------------------------------------------
+			if (gd.wasCanceled()) return false;
+			
+		}
+		if(bbCSelection == bbCOptions[2]) {
+			
+			// READ what had been applied last time CiliaQ was used. TODO Need to rethink whether this would be useful...
+//			minBBSize = Prefs.getInt("ciliaQ.minBBSize", minBBSize);
+//			increaseRangeBB = Prefs.getBoolean("ciliaQ.increaseRangeBB", increaseRangeBB);
+//			bbAssignmentSelection = Prefs.getString("ciliaQ.bbAssignmentSelection", bbAssignmentSelection);
+//			maxDistanceBBCiliumEnd = Prefs.getDouble("ciliaQ.maxDistanceBBCiliumEnd", maxDistanceBBCiliumEnd);
+//			bbCiliaFilterSelection = Prefs.getString("ciliaQ.bbCiliaFilterSelection", bbCiliaFilterSelection);
+			
+			GenericDialog gdB = new GenericDialog(PLUGINNAME + " on " + System.getProperty("os.name") + " - basal body detection preferences");
+	
+			gdB.addHelp("https://github.com/hansenjn/CiliaQ#user-guide--manual");
+			
+			gdB.setInsets(0,0,0);	gdB.addMessage("You selected to detect basal bodies from channel " + basalStainC +".", InstructionsFont);
+			gdB.setInsets(0,0,0);	gdB.addMessage("This requires that this channel is segmented and labels basal bodies.", InstructionsFont);
+			gdB.setInsets(0,0,0);	gdB.addMessage("Please determine how basal bodies shall be detected from the segmented channel,", InstructionsFont);
+			gdB.setInsets(0,0,0);	gdB.addMessage("how they shall be assigned to cilia, and whether BBs and cilia matching shall be", InstructionsFont);
+			gdB.setInsets(0,0,0);	gdB.addMessage("used to remove cilia.", InstructionsFont);
+	
+			gdB.setInsets(5,0,0);	gdB.addNumericField("minimum basal body object size [voxel]: ", minBBSize, 0);
+			gdB.setInsets(0,0,0);	gdB.addCheckbox("Increase range for connecting pixels to form a basal body object", increaseRangeBB);
+	
+			gdB.setInsets(5,0,0);	gdB.addChoice("Assign", bbAssignmentOptions, bbAssignmentSelection);
+			gdB.setInsets(5,0,0);	gdB.addNumericField("Max allowed BB-center-to-cilium-skeleton-end distance (calibrated units): ", maxDistanceBBCiliumEnd, 2);
+			gdB.setInsets(5,0,0);	gdB.addChoice("Remove", bbCiliaFilterOptions, bbCiliaFilterSelection);
+			
+			gdB.showDialog();
+			
+			// Read variables
+			
+			minBBSize = (int) gdB.getNextNumber();
+			increaseRangeBB = gdB.getNextBoolean();
+			bbAssignmentSelection = gdB.getNextChoice();
+			maxDistanceBBCiliumEnd = gdB.getNextNumber();
+			bbCiliaFilterSelection = gdB.getNextChoice();
+			
+			if (gdB.wasCanceled()) return false;
+			
+			// SAVE what had been applied this time in CiliaQ. TODO Need to rethink whether this would be useful...
+//			Prefs.set("ciliaQ.minBBSize", minBBSize);
+//			Prefs.set("ciliaQ.increaseRangeBB", increaseRangeBB);
+//			Prefs.set("ciliaQ.bbAssignmentSelection", bbAssignmentSelection);
+//			Prefs.set("ciliaQ.maxDistanceBBCiliumEnd", maxDistanceBBCiliumEnd);
+//			Prefs.set("ciliaQ.bbCiliaFilterSelection", bbCiliaFilterSelection);
+//			Prefs.savePreferences();
+		}
+			
+			
+			return true;
 	}
 
 	/**
@@ -4510,7 +4629,7 @@ private boolean enterSettings() {
 						} else {
 							IJ.error("Reading problem - code rp05"); break reading;
 						}
-						
+																		
 						line = br.readLine();
 						if(line.contains("	Reconstruction")){
 							tempString = line.substring(line.lastIndexOf("	")+1);
@@ -4547,7 +4666,40 @@ private boolean enterSettings() {
 						
 						line = br.readLine();
 						if(measureBasal && line.contains("	basal stain	")){
-							tempString = line.substring(line.lastIndexOf("	")+1);
+							tempString = line;
+							if(line.contains("segmented")) {
+								//New in v0.2.0 - reading segmented BB channels
+								tempString = line;
+								tempString = tempString.substring(tempString.lastIndexOf("	")+1);								
+								if(tempString.contains(",") && !tempString.contains("."))	tempString = tempString.replace(",", ".");
+								maxDistanceBBCiliumEnd = Double.parseDouble(tempString);
+								IJ.log("Maximum BB Cilium Distance = " + maxDistanceBBCiliumEnd);
+
+								tempString = line;
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));								
+								tempString = tempString.substring(tempString.lastIndexOf("	")+1);
+								bbAssignmentSelection = "unknown";
+								for(int eop = 0; eop < bbAssignmentOptions.length; eop++) {
+									if(tempString.equals(bbAssignmentOptions [eop])) {
+										bbAssignmentSelection = bbAssignmentOptions [eop];
+										break;
+									}
+								}
+								if(bbAssignmentSelection.equals("unknown")) {
+									IJ.error("Reading problem - code rp05bbAs"); break reading;
+								}
+								IJ.log("BB Asignment option = " + bbAssignmentSelection + "");								
+								
+								//Remove the part on segmentation and assignment to proceed with reading BB channel
+								tempString = line;
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+							}
+							tempString = tempString.substring(tempString.lastIndexOf("	")+1);
 							if(tempString.contains(",") && !tempString.contains("."))	tempString = tempString.replace(",", ".");
 							basalStainC = Integer.parseInt(tempString);	
 							IJ.log("channel basal stain = " + basalStainC);
@@ -4559,46 +4711,139 @@ private boolean enterSettings() {
 						
 						line = br.readLine();
 						if(line.contains("Minimum cilium size") && line.contains("Increase range for connecting cilia")){
-							tempString = line.substring(line.lastIndexOf("	")+1);
-							if(tempString.contains("false")) {
-								increaseRangeCilia = false;
-							}else if(tempString.contains("true")) {
-								increaseRangeCilia = true;
+							if(line.contains("Minimum basal body size") && line.contains("Increase range for connecting basal bodies")){
+								//New in v0.2.0 - reading segmented BB channels
+								tempString = line.substring(line.lastIndexOf("	")+1);
+								if(tempString.contains("false")) {
+									increaseRangeBB = false;
+								}else if(tempString.contains("true")) {
+									increaseRangeBB = true;
+								}else {
+									IJ.error("Reading problem - code rp06BB"); break reading;
+								}
+								IJ.log("Increase Range BB = " + increaseRangeBB);
+								
+								tempString = line.substring(0,line.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(tempString.lastIndexOf("	")+1);
+								
+								if(tempString.contains(",") && !tempString.contains("."))	tempString = tempString.replace(",", ".");
+								minBBSize = Integer.parseInt(tempString);
+								IJ.log("Minimum BB Size = " + minBBSize);
+								
+								tempString = line.substring(0,line.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(tempString.lastIndexOf("	")+1);
+								if(tempString.contains("false")) {
+									increaseRangeCilia = false;
+								}else if(tempString.contains("true")) {
+									increaseRangeCilia = true;
+								}else {
+									IJ.error("Reading problem - code rp06BBC"); break reading;
+								}
+								IJ.log("Increase Range Cilia = " + increaseRangeCilia);
+
+								tempString = line.substring(0,line.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(tempString.lastIndexOf("	")+1);
+								
+								if(tempString.contains(",") && !tempString.contains("."))	tempString = tempString.replace(",", ".");
+								minSize = Integer.parseInt(tempString);
+								IJ.log("Minimum Cilium Size = " + minSize);
 							}else {
-								IJ.error("Reading problem - code rp06"); break reading;
-							}
-							IJ.log("Increase Range Cilia = " + increaseRangeCilia);
-							
-							tempString = line.substring(0,line.lastIndexOf("	"));
-							tempString = tempString.substring(0,tempString.lastIndexOf("	"));
-							tempString = tempString.substring(tempString.lastIndexOf("	")+1);
-							
-							if(tempString.contains(",") && !tempString.contains("."))	tempString = tempString.replace(",", ".");
-							minSize = Integer.parseInt(tempString);
-							IJ.log("Minimum Cilium Size = " + minSize);
+								tempString = line.substring(line.lastIndexOf("	")+1);
+								if(tempString.contains("false")) {
+									increaseRangeCilia = false;
+								}else if(tempString.contains("true")) {
+									increaseRangeCilia = true;
+								}else {
+									IJ.error("Reading problem - code rp06"); break reading;
+								}
+								IJ.log("Increase Range Cilia = " + increaseRangeCilia);
+								
+								tempString = line.substring(0,line.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(tempString.lastIndexOf("	")+1);
+								
+								if(tempString.contains(",") && !tempString.contains("."))	tempString = tempString.replace(",", ".");
+								minSize = Integer.parseInt(tempString);
+								IJ.log("Minimum Cilium Size = " + minSize);
+							}						
 						}else {
 							IJ.error("Reading problem - code rp07"); break reading;
 						}
 
 						line = br.readLine();
 						if(line.contains("Additional filtering")){
-							tempString = line.substring(0,line.lastIndexOf("	"));
-							tempString = tempString.substring(0,tempString.lastIndexOf("	"));
-							tempString = tempString.substring(0,tempString.lastIndexOf("	"));
-							tempString = tempString.substring(0,tempString.lastIndexOf("	"));
-							tempString = tempString.substring(tempString.lastIndexOf("	")+1);
-							
-							excludeSelection = "unknown";
-							for(int eop = 0; eop < excludeOptions.length; eop++) {
-								if(tempString.equals(excludeOptions [eop] + " excluded")) {
-									excludeSelection = excludeOptions [eop];
-									break;
+							if(line.contains("BBs excluded:")) {
+								//New from v0.2.0 on
+//								tp.append("	Additional filtering	" + excludeSelection + " excluded	# excluded:	" + excludedCilia + "	of total #:	" + totalCilia
+//								+ "	" + bbCiliaFilterSelection + " excluded	#BBs excluded:	" + excludedBBs + "	of total #BB:	" + totalBBs);
+								tempString = line.substring(0,line.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(tempString.lastIndexOf("	")+1);
+								
+								bbCiliaFilterSelection = "unknown";
+								for(int eop = 0; eop < bbCiliaFilterOptions.length; eop++) {
+									if(tempString.equals(bbCiliaFilterOptions [eop] + " excluded")) {
+										bbCiliaFilterSelection = bbCiliaFilterOptions [eop];
+										break;
+									}
 								}
+								if(bbCiliaFilterSelection.equals("unknown")) {
+									IJ.error("Reading problem - code rp08BB"); break reading;
+								}
+								IJ.log("BB-Cilia-Excluding option = " + bbCiliaFilterSelection + " excluded");
+								
+								tempString = line.substring(0,line.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(tempString.lastIndexOf("	")+1);
+								
+								excludeSelection = "unknown";
+								for(int eop = 0; eop < excludeOptions.length; eop++) {
+									if(tempString.equals(excludeOptions [eop] + " excluded")) {
+										excludeSelection = excludeOptions [eop];
+										break;
+									}
+								}
+								if(excludeSelection.equals("unknown")) {
+									IJ.error("Reading problem - code rp08BBC"); break reading;
+								}
+								IJ.log("Exclude option = " + excludeSelection + " excluded");
+							}else {
+								tempString = line.substring(0,line.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(0,tempString.lastIndexOf("	"));
+								tempString = tempString.substring(tempString.lastIndexOf("	")+1);
+								
+								excludeSelection = "unknown";
+								for(int eop = 0; eop < excludeOptions.length; eop++) {
+									if(tempString.equals(excludeOptions [eop] + " excluded")) {
+										excludeSelection = excludeOptions [eop];
+										break;
+									}
+								}
+								if(excludeSelection.equals("unknown")) {
+									IJ.error("Reading problem - code rp08"); break reading;
+								}
+								IJ.log("Exclude option = " + excludeSelection + " excluded");
 							}
-							if(excludeSelection.equals("unknown")) {
-								IJ.error("Reading problem - code rp08"); break reading;
-							}
-							IJ.log("Exclude option = " + excludeSelection + " excluded");
 						}else {
 							IJ.error("Reading problem - code rp09"); break reading;
 						}
