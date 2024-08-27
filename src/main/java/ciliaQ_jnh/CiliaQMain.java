@@ -796,17 +796,115 @@ private void readSettingsFromMacroString(String macroOptions, boolean logDetecti
 		}else {
 			IJ.error("Macro options missed definition 'channel-basal-stain=<an Integer Number>'");
 		}
+		
+	} else if (macroOptions.contains("basal-stain-segmented")){
+		segmentedBB = true;
+		if(logDetection) IJ.log("detected basal stain segmented: " + segmentedBB);
+
+		if(macroOptions.contains("channel-basal-stain=")){
+			temp = macroOptions.substring(macroOptions.indexOf("channel-basal-stain="));
+			temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
+			basalStainC = Integer.parseInt(temp);
+			if(logDetection) IJ.log("detected channel-basal-stain: " + basalStainC);
+		}else {
+			IJ.error("Macro options missed definition 'channel-basal-stain=<an Integer Number>'");
+		}
+		
+		if(macroOptions.contains("minimum-basal-body-size=")){
+			temp = macroOptions.substring(macroOptions.indexOf("minimum-basal-body-size="));
+			temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
+			minBBSize = Integer.parseInt(temp);
+			if(logDetection) IJ.log("detected minimum-basal-body-size: " + minBBSize);
+		}else {
+			IJ.error("Macro options missed definition 'minimum-basal-body-size=<an Integer Number>'");
+		}
+		
+		if (macroOptions.contains("increase-range-basal-body")){
+			increaseRangeBB = true;
+			if(logDetection) IJ.log("detected basal stain segmented: " + increaseRangeBB);
+		}
+		
+		if(macroOptions.contains("assign=")){
+			temp = macroOptions.substring(macroOptions.indexOf("assign="));
+			temp = temp.substring(temp.indexOf("=")+1);
+			if(temp.startsWith("[") || temp.startsWith("//[")) {
+				if(temp.contains("]")) {
+					temp = temp.substring(1,temp.indexOf("]"));
+				}else {
+					temp = temp.substring(1,temp.indexOf("//]"));
+				}			    				
+			}else {
+				temp = temp.substring(0,temp.indexOf(" "));
+			}    			
+			bbAssignmentSelection = temp;
+			
+			//Validate excludeSelection
+			for(int i = 0; i < bbAssignmentOptions.length; i++) {
+				if(bbAssignmentSelection.equals(bbAssignmentOptions [i])) {				
+					break;
+				}
+				if(i == bbAssignmentOptions.length-1) {
+					String temp2 = "";
+					for(int j = 0; j < bbAssignmentOptions.length; j++) {
+						temp2 += "\n";
+						temp2 += bbAssignmentOptions[j];
+					}
+					IJ.error("Macro options did not contain a valid definition for 'assign='.\n"
+							+ "Valid definitions are: " + temp2);
+				}
+			}
+			
+			if(logDetection) IJ.log("detected exclude selection: " + bbAssignmentSelection);
+		}else {
+			IJ.error("Macro options missed definition 'exclude=<...>'");
+		}
+		
+		if(macroOptions.contains("max-bb-to-cilium-distance=")){
+			temp = macroOptions.substring(macroOptions.indexOf("max-bb-to-cilium-distance="));
+			temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
+			maxDistanceBBCiliumEnd = Double.parseDouble(temp);
+			if(logDetection) IJ.log("detected max-bb-to-cilium-distance: " + maxDistanceBBCiliumEnd);
+		}else {
+			IJ.error("Macro options missed definition 'max-bb-to-cilium-distance=<a Double Number>'");
+		}
+
+		if(macroOptions.contains("remove=")){
+			temp = macroOptions.substring(macroOptions.indexOf("remove="));
+			temp = temp.substring(temp.indexOf("=")+1);
+			if(temp.startsWith("[") || temp.startsWith("//[")) {
+				if(temp.contains("]")) {
+					temp = temp.substring(1,temp.indexOf("]"));
+				}else {
+					temp = temp.substring(1,temp.indexOf("//]"));
+				}			    				
+			}else {
+				temp = temp.substring(0,temp.indexOf(" "));
+			}    			
+			bbCiliaFilterSelection = temp;
+			
+			//Validate excludeSelection
+			for(int i = 0; i < bbCiliaFilterOptions.length; i++) {
+				if(bbCiliaFilterSelection.equals(bbCiliaFilterOptions [i])) {				
+					break;
+				}
+				if(i == bbCiliaFilterOptions.length-1) {
+					String temp2 = "";
+					for(int j = 0; j < bbCiliaFilterOptions.length; j++) {
+						temp2 += "\n";
+						temp2 += bbCiliaFilterOptions[j];
+					}
+					IJ.error("Macro options did not contain a valid definition for 'remove='.\n"
+							+ "Valid definitions are: " + temp2);
+				}
+			}
+			
+			if(logDetection) IJ.log("detected exclude selection: " + bbCiliaFilterSelection);
+		}else {
+			IJ.error("Macro options missed definition 'exclude=<...>'");
+		}		
 	}else {
 		measureBasal = false;
 	}
-	
-	// TODO Implement new basal body settings
-//	segmentedBB
-//	minBBSize
-//	increaseRangeBB
-//	bbAssignmentSelection
-//	maxDistanceBBCiliumEnd
-//	bbCiliaFilterSelection
 	
 	if(macroOptions.contains("minimum-cilium-size=")){
 		temp = macroOptions.substring(macroOptions.indexOf("minimum-cilium-size="));
@@ -966,10 +1064,21 @@ private String createRecordString() {
 		recordString += "channel-B=" + channelC3+ " "; 	
 	}
 	if(measureBasal) {
-		recordString += "basal-stain-present ";
-		recordString += "channel-basal-stain=" + basalStainC+ " ";  
-	}
-	
+		if(segmentedBB) {
+			recordString += "basal-stain-segmented ";
+			recordString += "channel-basal-stain=" + basalStainC+ " ";
+			recordString += "minimum-basal-body-size=" + minBBSize + " ";
+			if(increaseRangeBB) {
+		    	recordString += "increase-range-basal-body ";    		
+			}
+			recordString += "assign=[" + bbAssignmentSelection + "] ";
+			recordString += "max-bb-to-cilium-distance=" + maxDistanceBBCiliumEnd + " ";
+			recordString += "remove=[" + bbCiliaFilterSelection + "] ";
+		}else {
+			recordString += "basal-stain-present ";
+			recordString += "channel-basal-stain=" + basalStainC+ " ";
+		}
+	}	
 	recordString += "minimum-cilium-size=" + minSize + " ";
 	if(increaseRangeCilia) {
     	recordString += "increase-range-cilia ";    		
