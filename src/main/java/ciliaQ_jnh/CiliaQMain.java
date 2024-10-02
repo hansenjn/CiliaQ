@@ -32,6 +32,7 @@ import java.util.*;
 import java.text.*;
 import javax.swing.UIManager;
 
+import ciliaQ_jnh.stern_library.optimization.HungarianAlgorithm;
 import ij.*;
 import ij.gui.*;
 import ij.io.*;
@@ -563,15 +564,19 @@ public void run(String arg) {
 			
 			//Create subfolder to save additional files
 			String subfolderPrefix = "" + dir [task] + filePrefix + System.getProperty("file.separator") + "CQ";
-			try{
-				new File(dir [task] + filePrefix).mkdirs();
-			}catch(Exception e){
-				if(showGUIs) {
-					progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": Failed to create subfolder to save additional plots! Will save plots into origianl folder!",ProgressDialog.NOTIFICATION);
-				}else {
-					System.out.println("Image " + name[task] + ": Failed to create subfolder to save additional plots! Will save plots into origianl folder!");
-				}				
+			if(this.saveSingleCilia3DImages || this.saveSingleCiliaTifs || imp.getNFrames() != 1) {
+				//Create the directory only if really needed
+				try{
+					new File(dir [task] + filePrefix).mkdirs();						
+				}catch(Exception e){
+					if(showGUIs) {
+						progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": Failed to create subfolder to save additional plots! Will save plots into origianl folder!",ProgressDialog.NOTIFICATION);
+					}else {
+						System.out.println("Image " + name[task] + ": Failed to create subfolder to save additional plots! Will save plots into origianl folder!");
+					}				
+				}
 			}
+			
 			filePrefix = dir[task] + filePrefix;
 		//Define Output File Names
 			
@@ -600,6 +605,15 @@ public void run(String arg) {
 				if(showGUIs) {
 					progress.notifyMessage("Timelapse workflow started...", ProgressDialog.LOG);
 				}
+				if(segmentedBB) {
+					if(showGUIs) {
+						progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": deriving basal body parameters from segmented basal body channel is not yet implemented for 4D and can only be applied in non-timelapse analysis - analysis cancelled!", ProgressDialog.ERROR);
+						progress.moveTask(task);
+					}else {
+						IJ.error("Image " + name[task] + ": deriving basal body parameters from segmented basal body channel is not yet implemented for 4D\n and can only be applied in non-time-lapse analysis - analysis cancelled!");
+					}
+					break running;
+				}
 				this.analyzeCiliaIn4DAndSaveResults(imp, measureC2local, measureC3local, measureBasalLocal, name[task], dir[task], startDate, filePrefix, subfolderPrefix, tempExcludeSelection);
 			}else{
 				//Single-frame Mode
@@ -607,7 +621,8 @@ public void run(String arg) {
 					progress.notifyMessage("Single-timepoint workflow started...", ProgressDialog.LOG);
 				}				
 				this.analyzeCiliaIn3DAndSaveResults(imp, measureC2local, measureC3local, measureBasalLocal, name[task], dir[task], startDate, filePrefix, subfolderPrefix, tempExcludeSelection);
-			}			
+			}
+			
 		//Get cilia data and save them
 	processingDone = true;
 	break running;
@@ -1148,7 +1163,7 @@ private void addSettingsBlockToPanel(OutputTextFile tp, Date currentDate, Date s
 		String temp = "		basal stain	" + dformat0.format(basalStainC);
 		if(segmentedBB) {
 			temp += "	(segmented)	Assignment:	" + bbAssignmentSelection 
-					+ "	max BB-Cilium-distance ["+ calibrationDimension +"]:	" + dformat6.format(maxDistanceBBCiliumEnd); // NEW TODO add to settings reading
+					+ "	max BB-Cilium-distance ["+ calibrationDimension +"]:	" + dformat6.format(maxDistanceBBCiliumEnd);
 		}		
 		tp.append(temp);
 	}else{
@@ -1157,7 +1172,7 @@ private void addSettingsBlockToPanel(OutputTextFile tp, Date currentDate, Date s
 	if(measureBasalLocal && segmentedBB) {
 		//New in V0.2.0 - BB detection requires more settings here.
 		tp.append("	Minimum cilium size	" + dformat0.format(minSize) + "	Increase range for connecting cilia	" + increaseRangeCilia
-				+ "	Minimum basal body size	" + dformat0.format(minBBSize) + "	Increase range for connecting basal bodies	" + increaseRangeBB); // NEW TODO add to settings reading
+				+ "	Minimum basal body size	" + dformat0.format(minBBSize) + "	Increase range for connecting basal bodies	" + increaseRangeBB);
 		tp.append("	Additional filtering	" + excludeSelection + " excluded	# excluded:	" + excludedCilia + "	of total #:	" + totalCilia
 			+ "	" + bbCiliaFilterSelection + " excluded	#BBs excluded:	" + excludedBBs + "	of total #BB:	" + totalBBs);
 	}else{
@@ -1650,8 +1665,8 @@ void filterChannel(ImagePlus imp, int c, String particleLabel, int minSize, bool
 
 /**
  * @deprecated since 23.04.2019
- * @return a container that contains lists, which each contain the points belonging to an individual plaque object
- * @param imp: Hyperstack image where one channel represents the recording of plaques
+ * @return a container that contains lists, which each contain the points belonging to an individual cilia object
+ * @param imp: Hyperstack image where one channel represents the recording of cilia
  * @param c: defines the channel of the Hyperstack image imp, in which the ciliary information is stored 1 < c < number of channels
  * */
 ArrayList<ArrayList<CellPoint>> getCiliaObjects (ImagePlus imp, int c){
@@ -1902,7 +1917,7 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjects (ImagePlus imp, int c){
 /**
  * used since 23.04.2019
  * @return a container that contains lists, which each contain the points belonging to an individual plaque object
- * @param imp: Hyperstack image where one channel represents the recording of plaques
+ * @param imp: Hyperstack image where one channel represents the recording of cilia
  * @param c: defines the channel of the Hyperstack image imp, in which the ciliary information is stored 1 < c < number of channels
  * @param increaseRange: defines whether also diagonal pixels should be allowed while Flood Filling
  * */
@@ -1923,16 +1938,20 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 	
 	if(nrOfPoints == imp.getNSlices()*imp.getNFrames()*imp.getWidth()*imp.getHeight()) {
 		if(showGUIs) {
-			progress.notifyMessageWithTaskNr("ERROR - The channel set for reconstruction is not segmented - make sure to set the correct channel nr for reconstruction in the preferences!", ProgressDialog.ERROR);
+			progress.notifyMessageWithTaskNr("ERROR - The channel set for reconstruction (" + c 
+					+ ") is not segmented - make sure to set the correct channel nr for reconstruction in the preferences!", ProgressDialog.ERROR);
 		}else {
-			System.out.println("ERROR - The channel set for reconstruction is not segmented - make sure to set the correct channel nr for reconstruction in the preferences!");
+			System.out.println("ERROR - The channel set for reconstruction (" + c 
+					+ ") is not segmented - make sure to set the correct channel nr for reconstruction in the preferences!");
 		}
 		return new ArrayList<ArrayList<CellPoint>>(0);
 	}else if(nrOfPoints == 0) {
 		if(showGUIs) {
-			progress.notifyMessageWithTaskNr("ERROR - The channel for reconstruction is empty - no cilia found!", ProgressDialog.ERROR);
+			progress.notifyMessageWithTaskNr("ERROR - The channel for reconstruction (" + c 
+					+ ") is empty - no cilia found!", ProgressDialog.ERROR);
 		}else {
-			System.out.println("ERROR - The channel for reconstruction is empty - no cilia found!");
+			System.out.println("ERROR - The channel for reconstruction (" + c 
+					+ ") is empty - no cilia found!");
 		}
 		return new ArrayList<ArrayList<CellPoint>>(0);
 	}
@@ -2446,8 +2465,8 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 //						}
 						
 //						if(saveParticle 
-//								&& preliminaryParticle.size() >= minPlaqueSize 
-//								&& preliminaryParticle.size() <= maxPlaqueSize){
+//								&& preliminaryParticle.size() >= minSize 
+//								&& preliminaryParticle.size() <= maxSize){
 						/**
 						 * Test size of particle in all z
 						 * */
@@ -2510,6 +2529,558 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 	//write back to image
 	return particles;
 }//end getCiliaObjects
+
+
+/**
+ * A function to retrieve basal body center coordinates from a segmented basal body channel
+ * New function, created August 31, 2024.
+ * @return a container that contains a list for each time point, and in each of that list it contains points for basal body centers detected
+ * at that time point
+ * @param imp: Hyperstack image where one channel represents the recording of BBs
+ * @param c: defines the channel of the Hyperstack image imp, in which the basal body information is stored 1 <= c <= number of channels
+ * @param increaseRange: defines whether also diagonal pixels should be allowed while Flood Filling
+ * */
+ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, int c, boolean increaseRange){
+	ImagePlus refImp = imp.duplicate();
+	int nrOfPoints [] = new int [imp.getNFrames()];
+	int totalNrOfPoints = 0;
+	Arrays.fill(nrOfPoints, 0);
+
+	for(int t = 0; t < imp.getNFrames(); t++){
+		for(int z = 0; z < imp.getNSlices(); z++){
+			for(int x = 0; x < imp.getWidth(); x++){
+				for(int y = 0; y < imp.getHeight(); y++){	
+					if(imp.getStack().getVoxel(x, y, imp.getStackIndex(c, z+1, t+1)-1) > 0.0){
+						nrOfPoints[t] ++;
+					}
+				}
+			}
+		}
+		totalNrOfPoints += nrOfPoints[t];
+	}
+	
+	if(totalNrOfPoints == imp.getNSlices()*imp.getNFrames()*imp.getWidth()*imp.getHeight()) {
+		if(showGUIs) {
+			progress.notifyMessageWithTaskNr("ERROR - The channel set for reconstruction (" + c 
+					+ ") is not segmented - make sure to set the correct channel nr for reconstruction in the preferences!", ProgressDialog.ERROR);
+		}else {
+			System.out.println("ERROR - The channel set for reconstruction (" + c 
+					+ ") is not segmented - make sure to set the correct channel nr for reconstruction in the preferences!");
+		}
+		return new ArrayList<ArrayList<Uncalibrated3DPoint>>(0);
+	}else if(totalNrOfPoints == 0) {
+		if(showGUIs) {
+			progress.notifyMessageWithTaskNr("ERROR - The channel for reconstruction (" + c 
+					+ ") is empty - no cilia found!", ProgressDialog.ERROR);
+		}else {
+			System.out.println("ERROR - The channel for reconstruction (" + c 
+					+ ") is empty - no cilia found!");
+		}
+		return new ArrayList<ArrayList<Uncalibrated3DPoint>>(0);
+	}
+	
+	ArrayList<ArrayList<ArrayList<PartPoint>>> particles = new ArrayList<ArrayList<ArrayList<PartPoint>>>(imp.getNFrames());
+	for(int t = 0; t < imp.getNFrames(); t++){
+		particles.add(new ArrayList<ArrayList<PartPoint>>((int)Math.round((double)nrOfPoints [t]/(double)minSize)));
+	}
+
+	int pc100, pc1000, floodFilledPc = 0, floodFilledPcOld = 0;
+	pc100 = totalNrOfPoints/100; if (pc100==0){pc100 = 1;}
+	pc1000 = totalNrOfPoints/1000; if (pc1000==0){pc1000 = 1;}
+	
+	int floodNodeX, floodNodeY, floodNodeZ, floodNodeT, index = 0;
+	int[][] floodNodes;
+//	boolean touchesXY, touchesZ;
+	ArrayList<PartPoint> preliminaryParticle;
+	
+	searchCells: for(int t = 0; t < imp.getNFrames(); t++){
+		floodNodes = new int[nrOfPoints[t]][4];
+		
+		for(int z = 0; z < imp.getNSlices(); z++){
+			for(int x = 0; x < imp.getWidth(); x++){
+				for(int y = 0; y < imp.getHeight(); y++){		
+					if(imp.getStack().getVoxel(x, y, imp.getStackIndex(c, z+1, t+1)-1) > 0.0){
+						preliminaryParticle = new ArrayList<PartPoint>(nrOfPoints[t]-floodFilledPc);
+						preliminaryParticle.add(new PartPoint(x, y, z, t, refImp, c));
+						
+						imp.getStack().setVoxel(x, y, imp.getStackIndex(c, z+1, t+1)-1, 0.0);
+						
+						floodFilledPc++;
+						
+						//Floodfiller					
+						floodNodeX = x;
+						floodNodeY = y;
+						floodNodeZ = z;
+						floodNodeT = t;
+						 
+						index = 0;
+						 
+						floodNodes[0][0] = floodNodeX;
+						floodNodes[0][1] = floodNodeY;
+						floodNodes[0][2] = floodNodeZ;
+						floodNodes[0][3] = floodNodeT;
+						
+						while (index >= 0){
+							floodNodeX = floodNodes[index][0];
+							floodNodeY = floodNodes[index][1];
+							floodNodeZ = floodNodes[index][2];		
+							floodNodeT = floodNodes[index][3];
+							index--;            						
+							if ((floodNodeX > 0) 
+									&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+								
+								preliminaryParticle.add(new PartPoint(floodNodeX-1,floodNodeY,floodNodeZ,floodNodeT,
+										refImp, c));
+								imp.getStack().setVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+								
+								index++;
+								floodFilledPc++;
+								
+								floodNodes[index][0] = floodNodeX-1;
+								floodNodes[index][1] = floodNodeY;
+								floodNodes[index][2] = floodNodeZ;
+								floodNodes[index][3] = floodNodeT;
+							}
+							if ((floodNodeX < (imp.getWidth()-1)) 
+									&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+								
+								preliminaryParticle.add(new PartPoint(floodNodeX+1,floodNodeY,floodNodeZ,floodNodeT, refImp, c));
+								imp.getStack().setVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+								
+								index++;
+								floodFilledPc++;
+								
+								floodNodes[index][0] = floodNodeX+1;
+								floodNodes[index][1] = floodNodeY;
+								floodNodes[index][2] = floodNodeZ;
+								floodNodes[index][3] = floodNodeT;
+							}
+							if ((floodNodeY > 0) 
+									&& imp.getStack().getVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+								
+								preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY-1,floodNodeZ,floodNodeT, refImp, c));
+								imp.getStack().setVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+								
+								index++;
+								floodFilledPc++;
+								
+								floodNodes[index][0] = floodNodeX;
+								floodNodes[index][1] = floodNodeY-1;
+								floodNodes[index][2] = floodNodeZ;
+								floodNodes[index][3] = floodNodeT;
+							}                
+							if ((floodNodeY < (imp.getHeight()-1)) 
+									&& imp.getStack().getVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+								
+								preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY+1,floodNodeZ,floodNodeT, refImp, c));
+								imp.getStack().setVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+								
+								index++;
+								floodFilledPc++;
+								
+								floodNodes[index][0] = floodNodeX;
+								floodNodes[index][1] = floodNodeY+1;
+								floodNodes[index][2] = floodNodeZ;
+								floodNodes[index][3] = floodNodeT;
+							}
+							if ((floodNodeZ > 0) 
+									&& imp.getStack().getVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+								
+								preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY,floodNodeZ-1,floodNodeT, refImp, c));
+								imp.getStack().setVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+								
+								index++;
+								floodFilledPc++;
+								
+								floodNodes[index][0] = floodNodeX;
+								floodNodes[index][1] = floodNodeY;
+								floodNodes[index][2] = floodNodeZ-1;
+								floodNodes[index][3] = floodNodeT;
+							}                
+							if ((floodNodeZ < (imp.getNSlices()-1)) 
+									&& imp.getStack().getVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+								
+								preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY,floodNodeZ+1,floodNodeT, refImp, c));
+								imp.getStack().setVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+								
+								index++;
+								floodFilledPc++;
+								
+								floodNodes[index][0] = floodNodeX;
+								floodNodes[index][1] = floodNodeY;
+								floodNodes[index][2] = floodNodeZ+1;
+								floodNodes[index][3] = floodNodeT;
+							}
+							
+							if(increaseRange){
+								// X, Y
+								if ((floodNodeX > 0) && (floodNodeY > 0)  
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+									preliminaryParticle.add(new PartPoint(floodNodeX-1,floodNodeY-1,floodNodeZ,floodNodeT,
+											refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeY < (imp.getHeight()-1))
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX+1,floodNodeY+1,floodNodeZ,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeY > 0) 
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX+1,floodNodeY-1,floodNodeZ,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ;
+									floodNodes[index][3] = floodNodeT;
+								}                
+								if ((floodNodeX > 0) && (floodNodeY < (imp.getHeight()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX-1,floodNodeY+1,floodNodeZ,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ;
+									floodNodes[index][3] = floodNodeT;
+								}
+								// Z-X
+								if ((floodNodeX > 0) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX-1,floodNodeY,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY;
+									floodNodes[index][2] = floodNodeZ-1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX+1,floodNodeY,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY;
+									floodNodes[index][2] = floodNodeZ-1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeX > 0) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX-1,floodNodeY,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY;
+									floodNodes[index][2] = floodNodeZ+1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX+1,floodNodeY,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY;
+									floodNodes[index][2] = floodNodeZ+1;
+									floodNodes[index][3] = floodNodeT;
+								} 
+								// Z-Y
+								if ((floodNodeY > 0) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY-1,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ-1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeY < (imp.getHeight()-1)) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY+1,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ-1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeY > 0) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY-1,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ+1;
+									floodNodes[index][3] = floodNodeT;
+								} 
+								if ((floodNodeY < (imp.getHeight()-1)) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX,floodNodeY+1,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ+1;
+									floodNodes[index][3] = floodNodeT;
+								} 
+								// X, Y - Z down
+								if ((floodNodeX > 0) && (floodNodeY > 0) && (floodNodeZ > 0)  
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									preliminaryParticle.add(new PartPoint(floodNodeX-1,floodNodeY-1,floodNodeZ-1,floodNodeT,
+											refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ-1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeY < (imp.getHeight()-1)) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX+1,floodNodeY+1,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ-1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeY > 0) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX+1,floodNodeY-1,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ-1;
+									floodNodes[index][3] = floodNodeT;
+								}                
+								if ((floodNodeX > 0) && (floodNodeY < (imp.getHeight()-1)) && (floodNodeZ > 0)
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX-1,floodNodeY+1,floodNodeZ-1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ-1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								// X, Y - Z up
+								if ((floodNodeX > 0) && (floodNodeY > 0) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									preliminaryParticle.add(new PartPoint(floodNodeX-1,floodNodeY-1,floodNodeZ+1,floodNodeT,
+											refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ+1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeY < (imp.getHeight()-1)) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX+1,floodNodeY+1,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ+1;
+									floodNodes[index][3] = floodNodeT;
+								}
+								if ((floodNodeX < (imp.getWidth()-1)) && (floodNodeY > 0) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX+1,floodNodeY-1,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX+1;
+									floodNodes[index][1] = floodNodeY-1;
+									floodNodes[index][2] = floodNodeZ+1;
+									floodNodes[index][3] = floodNodeT;
+								}                
+								if ((floodNodeX > 0) && (floodNodeY < (imp.getHeight()-1)) && (floodNodeZ < (imp.getNSlices()-1)) 
+										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
+									
+									preliminaryParticle.add(new PartPoint(floodNodeX-1,floodNodeY+1,floodNodeZ+1,floodNodeT, refImp, c));
+									imp.getStack().setVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
+									
+									index++;
+									floodFilledPc++;
+									
+									floodNodes[index][0] = floodNodeX-1;
+									floodNodes[index][1] = floodNodeY+1;
+									floodNodes[index][2] = floodNodeZ+1;
+									floodNodes[index][3] = floodNodeT;
+								}
+							}
+						}					
+						//Floodfiller
+						preliminaryParticle.trimToSize();
+
+						if(preliminaryParticle.size() >= minSize){
+							particles.get(t).add(preliminaryParticle);							
+						}else{
+							preliminaryParticle.clear();
+							preliminaryParticle.trimToSize();
+						}
+
+						if(floodFilledPc%(pc100)<pc1000){
+							if(showGUIs) {
+								progress.updateBarText("Reconstruction basal bodies in frame " 
+										+ (t+1) 
+										+ " complete: " + dformat3.format(((double)(floodFilledPc)/(double)(totalNrOfPoints))*100) + "%");
+								progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(totalNrOfPoints))/(double)imp.getNFrames());								
+							}
+							floodFilledPcOld = floodFilledPc;
+						}	
+					}				
+				}	
+			}
+			if(floodFilledPc==totalNrOfPoints){				
+				break searchCells;
+			}
+		}	
+	}
+				
+	refImp.changes = false;
+	refImp.close();
+	
+	if(showGUIs) {
+		progress.updateBarText("Reconstruction of ciliary structures complete: " + dformat3.format(((double)(floodFilledPc)/(double)(totalNrOfPoints))*100) + "%");
+		progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(totalNrOfPoints)));
+	}
+	particles.trimToSize();
+	
+	//write back to image
+		{	
+			for(int t = 0; t < particles.size(); t++){
+				for(int j = 0; j < particles.get(t).size(); j++){
+					for(int i = 0; i < particles.get(t).get(j).size(); i++){
+						imp.getStack().setVoxel(particles.get(t).get(j).get(i).x,
+							particles.get(t).get(j).get(i).y, 
+							imp.getStackIndex(c, particles.get(t).get(j).get(i).z+1, 
+							particles.get(t).get(j).get(i).t+1)-1, 
+							particles.get(t).get(j).get(i).intensity);
+					}
+				}
+			}			
+		}
+	//write back to image
+	
+	/*
+	 * Reduce basal bodies to center points
+	 */
+	double centerX, centerY, centerZ;	
+	ArrayList<ArrayList<Uncalibrated3DPoint>> bbs = new ArrayList<ArrayList<Uncalibrated3DPoint>> (particles.size());	
+	for(int t = 0; t < particles.size(); t++){
+		bbs.add(new ArrayList<Uncalibrated3DPoint> (particles.get(t).size()));		
+		for(int j = 0; j < particles.get(t).size(); j++){
+			centerX = 0.0;
+			centerY = 0.0; 
+			centerZ = 0.0;
+			
+			for(int i = 0; i < particles.get(t).get(j).size(); i++){
+				centerX += particles.get(t).get(j).get(i).x;
+				centerY += particles.get(t).get(j).get(i).y; 
+				centerZ += particles.get(t).get(j).get(i).z; 
+			}
+			
+			centerX /= (double) particles.get(t).get(j).size();
+			centerY /= (double) particles.get(t).get(j).size();
+			centerZ /= (double) particles.get(t).get(j).size();
+			
+			bbs.get(t).add(new Uncalibrated3DPoint(centerX,centerY,centerZ));
+		}
+	}
+		
+	return bbs;
+}//end getBBObjects
 
 /**
  * added time lapse mode on 23.04.2019 (JNH)
@@ -2641,6 +3212,8 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	imp.setHideOverlay(false);
 	
 	int excludedCilia = 0;
+	int excludedBBs = 0;
+	int nrOfBBs = 0;
 	{
 		//Retrieving ciliary objects from the image
 		ArrayList<ArrayList<CellPoint>> ciliaParticles = getCiliaObjectsTimelapse(imp, channelReconstruction, increaseRangeCilia);	//Method changed on 23.04.2019
@@ -2650,6 +3223,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		if(showGUIs) {
 			progress.updateBarText("Structure reconstruction completed.");
 		}
+		
 		//TODO implement method to move on if no cells detected
 		
 		//Determine intensity thresholds for each other channel
@@ -2675,10 +3249,182 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				}
 			}
 			
-			//Exclude cilia if selected
+			if(showGUIs) {
+				progress.addToBar(0.1/cilia.size());
+				progress.updateBarText("reconstructing cilia... (" + (i+1) + "/" + cilia.size() + ")");
+			}	
+		}
+		
+		ciliaParticles.clear();
+		ciliaParticles.trimToSize();
+		
+		/*
+		 * Add basal bodies if selected
+		 */
+		if(segmentedBB){			
+			//Detect basal bodies
+			ArrayList<ArrayList<Uncalibrated3DPoint>> bbTemp = getBBObjectsTimelapse(imp, basalStainC, increaseRangeBB);
+			if(bbTemp.size()!=1) {
+				//TODO Evtl remove warning
+				IJ.error("PROBLEM: Multiple time points for basal bodies derived from single-timepoint image!");
+			}
+			ArrayList<Uncalibrated3DPoint> bbParticles = bbTemp.get(0);
+			
+			nrOfBBs = bbParticles.size();
+			
+			//Assign cilia and basal bodies next:			
+			double minDist, dist;
+			double sklPoints [][];
+			
+			double matrixDist [][] = new double [cilia.size()][bbParticles.size()];
+			double matrixDistSquared [][] = new double [cilia.size()][bbParticles.size()];
+			Cilium theCilium;
+
+			if(showGUIs) {
+				progress.updateBarText("assigning basal bodies to cilia... compute distances");
+			}
+			for(int bb = 0; bb < bbParticles.size(); bb++){
+				for(int cil = 0; cil < cilia.size(); cil++){
+					theCilium = cilia.get(cil);
+					if(theCilium.sklAvailable) {
+						minDist = Double.POSITIVE_INFINITY;
+						sklPoints = theCilium.getSkeletonPointsForOriginalImage();
+						for(int skl = 0; skl < sklPoints.length; skl++) {
+							dist = getDistance(bbParticles.get(bb).x * theCilium.calibration,
+									bbParticles.get(bb).y * theCilium.calibration,
+									bbParticles.get(bb).z * theCilium.voxelDepth,
+									sklPoints[skl][0],
+									sklPoints[skl][1],
+									sklPoints[skl][2]);
+							if(dist < minDist) {
+								minDist = dist;
+							}
+						}
+						matrixDist [cil][bb] =  minDist;
+					}else {
+						matrixDist [cil][bb] =  getDistance(bbParticles.get(bb).x * theCilium.calibration,
+								bbParticles.get(bb).y * theCilium.calibration,
+								bbParticles.get(bb).z * theCilium.voxelDepth,
+								theCilium.xC,
+								theCilium.yC,
+								theCilium.zC);
+					}
+					
+					// If out of range reset to border to out of range to let out of range connections not matter
+					matrixDistSquared [cil][bb] = matrixDist [cil][bb];
+					if(matrixDistSquared [cil][bb] > maxDistanceBBCiliumEnd) {
+						matrixDistSquared [cil][bb] = maxDistanceBBCiliumEnd;
+					}
+					
+					// Square the distance to push for closer connection
+					matrixDistSquared [cil][bb] = matrixDist [cil][bb] * matrixDist [cil][bb]; 
+				}
+			}
+			
+			//Applying HungarianAlgorithm = linear_sum_assignment in python to get best solution
+			if(showGUIs) {
+				progress.updateBarText("assigning basal bodies to cilia... assigning by minimizing linear sum");
+			}
+			int [] bbForCilium = new HungarianAlgorithm(matrixDistSquared).execute();
+			
+
+			//Now assign BBs to cilia
+			int nrOfCiliaWithoutBBs = 0;
+			boolean bbUsed [] = new boolean [bbParticles.size()];
+			Arrays.fill(bbUsed,false);
+			for(int cil = 0; cil < cilia.size(); cil++){
+				if(showGUIs) {
+					progress.updateBarText("assigning basal bodies to cilia... adding basal body to cilium " + (cil+1) + " of " + cilia.size() + "!");
+				}
+				if(matrixDist[cil][bbForCilium[cil]] <= maxDistanceBBCiliumEnd) {
+					cilia.get(cil).addBasalBody(bbParticles.get(bbForCilium[cil]), imp, measureC2local, channelC2, measureC3local, channelC3,
+							channelReconstruction, progress, showGUIs);
+					bbUsed[bbForCilium[cil]] = true;
+				}else {
+					nrOfCiliaWithoutBBs ++;
+				}
+			}
+			
+			int nrOfBBsWithoutCilia = (bbParticles.size()-cilia.size()-nrOfCiliaWithoutBBs);			
+			// TODO delete within brackets below - just for diagnosis of code
+			{
+				IJ.log("FINAL STATS OF ASSIGNMENTS: " + nrOfCiliaWithoutBBs + " cilia without BB, " 
+						+ (cilia.size()-nrOfCiliaWithoutBBs) + " cilia with BBs, "
+						+ nrOfBBsWithoutCilia + " unassigned BBs.");
+				
+			}
+			
+			// Exclusion or inclusion of BBs without cilia / BBs with cilia
+			// "nothing based on BB-cilia-linking", "BBs without cilia", "cilia without BBs", "cilia without BBs and BBs without cilia"
+			{
+				if (bbCiliaFilterSelection.equals(bbCiliaFilterOptions[1]) || bbCiliaFilterSelection.equals(bbCiliaFilterOptions[3])) { // "BBs without cilia" or "cilia without BBs and BBs without cilia"
+					// Exclude BBs without cilia - if selected
+					for(int bb = 0; bb < bbParticles.size(); bb++) {
+						if(!bbUsed[bb]) {
+							excludedBBs ++;
+						}
+					}
+				}
+				
+				if (bbCiliaFilterSelection.equals(bbCiliaFilterOptions[0]) || bbCiliaFilterSelection.equals(bbCiliaFilterOptions[2])) { //  "nothing based on BB-cilia-linking" or "cilia without BBs",
+					// Add BBs as cilia object without cilium
+					cilia.ensureCapacity(cilia.size() + nrOfBBsWithoutCilia);
+					for(int bb = 0; bb < bbParticles.size(); bb++) {
+						if(bbUsed[bb]) {
+							continue;
+						}
+						// ADD the BB without cilium
+						cilia.add(new Cilium(bbParticles.get(bb), imp, measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC, 
+								channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, showGUIs));
+					}
+				}
+				
+				//Exclude cilia without BBs - if selected
+				if (bbCiliaFilterSelection.equals(bbCiliaFilterOptions[2]) || bbCiliaFilterSelection.equals(bbCiliaFilterOptions[3])) { //  "cilia without BBs" or "cilia without BBs and BBs without cilia"
+					for(int cil = 0; cil < cilia.size(); cil++){
+						if(!cilia.get(cil).bbAvailable) {
+							cilia.get(cil).excluded = true;
+							excludedCilia++;
+						}
+					}
+				}
+			}
+		}
+		
+		for(int i = 0; i < cilia.size(); i++){
+			if(cilia.get(i).excluded) {
+				if(cilia.get(i).ciliumAvailable) {
+					//write ID into image
+					txtID = new TextRoi((int)Math.round(cilia.get(i).xC/imp.getCalibration().pixelWidth), 
+							(int)Math.round(cilia.get(i).yC/imp.getCalibration().pixelHeight),
+							dformat0.format(i+1), RoiFont);
+					txtID.setStrokeColor(Color.YELLOW);					
+					imp.getOverlay().add(txtID);
+				}else if(cilia.get(i).bbAvailable) {
+					//write ID into image
+					txtID = new TextRoi((int)Math.round(cilia.get(i).bbX), 
+							(int)Math.round(cilia.get(i).bbY),
+							dformat0.format(i+1), RoiFont);
+					txtID.setStrokeColor(Color.YELLOW);					
+					imp.getOverlay().add(txtID);
+				}
+				continue;
+			}
+			if(!cilia.get(i).ciliumAvailable) {
+				if(cilia.get(i).bbAvailable) {
+					//write ID into image
+					txtID = new TextRoi((int)Math.round(cilia.get(i).bbX), 
+							(int)Math.round(cilia.get(i).bbY),
+							dformat0.format(i+1), RoiFont);
+					txtID.setStrokeColor(Color.WHITE);					
+					imp.getOverlay().add(txtID);
+				}			
+				continue;
+			}
+			//Exclude cilia
 			if(!tempExcludeSelection.equals(excludeOptions[0])){
 				if(showGUIs) {
-					progress.updateBarText("Quantifying cilia objects (" + i + "/" + ciliaParticles.size() + " done): checking xyz borders...");
+					progress.updateBarText("Quantifying cilia objects (" + i + "/" + cilia.size() + " done): checking xyz borders...");
 				}
 				touchesXY = false; touchesZ = false;
 				Arrays.fill(sliceCounter, 0);
@@ -2740,13 +3486,9 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			}
 								
 			if(showGUIs) {
-				progress.addToBar(0.2/ciliaParticles.size());
-				progress.updateBarText("reconstructing cilia... (" + (i+1) + "/" + ciliaParticles.size() + ")");
-			}			
+				progress.addToBar(0.1/cilia.size());
+			}		
 		}
-		
-		ciliaParticles.clear();
-		ciliaParticles.trimToSize();
 	}		
 	if(showGUIs) {
 		progress.updateBarText("" + cilia.size() + " cilia reconstructed!");
@@ -2773,9 +3515,10 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	
 	//Output images			
 	if(saveSingleCiliaTifs){
-		//save plaque-specific images
+		//save cilium-specific images
 		for(int i = 0; i < cilia.size(); i++){
 			if(cilia.get(i).excluded) continue;
+			if(!cilia.get(i).ciliumAvailable) continue;
 			if(showGUIs) {
 				progress.updateBarText("Writing single cilia images (" + i + "/" + cilia.size() + " done)");
 			}
@@ -2820,7 +3563,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	OutputTextFile tw2 = new OutputTextFile("");
 	
 	addSettingsBlockToPanel(tw1, currentDate, startDate, name, imp, 
-			measureC2local, measureC3local, measureBasalLocal, intensityThresholds, excludedCilia, cilia.size(),0,0); //TODO Detect and save excluded BBs
+			measureC2local, measureC3local, measureBasalLocal, intensityThresholds, excludedCilia, cilia.size(),excludedBBs,nrOfBBs);
 	
 	tw1.append("Results:");				
 	String appendTxt = "	";	
@@ -2834,7 +3577,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	appendTxt += "	" + "Surface ["+calibrationDimension+"^2]";
 	appendTxt += "	" + "Shape complexity index";
 	appendTxt += "	" + "Sphere radius ["+calibrationDimension+"]";
-	appendTxt += "	" + "Maximum span ["+calibrationDimension+"]";	//TODO - method to be implemented
+	appendTxt += "	" + ""; //"Maximum span ["+calibrationDimension+"]";	//TODO - method to be implemented
 	
 	appendTxt += "	"; if(measureC2local){appendTxt += "A: Colocalized volume [" + calibrationDimension + "^3] (if channel in input image was background-removed)";}
 	appendTxt += "	"; if(measureC2local){appendTxt += "A: Colocalized volume [% total volume] (if channel in input image was background-removed)";}
@@ -2886,182 +3629,209 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	appendTxt += "	"; if(skeletonize && measureC3local) appendTxt += "B: Colocalized on centerline compared to BG volume [" + calibrationDimension + "]";
 	appendTxt += "	"; if(skeletonize && measureC3local) appendTxt += "B: Colocalized on centerline compared to BG volume [% total length]";
 	
-			
-	if(skeletonize){
-		//profiles
-		if(measureC2local){
-			appendTxt += "	" + "Profile A (arc length step: " + dformat6.format(calibration) + ")";
-			for(int i = 0; i < nrOfProfileCols-1; i++){
-				appendTxt += "	";
-			}
-			appendTxt += "	" + "Profile A (normalized to reconstruction channel) (arc length step: " + dformat6.format(calibration) + ")";
-			for(int i = 0; i < nrOfProfileCols-1; i++){
-				appendTxt += "	";
-			}
-		}
-			
-		if(measureC3local){
-			appendTxt += "	" + "Profile B (arc length step: " + dformat6.format(calibration) + ")";
-			for(int i = 0; i < nrOfProfileCols-1; i++){
-				appendTxt += "	";
-			}
-			appendTxt += "	" + "Profile B (normalized to reconstruction channel) (arc length step: " + dformat6.format(calibration) + ")";
-			for(int i = 0; i < nrOfProfileCols-1; i++){
-				appendTxt += "	";
-			}
-		}				
-	}
+	appendTxt += "	"; if(segmentedBB) appendTxt += "basalbody x center ["+calibrationDimension+"]";;
+	appendTxt += "	"; if(segmentedBB) appendTxt += "basalbody y center ["+calibrationDimension+"]";;
+	appendTxt += "	"; if(segmentedBB) appendTxt += "basalbody z center ["+calibrationDimension+"]";;
+
+	appendTxt += "	"; if(segmentedBB) appendTxt += "basalbody center A intensity";
+	appendTxt += "	"; if(segmentedBB) appendTxt += "A intensity within 1 "+calibrationDimension+" to basal body";
+	appendTxt += "	"; if(segmentedBB) appendTxt += "A intensity 1-2 "+calibrationDimension+" to basal body";
+	appendTxt += "	"; if(segmentedBB) appendTxt += "basalbody center B intensity";
+	appendTxt += "	"; if(segmentedBB) appendTxt += "B intensity within 1 "+calibrationDimension+" to basal body";
+	appendTxt += "	"; if(segmentedBB) appendTxt += "B intensity 1-2 "+calibrationDimension+" to basal body";
 	
-					
+	//From v0.2.0 we do no longer print the profiles in the main file, facilitating analysis
+	//Profiles can instead be loaded and plotted programmatically from another file
+	//TODO think about output separately
+//	if(skeletonize){
+//		//profiles
+//		if(measureC2local){
+//			appendTxt += "	" + "Profile A (arc length step: " + dformat6.format(calibration) + ")";
+//			for(int i = 0; i < nrOfProfileCols-1; i++){
+//				appendTxt += "	";
+//			}
+//			appendTxt += "	" + "Profile A (normalized to reconstruction channel) (arc length step: " + dformat6.format(calibration) + ")";
+//			for(int i = 0; i < nrOfProfileCols-1; i++){
+//				appendTxt += "	";
+//			}
+//		}
+//			
+//		if(measureC3local){
+//			appendTxt += "	" + "Profile B (arc length step: " + dformat6.format(calibration) + ")";
+//			for(int i = 0; i < nrOfProfileCols-1; i++){
+//				appendTxt += "	";
+//			}
+//			appendTxt += "	" + "Profile B (normalized to reconstruction channel) (arc length step: " + dformat6.format(calibration) + ")";
+//			for(int i = 0; i < nrOfProfileCols-1; i++){
+//				appendTxt += "	";
+//			}
+//		}				
+//	}
+						
 	tw1.append(""+appendTxt);
 	
-	double [] coloc, iProfileC2, iProfileC3;
+//	double [] coloc, iProfileC2, iProfileC3; // From v0.2.0 we do no longer print the profiles in the main file, facilitating analysis
 	for(int i = 0; i < cilia.size(); i++){
 		if(cilia.get(i).excluded){
 			continue;
 		}
 		appendTxt = "	";	
-		appendTxt += "	" + dformat0.format(i+1); //"ID";
-		appendTxt += "	" + dformat6.format(cilia.get(i).xC);
-		appendTxt += "	" + dformat6.format(cilia.get(i).yC);
-		appendTxt += "	" + dformat6.format(cilia.get(i).zC);
-		appendTxt += "	" + dformat0.format(cilia.get(i).voxels);
-		appendTxt += "	" + dformat6.format(cilia.get(i).volume);
-		appendTxt += "	" + dformat0.format(cilia.get(i).surfaceVoxels);
-		appendTxt += "	" + dformat6.format(cilia.get(i).surface);
-		appendTxt += "	" + dformat6.format(cilia.get(i).shapeComplexity);
-		appendTxt += "	" + dformat6.format(cilia.get(i).sphereRadius);
-		appendTxt += "	" + dformat6.format(cilia.get(i).maximumSpan);	//maximum span TODO - method to be implemented
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat0.format(i+1);} //"ID";
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).xC);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).yC);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).zC);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat0.format(cilia.get(i).voxels);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).volume);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat0.format(cilia.get(i).surfaceVoxels);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).surface);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).shapeComplexity);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).sphereRadius);}
+		appendTxt += "	"; //if(cilia.get(i).ciliumAvailable){dformat6.format(cilia.get(i).maximumSpan);}	//maximum span TODO - method to be implemented
 		
-		appendTxt += "	"; if(measureC2local){appendTxt += dformat6.format(cilia.get(i).colocalizedVolumeC2);}
-		appendTxt += "	"; if(measureC2local){appendTxt += dformat6.format(100.0*cilia.get(i).colocalizedFractionC2);}
-		appendTxt += "	"; if(measureC3local){appendTxt += dformat6.format(cilia.get(i).colocalizedVolumeC3);}
-		appendTxt += "	"; if(measureC3local){appendTxt += dformat6.format(100.0*cilia.get(i).colocalizedFractionC3);}
-		appendTxt += "	"; if(measureC2local){appendTxt += dformat6.format(cilia.get(i).colocalizedCompToBGVolumeC2);}
-		appendTxt += "	"; if(measureC2local){appendTxt += dformat6.format(100.0*cilia.get(i).colocalizedCompToBGFractionC2);}
-		appendTxt += "	"; if(measureC3local){appendTxt += dformat6.format(cilia.get(i).colocalizedCompToBGVolumeC3);}
-		appendTxt += "	"; if(measureC3local){appendTxt += dformat6.format(100.0*cilia.get(i).colocalizedCompToBGFractionC3);}
+		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).colocalizedVolumeC2);}
+		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(100.0*cilia.get(i).colocalizedFractionC2);}
+		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).colocalizedVolumeC3);}
+		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(100.0*cilia.get(i).colocalizedFractionC3);}
+		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).colocalizedCompToBGVolumeC2);}
+		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(100.0*cilia.get(i).colocalizedCompToBGFractionC2);}
+		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).colocalizedCompToBGVolumeC3);}
+		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(100.0*cilia.get(i).colocalizedCompToBGFractionC3);}
 		
-		appendTxt += "	" + dformat6.format(cilia.get(i).minCiliumIntensity);
-		appendTxt += "	" + dformat6.format(cilia.get(i).maxCiliumIntensity);
-		appendTxt += "	" + dformat6.format(cilia.get(i).maxTenPercentCiliumIntensity);
-		appendTxt += "	" + dformat6.format(cilia.get(i).averageCiliumIntensity);
-		appendTxt += "	" + dformat6.format(cilia.get(i).SDCiliumIntensity);
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).minCiliumIntensity);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).maxCiliumIntensity);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).maxTenPercentCiliumIntensity);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).averageCiliumIntensity);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).SDCiliumIntensity);}
 		
-		appendTxt += "	"; if(measureC2local){appendTxt += dformat6.format(cilia.get(i).minC2Intensity);}
-		appendTxt += "	"; if(measureC2local){appendTxt += dformat6.format(cilia.get(i).maxC2Intensity);}
-		appendTxt += "	"; if(measureC2local){appendTxt += dformat6.format(cilia.get(i).maxTenPercentC2Intensity);}
-		appendTxt += "	"; if(measureC2local){appendTxt += dformat6.format(cilia.get(i).averageC2Intensity);}
-		appendTxt += "	"; if(measureC2local){appendTxt += dformat6.format(cilia.get(i).SDC2Intensity);}
+		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).minC2Intensity);}
+		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).maxC2Intensity);}
+		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).maxTenPercentC2Intensity);}
+		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).averageC2Intensity);}
+		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).SDC2Intensity);}
 		
-		appendTxt += "	"; if(measureC3local){appendTxt += dformat6.format(cilia.get(i).minC3Intensity);}
-		appendTxt += "	"; if(measureC3local){appendTxt += dformat6.format(cilia.get(i).maxC3Intensity);}
-		appendTxt += "	"; if(measureC3local){appendTxt += dformat6.format(cilia.get(i).maxTenPercentC3Intensity);}
-		appendTxt += "	"; if(measureC3local){appendTxt += dformat6.format(cilia.get(i).averageC3Intensity);}
-		appendTxt += "	"; if(measureC3local){appendTxt += dformat6.format(cilia.get(i).SDC3Intensity);}
+		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).minC3Intensity);}
+		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).maxC3Intensity);}
+		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).maxTenPercentC3Intensity);}
+		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).averageC3Intensity);}
+		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).SDC3Intensity);}
 		
-		appendTxt += "	"; if(skeletonize) appendTxt += dformat0.format(cilia.get(i).foundSkl);
-		appendTxt += "	"; if(cilia.get(i).sklAvailable){appendTxt += dformat0.format(cilia.get(i).branches);}
-		appendTxt += "	"; if(cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilia.get(i).treeLength);}
-		appendTxt += "	"; if(cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilia.get(i).largestShortestPathOfLargest);}
-		appendTxt += "	"; if(cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilia.get(i).orientationVector[0]);}
-		appendTxt += "	"; if(cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilia.get(i).orientationVector[1]);}
-		appendTxt += "	"; if(cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilia.get(i).orientationVector[2]);}
-		appendTxt += "	"; if(cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilia.get(i).bendingIndex);}
+		appendTxt += "	"; if(skeletonize && cilia.get(i).ciliumAvailable) appendTxt += dformat0.format(cilia.get(i).foundSkl);
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable && cilia.get(i).sklAvailable){appendTxt += dformat0.format(cilia.get(i).branches);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable && cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilia.get(i).treeLength);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable && cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilia.get(i).largestShortestPathOfLargest);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable && cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilia.get(i).orientationVector[0]);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable && cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilia.get(i).orientationVector[1]);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable && cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilia.get(i).orientationVector[2]);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable && cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilia.get(i).bendingIndex);}
 		
-		appendTxt += "	"; if(measureC2local){appendTxt += dformat6.format(intensityThresholds[channelC2-1]);}
-		appendTxt += "	"; if(measureC3local){appendTxt += dformat6.format(intensityThresholds[channelC3-1]);}
-		appendTxt += "	"; if(measureBasalLocal){appendTxt += dformat6.format(intensityThresholds[basalStainC-1]);}
-		
-		//profiles
-		if(skeletonize){
-			if(measureC2local){
-				iProfileC2 = cilia.get(i).getIntensityProfile(2, calibration, false);
-				appendTxt += "	"; 
-				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC2));
-				appendTxt += "	"; 
-				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC2));
-			}else{
-				iProfileC2  = null;
-				appendTxt += "		";
-			}
-			
-			if(measureC3local){
-				iProfileC3 = cilia.get(i).getIntensityProfile(3, calibration, false);
-				appendTxt += "	";
-				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC3));
-				appendTxt += "	"; 
-				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC3));
-			}else{
-				iProfileC3  = null;
-				appendTxt += "		";
-			}					
+		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(intensityThresholds[channelC2-1]);}
+		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(intensityThresholds[channelC3-1]);}
+		appendTxt += "	"; if(measureBasalLocal && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(intensityThresholds[basalStainC-1]);}
 
-			if(measureC2local && iProfileC2 != null){
-				//Colocalized length
-				appendTxt += "	";
-				coloc = getColocalizedLengthsOfProfile(iProfileC2, intensityThresholds[channelC2-1], calibration);
-				appendTxt += dformat6.format(coloc[0]);
-				appendTxt += "	";
-				appendTxt += dformat6.format(coloc[1]);					
-			}else{
-				appendTxt += "		";
-			}	
-			
-			if(measureC3local && iProfileC3 != null){
-				//Colocalized length
-				appendTxt += "	";
-				coloc = getColocalizedLengthsOfProfile(iProfileC3, intensityThresholds[channelC3-1], calibration);
-				appendTxt += dformat6.format(coloc[0]);
-				appendTxt += "	";
-				appendTxt += dformat6.format(coloc[1]);
-			}else{
-				appendTxt += "		";
-			}	
-			
-			if(measureC2local){
-				if(iProfileC2 != null){
-					for(int j = 0; j < nrOfProfileCols; j++){
-						appendTxt += "	";
-						if(cilia.get(i).sklAvailable && j < iProfileC2.length){
-							appendTxt += dformat6.format(iProfileC2[j]);
-						}						
-					}
-					iProfileC2 = cilia.get(i).getIntensityProfile(2, calibration, true);
-					for(int j = 0; j < nrOfProfileCols; j++){
-						appendTxt += "	";
-						if(cilia.get(i).sklAvailable && j < iProfileC2.length){
-							appendTxt += dformat6.format(iProfileC2[j]);
-						}						
-					}
-				}else{
-					for(int j = 0; j < nrOfProfileCols; j++){
-						appendTxt += "		";
-					}
-				}				
-			}					
-			if(measureC3local){
-				if(iProfileC3 != null){
-					for(int j = 0; j < nrOfProfileCols; j++){
-						appendTxt += "	";
-						if(cilia.get(i).sklAvailable && j < iProfileC3.length){
-							appendTxt += dformat6.format(iProfileC3[j]);
-						}						
-					}
-					iProfileC3 = cilia.get(i).getIntensityProfile(3, calibration, true);
-					for(int j = 0; j < nrOfProfileCols; j++){
-						appendTxt += "	";
-						if(cilia.get(i).sklAvailable && j < iProfileC3.length){
-							appendTxt += dformat6.format(iProfileC3[j]);
-						}
-					}
-				}else{
-					for(int j = 0; j < nrOfProfileCols; j++){
-						appendTxt += "		";
-					}
-				}					
-			}
-		}							
+		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbX * calibration);
+		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbY * calibration);
+		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbZ * voxelDepth);
+		
+		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbCenterIntensityC2);
+		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius1C2);
+		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius2C2);
+		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbCenterIntensityC3);
+		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius1C3);
+		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius2C3);
+				
+		//From v0.2.0 we do no longer print the profiles in the main file, facilitating analysis
+		//Profiles can instead be loaded and plotted programmatically from another file
+		//TODO think about output separately
+		//profiles
+//		if(skeletonize){
+//			if(measureC2local){
+//				iProfileC2 = cilia.get(i).getIntensityProfile(2, calibration, false);
+//				appendTxt += "	"; 
+//				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC2));
+//				appendTxt += "	"; 
+//				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC2));
+//			}else{
+//				iProfileC2  = null;
+//				appendTxt += "		";
+//			}
+//			
+//			if(measureC3local){
+//				iProfileC3 = cilia.get(i).getIntensityProfile(3, calibration, false);
+//				appendTxt += "	";
+//				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC3));
+//				appendTxt += "	"; 
+//				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC3));
+//			}else{
+//				iProfileC3  = null;
+//				appendTxt += "		";
+//			}					
+//
+//			if(measureC2local && iProfileC2 != null){
+//				//Colocalized length
+//				appendTxt += "	";
+//				coloc = getColocalizedLengthsOfProfile(iProfileC2, intensityThresholds[channelC2-1], calibration);
+//				appendTxt += dformat6.format(coloc[0]);
+//				appendTxt += "	";
+//				appendTxt += dformat6.format(coloc[1]);					
+//			}else{
+//				appendTxt += "		";
+//			}	
+//			
+//			if(measureC3local && iProfileC3 != null){
+//				//Colocalized length
+//				appendTxt += "	";
+//				coloc = getColocalizedLengthsOfProfile(iProfileC3, intensityThresholds[channelC3-1], calibration);
+//				appendTxt += dformat6.format(coloc[0]);
+//				appendTxt += "	";
+//				appendTxt += dformat6.format(coloc[1]);
+//			}else{
+//				appendTxt += "		";
+//			}	
+//			
+//			if(measureC2local){
+//				if(iProfileC2 != null){
+//					for(int j = 0; j < nrOfProfileCols; j++){
+//						appendTxt += "	";
+//						if(cilia.get(i).sklAvailable && j < iProfileC2.length){
+//							appendTxt += dformat6.format(iProfileC2[j]);
+//						}						
+//					}
+//					iProfileC2 = cilia.get(i).getIntensityProfile(2, calibration, true);
+//					for(int j = 0; j < nrOfProfileCols; j++){
+//						appendTxt += "	";
+//						if(cilia.get(i).sklAvailable && j < iProfileC2.length){
+//							appendTxt += dformat6.format(iProfileC2[j]);
+//						}						
+//					}
+//				}else{
+//					for(int j = 0; j < nrOfProfileCols; j++){
+//						appendTxt += "		";
+//					}
+//				}				
+//			}					
+//			if(measureC3local){
+//				if(iProfileC3 != null){
+//					for(int j = 0; j < nrOfProfileCols; j++){
+//						appendTxt += "	";
+//						if(cilia.get(i).sklAvailable && j < iProfileC3.length){
+//							appendTxt += dformat6.format(iProfileC3[j]);
+//						}						
+//					}
+//					iProfileC3 = cilia.get(i).getIntensityProfile(3, calibration, true);
+//					for(int j = 0; j < nrOfProfileCols; j++){
+//						appendTxt += "	";
+//						if(cilia.get(i).sklAvailable && j < iProfileC3.length){
+//							appendTxt += dformat6.format(iProfileC3[j]);
+//						}
+//					}
+//				}else{
+//					for(int j = 0; j < nrOfProfileCols; j++){
+//						appendTxt += "		";
+//					}
+//				}					
+//			}
+//		}
+		
 		tw1.append(""+appendTxt);
 		
 		appendTxt = name + appendTxt;
@@ -3071,12 +3841,12 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	
 	addFooter(tw1, currentDate);
 	if(!tw1.saveAndFinish(filePrefix + ".txt")) {
-		progress.notifyMessage("IO ERROR when saving file " + filePrefix + ".txt", ProgressDialog.ERROR);
+		if(showGUIs)	progress.notifyMessage("IO ERROR when saving file " + filePrefix + ".txt", ProgressDialog.ERROR);
 	}
 	
 	//save one row results file
 	if(!tw2.saveAndFinish(filePrefix + "s.txt")) {
-		progress.notifyMessage("IO ERROR when saving file " + (filePrefix + "s.txt"), ProgressDialog.ERROR);
+		if(showGUIs)	progress.notifyMessage("Did not save file " + (filePrefix + "s.txt because empty"), ProgressDialog.NOTIFICATION);
 	}
 	
 	//save profile text file
@@ -3094,6 +3864,9 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	if(saveSingleCilia3DImages){				
 		ImagePlus impTemp;
 		for(int i = 0; i < cilia.size(); i++){
+			if(!cilia.get(i).ciliumAvailable) {
+				continue;
+			}
 			if(showGUIs) {
 				progress.updateBarText("Producing 3D images of individual cilia (" + i + "/" + cilia.size() + " done)");
 			}
@@ -3151,6 +3924,8 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		if(showGUIs)	progress.updateBarText("Cilia reconstruction completed.");
 		//TODO implement method to move on if no cells detected
 		
+		//TODO implement method to detect BBs
+				
 		//Determine intensity thresholds for each other channel
 		if(showGUIs)	progress.updateBarText("Determining intensity thresholds...");
 		intensityThresholds = getIntensityThresholds(imp, ciliaParticles);
@@ -3162,6 +3937,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		timelapseCilia.ensureCapacity(ciliaParticles.size());
 		for(int i = 0; i < ciliaParticles.size(); i++){
 			if(showGUIs)	progress.updateBarText("Quantifying cilia (" + i + "/" + ciliaParticles.size() + " done)");
+			//TODO implement method to add BBs to time lapse cilium
 			timelapseCilia.add(new TimelapseCilium(ciliaParticles.get(i), imp, measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC, 
 					channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, segmentedBB, showGUIs));
 			if(timelapseCilia.size()!=i+1) {
@@ -3401,7 +4177,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		appendTxt += "	"; if(measureC3local){appendTxt += dformat6.format(intensityThresholds[channelC3-1]);}
 		appendTxt += "	"; if(measureBasalLocal){appendTxt += dformat6.format(intensityThresholds[basalStainC-1]);}
 		
-		//TODO Averages of profile based parameters to be implemented
+		//TODO implement BBs and then add parameters here		
 							
 		tw1.append(""+appendTxt);
 		
@@ -3529,7 +4305,7 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 	appendTxt += "	" + "surface ["+calibrationDimension+"^2]";
 	appendTxt += "	" + "shape complexity index";
 	appendTxt += "	" + "sphere radius ["+calibrationDimension+"]";
-	appendTxt += "	" + "Maximum span ["+calibrationDimension+"]";	//TODO - method to be implemented
+	appendTxt += "	"; //+ "Maximum span ["+calibrationDimension+"]";	//TODO - method to be implemented
 	
 	appendTxt += "	"; if(measureC2local){appendTxt += "A: Colocalized volume [" + calibrationDimension + "^3] (if channel in input image was background-removed)";}
 	appendTxt += "	"; if(measureC2local){appendTxt += "A: Colocalized volume [% total volume] (if channel in input image was background-removed)";}
@@ -3582,6 +4358,7 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 	appendTxt += "	"; if(skeletonize && measureC3local) appendTxt += "B: Colocalized on centerline compared to BG volume [" + calibrationDimension + "]";
 	appendTxt += "	"; if(skeletonize && measureC3local) appendTxt += "B: Colocalized on centerline compared to BG volume [% total length]";
 		
+	//TODO implement BBs and then add parameters here, skip printing of profiles here - refer to other file instead
 	//profiles
 	if(measureC2local && skeletonize){
 		appendTxt += "	" + "Profile A (arc length step: " + dformat6.format(calibration) + ")";
@@ -3652,7 +4429,7 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 		appendTxt += "	" + dformat6.format(cilium.cilia.get(i).surface);
 		appendTxt += "	" + dformat6.format(cilium.cilia.get(i).shapeComplexity);
 		appendTxt += "	" + dformat6.format(cilium.cilia.get(i).sphereRadius);
-		appendTxt += "	" + dformat6.format(cilium.cilia.get(i).maximumSpan);	//maximum span TODO - method to be implemented
+		appendTxt += "	"; // + dformat6.format(cilium.cilia.get(i).maximumSpan);	//maximum span TODO - method to be implemented
 
 		appendTxt += "	"; if(measureC2local){appendTxt += dformat6.format(cilium.cilia.get(i).colocalizedVolumeC2);}
 		appendTxt += "	"; if(measureC2local){appendTxt += dformat6.format(100.0*cilium.cilia.get(i).colocalizedFractionC2);}
@@ -3695,6 +4472,7 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 		appendTxt += "	"; if(measureC3local){appendTxt += dformat6.format(intensityThresholds[channelC3-1]);}
 		appendTxt += "	"; if(measureBasalLocal){appendTxt += dformat6.format(intensityThresholds[basalStainC-1]);}
 		
+		//TODO implement BBs and then add parameters here, skip printing of profiles here - refer to other file in
 		//profiles
 		if(skeletonize){
 			if(showGUIs)	progress.updateBarText("Determine intensity profiles for cilium " + ciliumID + " - time " + time);
@@ -4213,12 +4991,16 @@ private void saveImageAs3D(String savePath, ImagePlus imp, boolean transparent, 
 	impOut.setDisplayMode(IJ.COMPOSITE);
 	for(int c = 0; c < impOut.getNChannels(); c++){
 		impOut.setC(c+1);	
-		if(impOut.getBitDepth()==8){
-			impOut.setDisplayRange(0, 255);
-		}else if(impOut.getBitDepth()==16){
-			//TODO check which range applies
-			impOut.setDisplayRange(0, 4096);
-		}		
+		//To save time we just adjust the image to min max to ensure optimal display from Version v0.2.0 on
+//		if(impOut.getBitDepth()==8){
+//			impOut.setDisplayRange(0, 255);
+//		}else if(impOut.getBitDepth()==16){
+//			if(is12Bit(impOut)) {
+//				impOut.setDisplayRange(0, 4096);
+//			}
+//			impOut.setDisplayRange(0, 65535);
+//		}
+		impOut.resetDisplayRange();
 	}	
 	impOut.setOverlay(imp.getOverlay());
 	impOut.setCalibration(imp.getCalibration());
@@ -4610,8 +5392,7 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 			if (gd.wasCanceled()) return false;
 			
 		}
-		if(bbCSelection == bbCOptions[2]) {
-			
+		if(bbCSelection == bbCOptions[2]) {			
 			// READ what had been applied last time CiliaQ was used. TODO Need to rethink whether this would be useful...
 //			minBBSize = Prefs.getInt("ciliaQ.minBBSize", minBBSize);
 //			increaseRangeBB = Prefs.getBoolean("ciliaQ.increaseRangeBB", increaseRangeBB);
@@ -4628,6 +5409,11 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 			gdB.setInsets(0,0,0);	gdB.addMessage("Please determine how basal bodies shall be detected from the segmented channel,", InstructionsFont);
 			gdB.setInsets(0,0,0);	gdB.addMessage("how they shall be assigned to cilia, and whether BBs and cilia matching shall be", InstructionsFont);
 			gdB.setInsets(0,0,0);	gdB.addMessage("used to remove cilia.", InstructionsFont);
+			
+
+			gdB.setInsets(5,0,0);	gdB.addMessage("IMPORTANT: Basal body tracking is not yet implemented for time lapse images!", InstructionsFont, Color.red);
+			gdB.setInsets(0,0,0);	gdB.addMessage("If you use this method for timelapse images analysis will not be pursued.", InstructionsFont, Color.red);
+			//TODO remove warning when implemented
 	
 			gdB.setInsets(5,0,0);	gdB.addNumericField("minimum basal body object size [voxel]: ", minBBSize, 0);
 			gdB.setInsets(0,0,0);	gdB.addCheckbox("Increase range for connecting pixels to form a basal body object", increaseRangeBB);
@@ -4656,9 +5442,8 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 //			Prefs.set("ciliaQ.bbCiliaFilterSelection", bbCiliaFilterSelection);
 //			Prefs.savePreferences();
 		}
-			
-			
-			return true;
+		
+		return true;
 	}
 
 	/**
@@ -5399,5 +6184,20 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 	 * */
 	private double getDistance(double pX, double pY, double pZ, double qX, double qY, double qZ) {
 		return Math.sqrt(Math.pow(pX-qX,2.0)+Math.pow(pY-qY,2.0)+Math.pow(pZ-qZ,2.0));
+	}
+	
+
+	//
+	static boolean is12Bit(ImagePlus imp) {
+		for(int z = 0; z < imp.getStackSize(); z++){
+			for(int x = 0; x < imp.getWidth(); x++){
+				for(int y = 0; y < imp.getHeight(); y++){
+					if(imp.getStack().getVoxel(x, y, z)>4096.0) {
+						return false;
+					}
+				}
+			}
+		}
+		return true;
 	}
 }//end main class

@@ -90,13 +90,20 @@ class TimelapseCilium{
 			largestShortestPathOfLargestAvg,
 			bendingIndexAvg = 0.0;
 	double [] orientationVectorAvg = {0.0, 0.0, 0.0};
-			
-			
+	
+	//Basal Body parameters (if applicable)
+	double bbXAvg = 0.0, bbYAvg = 0.0, bbZAvg = 0.0;
+	double bbCenterIntensityC2Avg = 0.0, bbCenterIntensityC3Avg = 0.0;
+	double bbIntensityRadius1C2Avg = 0.0, bbIntensityRadius1C3Avg = 0.0;
+	double bbIntensityRadius2C2Avg = 0.0, bbIntensityRadius2C3Avg = 0.0;
+	
 	public boolean sklAvailableInAllFrames = true;		
 				
 	public TimelapseCilium(ArrayList<CellPoint> ciliaPoints, ImagePlus imp, 
 			boolean measureC2, int channel2, boolean measureC3, int channel3, boolean measureBasalBody, int channelBasalBody,
-			int channelReconstruction, double gXY, double gZ, double intensityThresholds [], ProgressDialog progress, boolean skeletonize){
+			int channelReconstruction, double gXY, double gZ, double intensityThresholds [], ProgressDialog progress, 
+			boolean skeletonize, boolean segmentedBB,
+			boolean showGUIs){
 		
 		bitDepth = imp.getBitDepth();
 		cal = imp.getCalibration().copy();
@@ -114,11 +121,11 @@ class TimelapseCilium{
 				kineticList.get(ciliaPoints.get(p).t).add(ciliaPoints.get(p));
 			}
 			for(int t = 0; t < imp.getNFrames(); t++){
-				progress.updateBarText("Timepoint generated in timelapse cilium: " 
+				if(showGUIs)	progress.updateBarText("Timepoint generated in timelapse cilium: " 
 						+ (t+1) + "/" + imp.getNFrames() + ": " + kineticList.get(t).size() + " points");
 			}
 			cilia = new ArrayList<Cilium>(imp.getNFrames());
-			int counter = 0;
+			int counter = 0, bbCounter = 0;
 		
 			for(int t = 0; t < imp.getNFrames(); t++){
 				kineticList.get(t).trimToSize();
@@ -127,7 +134,9 @@ class TimelapseCilium{
 				}
 				
 				cilia.add(new Cilium(kineticList.get(t), imp, measureC2, channel2, measureC3, channel3, measureBasalBody, channelBasalBody,
-						channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize));
+						channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, showGUIs));
+				
+				//TODO Add basal body if selected - new from version v0.2.0
 				
 				if(cilia.get(cilia.size()-1).xMax>xMax)	xMax = cilia.get(cilia.size()-1).xMax;
 				if(cilia.get(cilia.size()-1).xMin<xMin)	xMin = cilia.get(cilia.size()-1).xMin;
@@ -188,9 +197,22 @@ class TimelapseCilium{
 					bendingIndexAvg += cilia.get(cilia.size()-1).bendingIndex;
 				}
 				
+				if(cilia.get(cilia.size()-1).bbAvailable) {
+					bbXAvg += cilia.get(cilia.size()-1).bbX;
+					bbYAvg += cilia.get(cilia.size()-1).bbY;;
+					bbZAvg += cilia.get(cilia.size()-1).bbZ;;
+					bbCenterIntensityC2Avg += cilia.get(cilia.size()-1).bbCenterIntensityC2;
+					bbCenterIntensityC3Avg += cilia.get(cilia.size()-1).bbCenterIntensityC3;
+					bbIntensityRadius1C2Avg += cilia.get(cilia.size()-1).bbIntensityRadius1C2;
+					bbIntensityRadius1C3Avg += cilia.get(cilia.size()-1).bbIntensityRadius1C3;
+					bbIntensityRadius2C2Avg += cilia.get(cilia.size()-1).bbIntensityRadius2C2;
+					bbIntensityRadius2C3Avg += cilia.get(cilia.size()-1).bbIntensityRadius2C3;
+					bbCounter ++;
+				}
+				
 				if(!cilia.get(cilia.size()-1).sklAvailable){
 						sklAvailableInAllFrames = false;
-				}		
+				}
 				
 				counter++;
 			}	
@@ -242,7 +264,19 @@ class TimelapseCilium{
 				orientationVectorAvg [1] /= (double) counter;
 				orientationVectorAvg [2] /= (double) counter;
 				bendingIndexAvg  /= (double) counter;
-			}			
+			}
+			
+			if(bbCounter>0) {
+				bbXAvg /= (double) bbCounter;
+				bbYAvg /= (double) bbCounter;
+				bbZAvg /= (double) bbCounter;
+				bbCenterIntensityC2Avg /= (double) bbCounter;
+				bbCenterIntensityC3Avg /= (double) bbCounter;
+				bbIntensityRadius1C2Avg /= (double) bbCounter;
+				bbIntensityRadius1C3Avg /= (double) bbCounter;
+				bbIntensityRadius2C2Avg /= (double) bbCounter;
+				bbIntensityRadius2C3Avg /= (double) bbCounter;
+			}
 					
 			kineticList.clear();
 			kineticList = null;
