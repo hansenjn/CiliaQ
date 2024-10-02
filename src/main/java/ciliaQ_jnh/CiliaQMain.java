@@ -3730,7 +3730,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				
 		//profiles
 		if(skeletonize){
-			if(measureC2local){
+			if(measureC2local && cilia.get(i).ciliumAvailable){
 				iProfileC2 = cilia.get(i).getIntensityProfile(2, calibration, false);
 				appendTxt += "	"; 
 				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC2));
@@ -3741,7 +3741,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				appendTxt += "		";
 			}
 			
-			if(measureC3local){
+			if(measureC3local && cilia.get(i).ciliumAvailable){
 				iProfileC3 = cilia.get(i).getIntensityProfile(3, calibration, false);
 				appendTxt += "	";
 				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC3));
@@ -3752,7 +3752,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				appendTxt += "		";
 			}					
 
-			if(measureC2local && iProfileC2 != null){
+			if(measureC2local && iProfileC2 != null && cilia.get(i).ciliumAvailable){
 				//Colocalized length
 				appendTxt += "	";
 				coloc = getColocalizedLengthsOfProfile(iProfileC2, intensityThresholds[channelC2-1], calibration);
@@ -3763,7 +3763,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				appendTxt += "		";
 			}	
 			
-			if(measureC3local && iProfileC3 != null){
+			if(measureC3local && iProfileC3 != null && cilia.get(i).ciliumAvailable){
 				//Colocalized length
 				appendTxt += "	";
 				coloc = getColocalizedLengthsOfProfile(iProfileC3, intensityThresholds[channelC3-1], calibration);
@@ -3774,7 +3774,6 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				appendTxt += "		";
 			}	
 			
-
 			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbX * calibration);
 			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbY * calibration);
 			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbZ * voxelDepth);

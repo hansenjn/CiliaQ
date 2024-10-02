@@ -772,16 +772,16 @@ class Cilium{
 			 */
 			double [] lastCoord = getLastSkeletonCoordinate();
 			double sklBBDistance = getDistanceInPx(pointBB,lastCoord);
-			IJ.log("sklBBdist " + sklBBDistance + ". " + pointBB.x + " " + pointBB.y + " " + pointBB.z + " " 
-					+ lastCoord[0] + " " + lastCoord[1] + " " + lastCoord[2]);
+//			IJ.log("sklBBdist " + sklBBDistance + ". " + pointBB.x + " " + pointBB.y + " " + pointBB.z + " " 
+//					+ lastCoord[0] + " " + lastCoord[1] + " " + lastCoord[2]);
 			sklPointList.ensureCapacity(sklPointList.size()+(int)Math.round(sklBBDistance*3.0));
 			for(int p = 1; p < sklBBDistance*3; p++) {
 				sklPointList.add(new SklPoint(lastCoord[0] + p / (sklBBDistance*3.0) * (pointBB.x*calibration-lastCoord[0]),
 						lastCoord[1] + p / (sklBBDistance*3.0) * (pointBB.y*calibration-lastCoord[1]),
 						lastCoord[2] + p / (sklBBDistance*3.0) * (pointBB.z*voxelDepth-lastCoord[2])));
-				IJ.log("add point " + lastCoord[0] + p / (sklBBDistance*3.0) * (pointBB.x*calibration-lastCoord[0]) + " - " 
-						+ lastCoord[1] + p / (sklBBDistance*3.0) * (pointBB.y*calibration-lastCoord[1]) + " - " 
-						+ lastCoord[2] + p / (sklBBDistance*3.0) * (pointBB.z*voxelDepth-lastCoord[2]));
+//				IJ.log("add point " + lastCoord[0] + p / (sklBBDistance*3.0) * (pointBB.x*calibration-lastCoord[0]) + " - " 
+//						+ lastCoord[1] + p / (sklBBDistance*3.0) * (pointBB.y*calibration-lastCoord[1]) + " - " 
+//						+ lastCoord[2] + p / (sklBBDistance*3.0) * (pointBB.z*voxelDepth-lastCoord[2]));
 			}
 			sklPointList.add(new SklPoint(pointBB.x * calibration,pointBB.y * calibration,pointBB.z * voxelDepth));		
 			sklPointList.trimToSize();	
