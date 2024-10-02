@@ -3566,7 +3566,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			measureC2local, measureC3local, measureBasalLocal, intensityThresholds, excludedCilia, cilia.size(),excludedBBs,nrOfBBs);
 	
 	tw1.append("Results:");				
-	String appendTxt = "	";	
+	String appendTxt = "File name	";	
 	appendTxt += "	" + "ID";
 	appendTxt += "	" + "x center ["+calibrationDimension+"]";
 	appendTxt += "	" + "y center ["+calibrationDimension+"]";
@@ -3670,13 +3670,13 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 						
 	tw1.append(""+appendTxt);
 	
-//	double [] coloc, iProfileC2, iProfileC3; // From v0.2.0 we do no longer print the profiles in the main file, facilitating analysis
+	double [] coloc, iProfileC2, iProfileC3;
 	for(int i = 0; i < cilia.size(); i++){
 		if(cilia.get(i).excluded){
 			continue;
 		}
 		appendTxt = "	";	
-		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat0.format(i+1);} //"ID";
+		appendTxt += "	"; appendTxt += dformat0.format(i+1); //"ID";
 		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).xC);}
 		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).yC);}
 		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).zC);}
@@ -3727,67 +3727,70 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(intensityThresholds[channelC2-1]);}
 		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(intensityThresholds[channelC3-1]);}
 		appendTxt += "	"; if(measureBasalLocal && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(intensityThresholds[basalStainC-1]);}
-
-		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbX * calibration);
-		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbY * calibration);
-		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbZ * voxelDepth);
-		
-		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbCenterIntensityC2);
-		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius1C2);
-		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius2C2);
-		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbCenterIntensityC3);
-		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius1C3);
-		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius2C3);
 				
-		//From v0.2.0 we do no longer print the profiles in the main file, facilitating analysis
-		//Profiles can instead be loaded and plotted programmatically from another file
-		//TODO think about output separately
 		//profiles
-//		if(skeletonize){
-//			if(measureC2local){
-//				iProfileC2 = cilia.get(i).getIntensityProfile(2, calibration, false);
-//				appendTxt += "	"; 
-//				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC2));
-//				appendTxt += "	"; 
-//				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC2));
-//			}else{
-//				iProfileC2  = null;
-//				appendTxt += "		";
-//			}
-//			
-//			if(measureC3local){
-//				iProfileC3 = cilia.get(i).getIntensityProfile(3, calibration, false);
-//				appendTxt += "	";
-//				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC3));
-//				appendTxt += "	"; 
-//				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC3));
-//			}else{
-//				iProfileC3  = null;
-//				appendTxt += "		";
-//			}					
-//
-//			if(measureC2local && iProfileC2 != null){
-//				//Colocalized length
-//				appendTxt += "	";
-//				coloc = getColocalizedLengthsOfProfile(iProfileC2, intensityThresholds[channelC2-1], calibration);
-//				appendTxt += dformat6.format(coloc[0]);
-//				appendTxt += "	";
-//				appendTxt += dformat6.format(coloc[1]);					
-//			}else{
-//				appendTxt += "		";
-//			}	
-//			
-//			if(measureC3local && iProfileC3 != null){
-//				//Colocalized length
-//				appendTxt += "	";
-//				coloc = getColocalizedLengthsOfProfile(iProfileC3, intensityThresholds[channelC3-1], calibration);
-//				appendTxt += dformat6.format(coloc[0]);
-//				appendTxt += "	";
-//				appendTxt += dformat6.format(coloc[1]);
-//			}else{
-//				appendTxt += "		";
-//			}	
-//			
+		if(skeletonize){
+			if(measureC2local){
+				iProfileC2 = cilia.get(i).getIntensityProfile(2, calibration, false);
+				appendTxt += "	"; 
+				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC2));
+				appendTxt += "	"; 
+				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC2));
+			}else{
+				iProfileC2  = null;
+				appendTxt += "		";
+			}
+			
+			if(measureC3local){
+				iProfileC3 = cilia.get(i).getIntensityProfile(3, calibration, false);
+				appendTxt += "	";
+				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC3));
+				appendTxt += "	"; 
+				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC3));
+			}else{
+				iProfileC3  = null;
+				appendTxt += "		";
+			}					
+
+			if(measureC2local && iProfileC2 != null){
+				//Colocalized length
+				appendTxt += "	";
+				coloc = getColocalizedLengthsOfProfile(iProfileC2, intensityThresholds[channelC2-1], calibration);
+				appendTxt += dformat6.format(coloc[0]);
+				appendTxt += "	";
+				appendTxt += dformat6.format(coloc[1]);					
+			}else{
+				appendTxt += "		";
+			}	
+			
+			if(measureC3local && iProfileC3 != null){
+				//Colocalized length
+				appendTxt += "	";
+				coloc = getColocalizedLengthsOfProfile(iProfileC3, intensityThresholds[channelC3-1], calibration);
+				appendTxt += dformat6.format(coloc[0]);
+				appendTxt += "	";
+				appendTxt += dformat6.format(coloc[1]);
+			}else{
+				appendTxt += "		";
+			}	
+			
+
+			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbX * calibration);
+			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbY * calibration);
+			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbZ * voxelDepth);
+			
+			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbCenterIntensityC2);
+			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius1C2);
+			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius2C2);
+			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbCenterIntensityC3);
+			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius1C3);
+			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius2C3);
+		
+
+			//From v0.2.0 we do no longer print the profiles in the main file, facilitating analysis
+			//Profiles can instead be loaded and plotted programmatically from another file
+			//TODO think about output separately
+			
 //			if(measureC2local){
 //				if(iProfileC2 != null){
 //					for(int j = 0; j < nrOfProfileCols; j++){
@@ -3830,11 +3833,10 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 //					}
 //				}					
 //			}
-//		}
-		
-		tw1.append(""+appendTxt);
-		
+		}
+				
 		appendTxt = name + appendTxt;
+		tw1.append(""+appendTxt);
 		appendTxt += getOneRowFooter(currentDate);
 		tw2.append(""+appendTxt);
 	}
