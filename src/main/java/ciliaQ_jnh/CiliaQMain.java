@@ -166,9 +166,29 @@ public void run(String arg) {
     	}
     	
     	/** 
-    	 * Display warning dialog
+    	 * Display exceptional warning dialog
     	 */
-    	    	
+    	GenericDialog gdW2 = new GenericDialog(PLUGINNAME + " on " + System.getProperty("os.name") + " - Version Warning!");
+    	
+		gdW2.setInsets(0,0,0);	gdW2.addMessage("WARNING", HeadingFont, Color.MAGENTA);
+		gdW2.setInsets(0,0,0);	gdW2.addMessage("Hello CiliaQ-user! This is a beta version of CiliaQ: Version v0.2.0.", InstructionsFont);
+		gdW2.setInsets(10,0,0);	gdW2.addMessage("This version is still in extensive testing and might need further development.", InstructionsFont);
+		gdW2.setInsets(0,0,0);	gdW2.addMessage("Do not use this version but instead install a previous version (e.g., v0.1.7) at:", InstructionsFont);
+		gdW2.setInsets(0,0,0);	gdW2.addMessage("https://github.com/hansenjn/CiliaQ/releases/tag/v0.1.7", InstructionsFont);		
+		gdW2.setInsets(10,0,0);	gdW2.addMessage("Follow this wiki post for installing a different CiliaQ version than this:", InstructionsFont);    		
+		gdW2.setInsets(0,0,0);	gdW2.addMessage("https://github.com/hansenjn/CiliaQ/wiki/Q&A:-How-to-install-a-specific-version-of-a-CiliaQ-plugin%3F", InstructionsFont);
+
+		gdW2.addHelp("https://github.com/hansenjn/CiliaQ/releases/");
+		
+		gdW2.showDialog();
+				
+		if(gdW2.wasCanceled()) {
+			return;
+		}
+    	
+    	/** 
+    	 * Display warning dialog
+    	 */    	    	
     	if(Prefs.getBoolean("ciliaQ.v0.2.0.showVersionWarning", true)){
         	GenericDialog gdW = new GenericDialog(PLUGINNAME + " on " + System.getProperty("os.name") + " - Version Warning!");
         	
