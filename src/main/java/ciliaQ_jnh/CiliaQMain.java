@@ -147,7 +147,7 @@ public void run(String arg) {
     		&& Macro.getOptions() != null
     		&& Macro.getOptions().length()>0) {
     	
-    	readSettingsFromMacroString(Macro.getOptions(), true); //TODO Make log false
+    	readSettingsFromMacroString(Macro.getOptions(), false);
     			
         showDialog = false;
     }
@@ -833,7 +833,9 @@ private void readSettingsFromMacroString(String macroOptions, boolean logDetecti
 		}
 		
 	} else if (macroOptions.contains("basal-stain-segmented")){
+		measureBasal = true;
 		segmentedBB = true;
+		if(logDetection) IJ.log("detected basal stain present: " + measureBasal);
 		if(logDetection) IJ.log("detected basal stain segmented: " + segmentedBB);
 
 		if(macroOptions.contains("channel-basal-stain=")){
@@ -3234,6 +3236,8 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	int excludedCilia = 0;
 	int excludedBBs = 0;
 	int nrOfBBs = 0;
+	int totalNrOfDetectedCilia = 0;
+	
 	{
 		//Retrieving ciliary objects from the image
 		ArrayList<ArrayList<CellPoint>> ciliaParticles = getCiliaObjectsTimelapse(imp, channelReconstruction, increaseRangeCilia);	//Method changed on 23.04.2019
@@ -3364,14 +3368,14 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 					nrOfCiliaWithoutBBs ++;
 				}
 			}
-			
+
+			totalNrOfDetectedCilia = cilia.size();
 			int nrOfBBsWithoutCilia = (bbParticles.size()-cilia.size()-nrOfCiliaWithoutBBs);			
-			// TODO delete within brackets below - just for diagnosis of code
-			{
-				IJ.log("FINAL STATS OF ASSIGNMENTS: " + nrOfCiliaWithoutBBs + " cilia without BB, " 
-						+ (cilia.size()-nrOfCiliaWithoutBBs) + " cilia with BBs, "
-						+ nrOfBBsWithoutCilia + " unassigned BBs.");
-				
+			
+			{// Delete in brackets TODO
+//				IJ.log("FINAL STATS OF ASSIGNMENTS: " + nrOfCiliaWithoutBBs + " cilia without BB, " 
+//						+ (cilia.size()-nrOfCiliaWithoutBBs) + " cilia with BBs, "
+//						+ nrOfBBsWithoutCilia + " unassigned BBs.");
 			}
 			
 			// Exclusion or inclusion of BBs without cilia / BBs with cilia
@@ -3410,7 +3414,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				}
 			}
 		}
-		
+				
 		for(int i = 0; i < cilia.size(); i++){
 			if(cilia.get(i).excluded) {
 				if(cilia.get(i).ciliumAvailable) {
@@ -3583,7 +3587,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	OutputTextFile tw2 = new OutputTextFile("");
 	
 	addSettingsBlockToPanel(tw1, currentDate, startDate, name, imp, 
-			measureC2local, measureC3local, measureBasalLocal, intensityThresholds, excludedCilia, cilia.size(),excludedBBs,nrOfBBs);
+			measureC2local, measureC3local, measureBasalLocal, intensityThresholds, excludedCilia, totalNrOfDetectedCilia, excludedBBs,nrOfBBs);
 	
 	tw1.append("Results:");				
 	String appendTxt = "File name	";	
@@ -5343,7 +5347,7 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 	 * */
 	private boolean enterSettings() {
 		//&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-		//-------------------------GenericDialog-------------------------------------- TODO
+		//-------------------------GenericDialog--------------------------------------
 		//&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 		{
 		
@@ -5584,6 +5588,8 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 							tempString = line;
 							if(line.contains("segmented")) {
 								//New in v0.2.0 - reading segmented BB channels
+								segmentedBB = true;
+								IJ.log("Segmented BB = " + segmentedBB);
 								tempString = line;
 								tempString = tempString.substring(tempString.lastIndexOf("	")+1);								
 								if(tempString.contains(",") && !tempString.contains("."))	tempString = tempString.replace(",", ".");
