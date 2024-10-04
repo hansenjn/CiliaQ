@@ -3757,9 +3757,9 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			if(measureC2local && cilia.get(i).ciliumAvailable){
 				iProfileC2 = cilia.get(i).getIntensityProfile(2, calibration, false);
 				appendTxt += "	"; 
-				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC2));
+				if(iProfileC2!=null && cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC2));
 				appendTxt += "	"; 
-				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC2));
+				if(iProfileC2!=null && cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC2));
 			}else{
 				iProfileC2  = null;
 				appendTxt += "		";
@@ -3768,9 +3768,9 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			if(measureC3local && cilia.get(i).ciliumAvailable){
 				iProfileC3 = cilia.get(i).getIntensityProfile(3, calibration, false);
 				appendTxt += "	";
-				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC3));
+				if(iProfileC3!=null && cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC3));
 				appendTxt += "	"; 
-				if(cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC3));
+				if(iProfileC3!=null && cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC3));
 			}else{
 				iProfileC3  = null;
 				appendTxt += "		";

@@ -50,7 +50,7 @@ class Cilium{
 	double calibration, voxelDepth;
 	int bitDepth;
 		
-	double xC = 0.0, yC = 0.0, zC = 0.0;
+	double xC = 0.0, yC = 0.0, zC = 0.0; // will be calibrated, not in Px
 	int t; //0 <= t < nFrames
 	double [][] points;	// [pointID][0=x,1=y,2=z,3=intensity,4=coveredSurface, 5 = C2, 6 = C3]
 	
@@ -723,7 +723,7 @@ class Cilium{
 			/*
 			 * No skeleton available. Thus, we create one based on the basal body coordinate and the center of the cilium.
 			 */
-			double [] centerCoord = new double [] {xC*calibration, yC*calibration, zC*voxelDepth};
+			double [] centerCoord = new double [] {xC, yC, zC};
 			double sklBBDistance = getDistanceInPx(pointBB,centerCoord);
 			
 			sklPointList = new ArrayList<SklPoint>((int)Math.round(sklBBDistance*3.0)+1);
