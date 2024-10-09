@@ -1,10 +1,10 @@
 package ciliaQ_jnh;
 /** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.2.0
+ * CiliaQ, a plugin for imagej - Version 0.2.1
  * 
  * Copyright (C) 2017-2023 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: August 20, 2024
+ * This Version: October 8, 2024
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -46,7 +46,7 @@ import ij.Prefs;
 public class CiliaQMain implements PlugIn, Measurements {
 	//Name variables
 	static final String PLUGINNAME = "CiliaQ";
-	static final String PLUGINVERSION = "0.2.0";
+	static final String PLUGINVERSION = "0.2.1";
 	
 	//Fix fonts
 	static final Font SuperHeadingFont = new Font("Sansserif", Font.BOLD, 16);
@@ -3360,7 +3360,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				if(showGUIs) {
 					progress.updateBarText("assigning basal bodies to cilia... adding basal body to cilium " + (cil+1) + " of " + cilia.size() + "!");
 				}
-				if(matrixDist[cil][bbForCilium[cil]] <= maxDistanceBBCiliumEnd) {
+				if(bbForCilium[cil] > -1 && matrixDist[cil][bbForCilium[cil]] <= maxDistanceBBCiliumEnd) {
 					cilia.get(cil).addBasalBody(bbParticles.get(bbForCilium[cil]), imp, measureC2local, channelC2, measureC3local, channelC3,
 							channelReconstruction, progress, showGUIs);
 					bbUsed[bbForCilium[cil]] = true;
