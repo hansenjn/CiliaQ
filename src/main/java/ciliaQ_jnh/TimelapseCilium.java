@@ -32,6 +32,8 @@ import ij.measure.Calibration;
 
 class TimelapseCilium{
 	boolean excluded = false;
+	boolean ciliumAvailable = false;
+	boolean bbAvailable = false;
 	
 	Calibration cal;
 	double calibration, voxelDepth, frameRate;
@@ -87,7 +89,7 @@ class TimelapseCilium{
 			foundSklAvg = 0.0,
 			branchesAvg = 0.0,
 			treeLengthAvg = 0.0,
-			largestShortestPathOfLargestAvg,
+			largestShortestPathOfLargestAvg = 0.0,
 			bendingIndexAvg = 0.0;
 	double [] orientationVectorAvg = {0.0, 0.0, 0.0};
 	
@@ -98,7 +100,7 @@ class TimelapseCilium{
 	double bbIntensityRadius2C2Avg = 0.0, bbIntensityRadius2C3Avg = 0.0;
 	
 	public boolean sklAvailableInAllFrames = true;		
-				
+
 	public TimelapseCilium(ArrayList<CellPoint> ciliaPoints, ImagePlus imp, 
 			boolean measureC2, int channel2, boolean measureC3, int channel3, boolean measureBasalBody, int channelBasalBody,
 			int channelReconstruction, double gXY, double gZ, double intensityThresholds [], ProgressDialog progress, 
@@ -125,7 +127,7 @@ class TimelapseCilium{
 						+ (t+1) + "/" + imp.getNFrames() + ": " + kineticList.get(t).size() + " points");
 			}
 			cilia = new ArrayList<Cilium>(imp.getNFrames());
-			int counter = 0, bbCounter = 0;
+			int counter = 0;
 		
 			for(int t = 0; t < imp.getNFrames(); t++){
 				kineticList.get(t).trimToSize();
@@ -135,8 +137,6 @@ class TimelapseCilium{
 				
 				cilia.add(new Cilium(kineticList.get(t), imp, measureC2, channel2, measureC3, channel3, measureBasalBody, channelBasalBody,
 						channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, showGUIs));
-				
-				//TODO Add basal body if selected - new from version v0.2.0
 				
 				if(cilia.get(cilia.size()-1).xMax>xMax)	xMax = cilia.get(cilia.size()-1).xMax;
 				if(cilia.get(cilia.size()-1).xMin<xMin)	xMin = cilia.get(cilia.size()-1).xMin;
@@ -197,19 +197,6 @@ class TimelapseCilium{
 					bendingIndexAvg += cilia.get(cilia.size()-1).bendingIndex;
 				}
 				
-				if(cilia.get(cilia.size()-1).bbAvailable) {
-					bbXAvg += cilia.get(cilia.size()-1).bbX;
-					bbYAvg += cilia.get(cilia.size()-1).bbY;;
-					bbZAvg += cilia.get(cilia.size()-1).bbZ;;
-					bbCenterIntensityC2Avg += cilia.get(cilia.size()-1).bbCenterIntensityC2;
-					bbCenterIntensityC3Avg += cilia.get(cilia.size()-1).bbCenterIntensityC3;
-					bbIntensityRadius1C2Avg += cilia.get(cilia.size()-1).bbIntensityRadius1C2;
-					bbIntensityRadius1C3Avg += cilia.get(cilia.size()-1).bbIntensityRadius1C3;
-					bbIntensityRadius2C2Avg += cilia.get(cilia.size()-1).bbIntensityRadius2C2;
-					bbIntensityRadius2C3Avg += cilia.get(cilia.size()-1).bbIntensityRadius2C3;
-					bbCounter ++;
-				}
-				
 				if(!cilia.get(cilia.size()-1).sklAvailable){
 						sklAvailableInAllFrames = false;
 				}
@@ -265,24 +252,131 @@ class TimelapseCilium{
 				orientationVectorAvg [2] /= (double) counter;
 				bendingIndexAvg  /= (double) counter;
 			}
-			
-			if(bbCounter>0) {
-				bbXAvg /= (double) bbCounter;
-				bbYAvg /= (double) bbCounter;
-				bbZAvg /= (double) bbCounter;
-				bbCenterIntensityC2Avg /= (double) bbCounter;
-				bbCenterIntensityC3Avg /= (double) bbCounter;
-				bbIntensityRadius1C2Avg /= (double) bbCounter;
-				bbIntensityRadius1C3Avg /= (double) bbCounter;
-				bbIntensityRadius2C2Avg /= (double) bbCounter;
-				bbIntensityRadius2C3Avg /= (double) bbCounter;
-			}
-					
+								
 			kineticList.clear();
 			kineticList = null;
 		}
+		
+		ciliumAvailable = true;
 	}
+	
+	/**
+	 * Create timelapse cilium object based on a single basal body
+	 * @param bbOnlyCilium: the basal body cilium object
+	 * @param imp: the corresponding image
+	 * @param progress
+	 * @param showGUIs
+	 */
+	public TimelapseCilium(Cilium bbOnlyCilium, ImagePlus imp, 
+			ProgressDialog progress, boolean showGUIs){
+		
+		bitDepth = imp.getBitDepth();
+		cal = imp.getCalibration().copy();
+		
+		calibration = cal.pixelWidth; 
+		voxelDepth = cal.pixelDepth;
+		frameRate = cal.fps;
+		frames = imp.getNFrames();
+		{
+			cilia = new ArrayList<Cilium>(imp.getNFrames());
+			cilia.add(bbOnlyCilium);
 			
+			if(cilia.get(cilia.size()-1).xMax>xMax)	xMax = cilia.get(cilia.size()-1).xMax;
+			if(cilia.get(cilia.size()-1).xMin<xMin)	xMin = cilia.get(cilia.size()-1).xMin;
+			
+			if(cilia.get(cilia.size()-1).yMax>yMax)	yMax = cilia.get(cilia.size()-1).yMax;
+			if(cilia.get(cilia.size()-1).yMin<yMin)	yMin = cilia.get(cilia.size()-1).yMin;
+			
+			if(cilia.get(cilia.size()-1).zMax>zMax)	zMax = cilia.get(cilia.size()-1).zMax;
+			if(cilia.get(cilia.size()-1).zMin<zMin)	zMin = cilia.get(cilia.size()-1).zMin;
+		}
+		
+		sklAvailableInAllFrames = false;
+		ciliumAvailable = false;
+	}
+	
+	public void computeBBParameters() {
+		int counter = 0, bbCounter = 0;
+		sklAvailableInAllFrames = true;
+		
+		boolean skeletonize = false;
+		
+		foundSklAvg = 0.0;
+		branchesAvg = 0.0;
+		treeLengthAvg = 0.0;
+		largestShortestPathOfLargestAvg = 0.0;
+		bendingIndexAvg = 0.0;
+		orientationVectorAvg = new double [] {0.0, 0.0, 0.0};
+		
+		bbXAvg = 0.0;
+		bbYAvg = 0.0;
+		bbZAvg = 0.0;
+		bbCenterIntensityC2Avg = 0.0;
+		bbCenterIntensityC3Avg = 0.0;
+		bbIntensityRadius1C2Avg = 0.0;
+		bbIntensityRadius1C3Avg = 0.0;
+		bbIntensityRadius2C2Avg = 0.0;
+		bbIntensityRadius2C3Avg = 0.0;
+		
+		for(int cil = 0; cil < cilia.size(); cil++){
+			if(cilia.get(cil).bbAvailable) {
+				bbXAvg += cilia.get(cil).bbX;
+				bbYAvg += cilia.get(cil).bbY;;
+				bbZAvg += cilia.get(cil).bbZ;;
+				bbCenterIntensityC2Avg += cilia.get(cil).bbCenterIntensityC2;
+				bbCenterIntensityC3Avg += cilia.get(cil).bbCenterIntensityC3;
+				bbIntensityRadius1C2Avg += cilia.get(cil).bbIntensityRadius1C2;
+				bbIntensityRadius1C3Avg += cilia.get(cil).bbIntensityRadius1C3;
+				bbIntensityRadius2C2Avg += cilia.get(cil).bbIntensityRadius2C2;
+				bbIntensityRadius2C3Avg += cilia.get(cil).bbIntensityRadius2C3;
+				bbCounter ++;
+			}			
+
+			if(!cilia.get(cil).sklAvailable){
+				sklAvailableInAllFrames = false;
+			} else if(!skeletonize) {
+				skeletonize = true;
+			}
+			
+			if(cilia.get(cil).sklAvailable){
+				foundSklAvg += (double)cilia.get(cilia.size()-1).foundSkl;
+				branchesAvg += (double)cilia.get(cilia.size()-1).branches;
+				treeLengthAvg += cilia.get(cilia.size()-1).treeLength;
+				largestShortestPathOfLargestAvg += cilia.get(cilia.size()-1).largestShortestPathOfLargest;
+				orientationVectorAvg [0] += cilia.get(cilia.size()-1).orientationVector[0];
+				orientationVectorAvg [1] += cilia.get(cilia.size()-1).orientationVector[1];
+				orientationVectorAvg [2] += cilia.get(cilia.size()-1).orientationVector[2];
+				bendingIndexAvg += cilia.get(cilia.size()-1).bendingIndex;
+				counter ++;
+			}
+		}	
+
+		if(bbCounter>0) {
+			bbXAvg /= (double) bbCounter;
+			bbYAvg /= (double) bbCounter;
+			bbZAvg /= (double) bbCounter;
+			bbCenterIntensityC2Avg /= (double) bbCounter;
+			bbCenterIntensityC3Avg /= (double) bbCounter;
+			bbIntensityRadius1C2Avg /= (double) bbCounter;
+			bbIntensityRadius1C3Avg /= (double) bbCounter;
+			bbIntensityRadius2C2Avg /= (double) bbCounter;
+			bbIntensityRadius2C3Avg /= (double) bbCounter;
+		}			
+
+		if(skeletonize){
+			foundSklAvg /= (double) counter;
+			branchesAvg /= (double) counter;
+			treeLengthAvg /= (double) counter;
+			largestShortestPathOfLargestAvg /= (double) counter;
+			orientationVectorAvg [0] /= (double) counter;
+			orientationVectorAvg [1] /= (double) counter;
+			orientationVectorAvg [2] /= (double) counter;
+			bendingIndexAvg  /= (double) counter;
+		}
+		
+		bbAvailable = true;
+	}
+	
 	/**
 	 * Create cilium image as stack
 	 * */
