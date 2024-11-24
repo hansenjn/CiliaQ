@@ -625,15 +625,15 @@ public void run(String arg) {
 				if(showGUIs) {
 					progress.notifyMessage("Timelapse workflow started...", ProgressDialog.LOG);
 				}
-				if(segmentedBB) {
-					if(showGUIs) {
-						progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": deriving basal body parameters from segmented basal body channel is not yet implemented for 4D and can only be applied in non-timelapse analysis - analysis cancelled!", ProgressDialog.ERROR);
-						progress.moveTask(task);
-					}else {
-						IJ.error("Image " + name[task] + ": deriving basal body parameters from segmented basal body channel is not yet implemented for 4D\n and can only be applied in non-time-lapse analysis - analysis cancelled!");
-					}
-					break running;
-				}
+//				if(segmentedBB) {
+//					if(showGUIs) {
+//						progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": deriving basal body parameters from segmented basal body channel is not yet implemented for 4D and can only be applied in non-timelapse analysis - analysis cancelled!", ProgressDialog.ERROR);
+//						progress.moveTask(task);
+//					}else {
+//						IJ.error("Image " + name[task] + ": deriving basal body parameters from segmented basal body channel is not yet implemented for 4D\n and can only be applied in non-time-lapse analysis - analysis cancelled!");
+//					}
+//					break running;
+//				}
 				this.analyzeCiliaIn4DAndSaveResults(imp, measureC2local, measureC3local, measureBasalLocal, name[task], dir[task], startDate, filePrefix, subfolderPrefix, tempExcludeSelection);
 			}else{
 				//Single-frame Mode
@@ -2606,10 +2606,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 		particles.add(new ArrayList<ArrayList<PartPoint>>((int)Math.round((double)nrOfPoints [t]/(double)minSize)));
 	}
 
-	int pc100, pc1000, floodFilledPc = 0, floodFilledPcOld = 0;
-	pc100 = totalNrOfPoints/100; if (pc100==0){pc100 = 1;}
-	pc1000 = totalNrOfPoints/1000; if (pc1000==0){pc1000 = 1;}
-	
+	int floodFilledPc [] = new int [imp.getNFrames()];	
 	int floodNodeX, floodNodeY, floodNodeZ, floodNodeT, index = 0;
 	int[][] floodNodes;
 //	boolean touchesXY, touchesZ;
@@ -2622,12 +2619,13 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 			for(int x = 0; x < imp.getWidth(); x++){
 				for(int y = 0; y < imp.getHeight(); y++){		
 					if(imp.getStack().getVoxel(x, y, imp.getStackIndex(c, z+1, t+1)-1) > 0.0){
-						preliminaryParticle = new ArrayList<PartPoint>(nrOfPoints[t]-floodFilledPc);
+						preliminaryParticle = new ArrayList<PartPoint>(nrOfPoints[t] - floodFilledPc[t]);
+
 						preliminaryParticle.add(new PartPoint(x, y, z, t, refImp, c));
 						
 						imp.getStack().setVoxel(x, y, imp.getStackIndex(c, z+1, t+1)-1, 0.0);
 						
-						floodFilledPc++;
+						floodFilledPc [t]++;
 						
 						//Floodfiller					
 						floodNodeX = x;
@@ -2656,7 +2654,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 								imp.getStack().setVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
 								
 								index++;
-								floodFilledPc++;
+								floodFilledPc [t]++;
 								
 								floodNodes[index][0] = floodNodeX-1;
 								floodNodes[index][1] = floodNodeY;
@@ -2670,7 +2668,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 								imp.getStack().setVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
 								
 								index++;
-								floodFilledPc++;
+								floodFilledPc [t]++;
 								
 								floodNodes[index][0] = floodNodeX+1;
 								floodNodes[index][1] = floodNodeY;
@@ -2684,7 +2682,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 								imp.getStack().setVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
 								
 								index++;
-								floodFilledPc++;
+								floodFilledPc [t]++;
 								
 								floodNodes[index][0] = floodNodeX;
 								floodNodes[index][1] = floodNodeY-1;
@@ -2698,7 +2696,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 								imp.getStack().setVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
 								
 								index++;
-								floodFilledPc++;
+								floodFilledPc [t]++;
 								
 								floodNodes[index][0] = floodNodeX;
 								floodNodes[index][1] = floodNodeY+1;
@@ -2712,7 +2710,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 								imp.getStack().setVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
 								
 								index++;
-								floodFilledPc++;
+								floodFilledPc [t]++;
 								
 								floodNodes[index][0] = floodNodeX;
 								floodNodes[index][1] = floodNodeY;
@@ -2726,7 +2724,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 								imp.getStack().setVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
 								
 								index++;
-								floodFilledPc++;
+								floodFilledPc [t]++;
 								
 								floodNodes[index][0] = floodNodeX;
 								floodNodes[index][1] = floodNodeY;
@@ -2743,7 +2741,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX-1;
 									floodNodes[index][1] = floodNodeY-1;
@@ -2757,7 +2755,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX+1;
 									floodNodes[index][1] = floodNodeY+1;
@@ -2771,7 +2769,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX+1;
 									floodNodes[index][1] = floodNodeY-1;
@@ -2785,7 +2783,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX-1;
 									floodNodes[index][1] = floodNodeY+1;
@@ -2800,7 +2798,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX-1;
 									floodNodes[index][1] = floodNodeY;
@@ -2814,7 +2812,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX+1;
 									floodNodes[index][1] = floodNodeY;
@@ -2828,7 +2826,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX-1;
 									floodNodes[index][1] = floodNodeY;
@@ -2842,7 +2840,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX+1, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX+1;
 									floodNodes[index][1] = floodNodeY;
@@ -2857,7 +2855,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX;
 									floodNodes[index][1] = floodNodeY-1;
@@ -2871,7 +2869,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX;
 									floodNodes[index][1] = floodNodeY+1;
@@ -2885,7 +2883,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX;
 									floodNodes[index][1] = floodNodeY-1;
@@ -2899,7 +2897,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX;
 									floodNodes[index][1] = floodNodeY+1;
@@ -2914,7 +2912,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX-1;
 									floodNodes[index][1] = floodNodeY-1;
@@ -2928,7 +2926,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX+1;
 									floodNodes[index][1] = floodNodeY+1;
@@ -2942,7 +2940,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX+1;
 									floodNodes[index][1] = floodNodeY-1;
@@ -2956,7 +2954,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX-1;
 									floodNodes[index][1] = floodNodeY+1;
@@ -2971,7 +2969,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX-1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX-1;
 									floodNodes[index][1] = floodNodeY-1;
@@ -2985,7 +2983,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX+1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX+1;
 									floodNodes[index][1] = floodNodeY+1;
@@ -2999,7 +2997,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX+1, floodNodeY-1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX+1;
 									floodNodes[index][1] = floodNodeY-1;
@@ -3013,7 +3011,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									imp.getStack().setVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1, 0.0);
 									
 									index++;
-									floodFilledPc++;
+									floodFilledPc [t]++;
 									
 									floodNodes[index][0] = floodNodeX-1;
 									floodNodes[index][1] = floodNodeY+1;
@@ -3031,32 +3029,22 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 							preliminaryParticle.clear();
 							preliminaryParticle.trimToSize();
 						}
-
-						if(floodFilledPc%(pc100)<pc1000){
-							if(showGUIs) {
-								progress.updateBarText("Reconstruction basal bodies in frame " 
-										+ (t+1) 
-										+ " complete: " + dformat3.format(((double)(floodFilledPc)/(double)(totalNrOfPoints))*100) + "%");
-								progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(totalNrOfPoints))/(double)imp.getNFrames());								
-							}
-							floodFilledPcOld = floodFilledPc;
-						}	
 					}				
 				}	
-			}
-			if(floodFilledPc==totalNrOfPoints){				
-				break searchCells;
-			}
-		}	
+			}			
+		}
+		
+		if(showGUIs) {
+			progress.updateBarText("Reconstruction basal bodies in frame " 
+					+ (t+1) + " of " + imp.getNFrames()
+					+ " complete.");
+			progress.addToBar(0.2/(double)imp.getNFrames());								
+		}
 	}
 				
 	refImp.changes = false;
 	refImp.close();
 	
-	if(showGUIs) {
-		progress.updateBarText("Reconstruction of ciliary structures complete: " + dformat3.format(((double)(floodFilledPc)/(double)(totalNrOfPoints))*100) + "%");
-		progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(totalNrOfPoints)));
-	}
 	particles.trimToSize();
 	
 	//write back to image
