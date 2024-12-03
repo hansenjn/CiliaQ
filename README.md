@@ -68,7 +68,7 @@ Some CiliaQ plugins include packages developed by others, for which different li
 
 Some functions of CiliaQ Preparator (Hysteresis thresholding, Canny3D) require additional installation of the ['3D ImageJ Suite'](https://imagej.net/plugins/3d-imagej-suite/) to your ImageJ / FIJI distribution. The '3D ImageJ Suite' is licensed via a GPL - for license details visit the main page of the ['3D ImageJ Suite'](https://imagej.net/plugins/3d-imagej-suite/).
 
-## Publications presenting an analysis based on CiliaQ
+## Example Publications / Preprints featuring an analysis based on CiliaQ
 - Hansen, J.N., Kaiser, F., et al. **2020**. Nanobody-directed targeting of optogenetic tools to study signaling in the primary cilium. *eLife* 9:e57907. https://doi.org/10.7554/eLife.57907
 - Arveseth, C.D., Happ, J.T., et al. **2021**. Smoothened transduces hedgehog signals via activity-dependent sequestration of PKA catalytic subunits. *PLOS Biology* 19(4): e3001191. https://doi.org/10.1371/journal.pbio.3001191
 - Sun, J., Shin, D.Y., Eiseman, M. et al. **2021**. SLITRK5 is a negative regulator of hedgehog signaling in osteoblasts. *Nat Commun* 12, 4611. https://dx.doi.org/10.1038/s41467-021-24819-w
@@ -78,3 +78,4 @@ Some functions of CiliaQ Preparator (Hysteresis thresholding, Canny3D) require a
 - Dewees, S.I., et al. **2022**. Phylogenetic profiling and cellular analyses of ARL16 reveal roles in traffic of IFT140 and INPP5E. *Mol. Biol. Cell* 33(4):ar33. https://dx.doi.org/10.1091/mbc.E21-10-0509-T
 - Sheu, S.H., et al. **2022**. A serotonergic axon-cilium synapse drives nuclear signaling to alter chromatin accessibility. *Cell*. 185(18):3390-3407.e18. https://dx.doi.org/10.1016/j.cell.2022.07.026
 - Happ, J.T., et al. **2022**. A PKA inhibitor motif within SMOOTHENED controls Hedgehog signal transduction. *Nat. Struct. Mol. Biol.* 29, 990–999. https://dx.doi.org/10.1038/s41594-022-00838-z
+- Hansen, J.N., et al., **2024**. Intrinsic Diversity In Primary Cilia Revealed Through Spatial Proteomics. *bioRxiv* 2024.10.20.619273. https://www.biorxiv.org/content/10.1101/2024.10.20.619273
