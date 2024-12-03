@@ -25,9 +25,7 @@ CiliaQ has been developed in the research group Biophysical Imaging, Institute o
 
 The project was mainly funded by the [DFG priority program SPP 1726 "Microswimmers"](https://www.fz-juelich.de/ibi/ibi-5//EN/Leistungen/SPP1726/_node.html).
 
-Contacts: 
-- jan.hansen (at) uni-bonn.de
-- dwachten (at) uni-bonn.de
+Contact: jan.hansen (at) uni-bonn.de
 
 ## Using CiliaQ
 ### Getting started
