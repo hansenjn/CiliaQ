@@ -66,14 +66,27 @@ Some CiliaQ plugins include packages developed by others, for which different li
 
 Some functions of CiliaQ Preparator (Hysteresis thresholding, Canny3D) require additional installation of the ['3D ImageJ Suite'](https://imagej.net/plugins/3d-imagej-suite/) to your ImageJ / FIJI distribution. The '3D ImageJ Suite' is licensed via a GPL - for license details visit the main page of the ['3D ImageJ Suite'](https://imagej.net/plugins/3d-imagej-suite/).
 
-## Example Publications / Preprints featuring an analysis based on CiliaQ
+## Publications featuring an analysis based on CiliaQ
+CiliaQ is used around the globe! Here are some published studies with CiliaQ analyses:
 - Hansen, J.N., Kaiser, F., et al. **2020**. Nanobody-directed targeting of optogenetic tools to study signaling in the primary cilium. *eLife* 9:e57907. https://doi.org/10.7554/eLife.57907
+  - Contains CiliaQ analysis of biosensor measurements with 3D live microscopy .
 - Arveseth, C.D., Happ, J.T., et al. **2021**. Smoothened transduces hedgehog signals via activity-dependent sequestration of PKA catalytic subunits. *PLOS Biology* 19(4): e3001191. https://doi.org/10.1371/journal.pbio.3001191
 - Sun, J., Shin, D.Y., Eiseman, M. et al. **2021**. SLITRK5 is a negative regulator of hedgehog signaling in osteoblasts. *Nat Commun* 12, 4611. https://dx.doi.org/10.1038/s41467-021-24819-w
 - Ancel, J., Belgacemi, R., Diabasana, Z., et al. **2021**. Impaired Ciliary Beat Frequency and Ciliogenesis Alteration during Airway Epithelial Cell Differentiation in COPD. *Diagnostics* 11(9):1579. https://doi.org/10.3390/diagnostics11091579
-- D’Gama, P.P., et al. **2021**. Diversity and function of motile ciliated cell types within ependymal lineages of the zebrafish brain. *Cell Rep.* 37. https://dx.doi.org/10.1016/j.celrep.2021.109775.
+- D’Gama, P.P., et al. **2021**. Diversity and function of motile ciliated cell types within ependymal lineages of the zebrafish brain. *Cell Rep.* 37. https://dx.doi.org/10.1016/j.celrep.2021.109775
 - Hansen, J.N., et al. **2022**. A cAMP signalosome in primary cilia drives gene expression and kidney cyst formation. *EMBO Rep.* e54315. https://dx.doi.org/10.15252/embr.202154315
+  - Contains CiliaQ analysis of lots of confocal 3D stacks to detect phosphorylated CREB1 in cilia and biosensor measurements with 3D live microscopy.
 - Dewees, S.I., et al. **2022**. Phylogenetic profiling and cellular analyses of ARL16 reveal roles in traffic of IFT140 and INPP5E. *Mol. Biol. Cell* 33(4):ar33. https://dx.doi.org/10.1091/mbc.E21-10-0509-T
 - Sheu, S.H., et al. **2022**. A serotonergic axon-cilium synapse drives nuclear signaling to alter chromatin accessibility. *Cell*. 185(18):3390-3407.e18. https://dx.doi.org/10.1016/j.cell.2022.07.026
 - Happ, J.T., et al. **2022**. A PKA inhibitor motif within SMOOTHENED controls Hedgehog signal transduction. *Nat. Struct. Mol. Biol.* 29, 990–999. https://dx.doi.org/10.1038/s41594-022-00838-z
-- Hansen, J.N., et al., **2024**. Intrinsic Diversity In Primary Cilia Revealed Through Spatial Proteomics. *bioRxiv* 2024.10.20.619273. https://www.biorxiv.org/content/10.1101/2024.10.20.619273
+- Cho, et al. **2022**. Islet primary cilia motility controls insulin secretion. *Science Advances*.
+- Tsekitsidou, E., et al. **2023**. Calcineurin associates with centrosomes and regulates cilia length maintenance. *J Cell Sci* 136 (8): jcs260353. https://doi.org/10.1242/jcs.260353
+- Teerikorpi, et al. **2025**. Ciliary biology intersects autism and congenital heart disease. *Development* 152 (12): dev204295. https://doi.org/10.1242/dev.204295
+- Nitoiu, A., et al. **2025**. Defective IFT57 underlies a novel cause of Bardet-Biedl syndrome. *Hum. Mol. Genet.* Volume 34, Issue 13, 1 July 2025, Pages 1108–1122. https://doi.org/10.1093/hmg/ddaf058
+- Corral-Serrano, J.C., **2025**. A novel recurrent ARL3 variant c.209G > A p.(Gly70Glu) causes variable non-syndromic dominant retinal dystrophy with defective lipidated protein transport in human retinal stem cell models. *Hum. Mol. Genet.*, Volume 34, Issue 9, 1 May 2025, Pages 821–834. https://doi.org/10.1093/hmg/ddaf029
+- Lange et al., **2025**. A conserved mechanism for the retrieval of polyubiquitinated proteins from cilia. *Cell*. https://doi.org/10.1016/j.cell.2025.07.043
+- Rezi, C.K., et al., **2025**. KIF13B controls ciliary protein content by promoting endocytic retrieval and suppressing release of large extracellular vesicles from cilia. *Curr. Biol.*. https://doi.org/10.1016/j.cub.2025.08.022.
+- Hansen, J.N., et al., **2025**. Intrinsic Diversity In Primary Cilia Revealed Through Spatial Proteomics. *Cell* (Accepted). Preprint: https://www.biorxiv.org/content/10.1101/2024.10.20.619273
+  - Contains CiliaQ analysis revealing the protein localization of 715 different proteins in over 100,000 cilia to cluster and detect ciliary microdomains.
+
+- Your paper to be featured here? Let me know!
