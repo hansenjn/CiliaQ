@@ -1,10 +1,10 @@
 package ciliaQ_jnh;
 /** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.1.7
+ * CiliaQ, a plugin for imagej - Version 0.2.2
  * 
  * Copyright (C) 2017-2019 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: May 07, 2023
+ * This Version: July 15, 2026
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -127,7 +127,6 @@ class TimelapseCilium{
 						+ (t+1) + "/" + imp.getNFrames() + ": " + kineticList.get(t).size() + " points");
 			}
 			cilia = new ArrayList<Cilium>(imp.getNFrames());
-			int counter = 0;
 		
 			for(int t = 0; t < imp.getNFrames(); t++){
 				kineticList.get(t).trimToSize();
@@ -137,122 +136,10 @@ class TimelapseCilium{
 				
 				cilia.add(new Cilium(kineticList.get(t), imp, measureC2, channel2, measureC3, channel3, measureBasalBody, channelBasalBody,
 						channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, showGUIs));
-				
-				if(cilia.get(cilia.size()-1).xMax>xMax)	xMax = cilia.get(cilia.size()-1).xMax;
-				if(cilia.get(cilia.size()-1).xMin<xMin)	xMin = cilia.get(cilia.size()-1).xMin;
-				
-				if(cilia.get(cilia.size()-1).yMax>yMax)	yMax = cilia.get(cilia.size()-1).yMax;
-				if(cilia.get(cilia.size()-1).yMin<yMin)	yMin = cilia.get(cilia.size()-1).yMin;
-				
-				if(cilia.get(cilia.size()-1).zMax>zMax)	zMax = cilia.get(cilia.size()-1).zMax;
-				if(cilia.get(cilia.size()-1).zMin<zMin)	zMin = cilia.get(cilia.size()-1).zMin;
-				
-				surfaceVoxelsAvg += (double) cilia.get(cilia.size()-1).surfaceVoxels;
-				voxelsAvg += (double) cilia.get(cilia.size()-1).voxels;
-				volumeAvg += cilia.get(cilia.size()-1).volume;
-				surfaceAvg += cilia.get(cilia.size()-1).surface;
-				sphereRadiusAvg += cilia.get(cilia.size()-1).sphereRadius;
-				shapeComplexityAvg += cilia.get(cilia.size()-1).shapeComplexity;
-				maximumSpanAvg += cilia.get(cilia.size()-1).maximumSpan;	
-				xCAvg += cilia.get(cilia.size()-1).xC;
-				yCAvg += cilia.get(cilia.size()-1).yC;
-				zCAvg += cilia.get(cilia.size()-1).zC;
-				
-				colocalizedVolumeC2Avg += cilia.get(cilia.size()-1).colocalizedVolumeC2;
-				colocalizedFractionC2Avg += cilia.get(cilia.size()-1).colocalizedFractionC2;
-				colocalizedVolumeC3Avg += cilia.get(cilia.size()-1).colocalizedVolumeC3;
-				colocalizedFractionC3Avg += cilia.get(cilia.size()-1).colocalizedFractionC3;
-				
-				colocalizedCompToBGVolumeC2Avg += cilia.get(cilia.size()-1).colocalizedCompToBGVolumeC2;
-				colocalizedCompToBGFractionC2Avg += cilia.get(cilia.size()-1).colocalizedCompToBGFractionC2;
-				colocalizedCompToBGVolumeC3Avg += cilia.get(cilia.size()-1).colocalizedCompToBGVolumeC3;
-				colocalizedCompToBGFractionC3Avg += cilia.get(cilia.size()-1).colocalizedCompToBGFractionC3;
-						
-				maxCiliumIntensityAvg += cilia.get(cilia.size()-1).maxCiliumIntensity;
-				maxTenPercentCiliumIntensityAvg += cilia.get(cilia.size()-1).maxTenPercentCiliumIntensity;
-				minCiliumIntensityAvg += cilia.get(cilia.size()-1).minCiliumIntensity;
-				averageCiliumIntensityAvg += cilia.get(cilia.size()-1).averageCiliumIntensity;
-				SDCiliumIntensityAvg += cilia.get(cilia.size()-1).SDCiliumIntensity;
-				
-				maxC2IntensityAvg += cilia.get(cilia.size()-1).maxC2Intensity;
-				maxTenPercentC2IntensityAvg += cilia.get(cilia.size()-1).maxTenPercentC2Intensity;
-				minC2IntensityAvg += cilia.get(cilia.size()-1).minC2Intensity;
-				averageC2IntensityAvg += cilia.get(cilia.size()-1).averageC2Intensity;
-				SDC2IntensityAvg += cilia.get(cilia.size()-1).SDC2Intensity;
-						
-				maxC3IntensityAvg += cilia.get(cilia.size()-1).maxC3Intensity;
-				maxTenPercentC3IntensityAvg += cilia.get(cilia.size()-1).maxTenPercentC3Intensity;
-				minC3IntensityAvg += cilia.get(cilia.size()-1).minC3Intensity;
-				averageC3IntensityAvg += cilia.get(cilia.size()-1).averageC3Intensity;
-				SDC3IntensityAvg += cilia.get(cilia.size()-1).SDC3Intensity;
-				
-				if(skeletonize){
-					foundSklAvg += (double)cilia.get(cilia.size()-1).foundSkl;
-					branchesAvg += (double)cilia.get(cilia.size()-1).branches;
-					treeLengthAvg += cilia.get(cilia.size()-1).treeLength;
-					largestShortestPathOfLargestAvg += cilia.get(cilia.size()-1).largestShortestPathOfLargest;
-					orientationVectorAvg [0] += cilia.get(cilia.size()-1).orientationVector[0];
-					orientationVectorAvg [1] += cilia.get(cilia.size()-1).orientationVector[1];
-					orientationVectorAvg [2] += cilia.get(cilia.size()-1).orientationVector[2];
-					bendingIndexAvg += cilia.get(cilia.size()-1).bendingIndex;
-				}
-				
-				if(!cilia.get(cilia.size()-1).sklAvailable){
-						sklAvailableInAllFrames = false;
-				}
-				
-				counter++;
-			}	
-			surfaceVoxelsAvg /= (double) counter;
-			voxelsAvg /= (double) counter;
-			volumeAvg /= (double) counter;
-			surfaceAvg /= (double) counter;
-			sphereRadiusAvg /= (double) counter;
-			shapeComplexityAvg /= (double) counter;
-			maximumSpanAvg /= (double) counter;
-			xCAvg /= (double) counter;
-			yCAvg /= (double) counter;
-			zCAvg /= (double) counter;	
-			
-			colocalizedVolumeC2Avg /= (double) counter;
-			colocalizedFractionC2Avg /= (double) counter;
-			colocalizedVolumeC3Avg /= (double) counter;
-			colocalizedFractionC3Avg /= (double) counter;
-			
-			colocalizedCompToBGVolumeC2Avg /= (double) counter;
-			colocalizedCompToBGFractionC2Avg /= (double) counter;
-			colocalizedCompToBGVolumeC3Avg /= (double) counter;
-			colocalizedCompToBGFractionC3Avg /= (double) counter;
-					
-			maxCiliumIntensityAvg /= (double) counter;
-			maxTenPercentCiliumIntensityAvg /= (double) counter;
-			minCiliumIntensityAvg /= (double) counter;
-			averageCiliumIntensityAvg /= (double) counter;
-			SDCiliumIntensityAvg /= (double) counter;
-			
-			maxC2IntensityAvg /= (double) counter;
-			maxTenPercentC2IntensityAvg /= (double) counter;
-			minC2IntensityAvg /= (double) counter;
-			averageC2IntensityAvg /= (double) counter;
-			SDC2IntensityAvg /= (double) counter;
-					
-			maxC3IntensityAvg /= (double) counter;
-			maxTenPercentC3IntensityAvg /= (double) counter;
-			minC3IntensityAvg /= (double) counter;
-			averageC3IntensityAvg /= (double) counter;
-			SDC3IntensityAvg /= (double) counter;
-			
-			if(skeletonize){
-				foundSklAvg /= (double) counter;
-				branchesAvg /= (double) counter;
-				treeLengthAvg /= (double) counter;
-				largestShortestPathOfLargestAvg /= (double) counter;
-				orientationVectorAvg [0] /= (double) counter;
-				orientationVectorAvg [1] /= (double) counter;
-				orientationVectorAvg [2] /= (double) counter;
-				bendingIndexAvg  /= (double) counter;
 			}
-								
+			
+			accumulateAveragesFromCilia(skeletonize);	// NEW (all accumulation + division moved here)
+					
 			kineticList.clear();
 			kineticList = null;
 		}
@@ -260,6 +147,158 @@ class TimelapseCilium{
 		ciliumAvailable = true;
 	}
 	
+	/**
+	 * Build a TimelapseCilium from an already time-ordered list of per-frame Cilium objects
+	 * (one Cilium per frame in which the tracked cilium appears). Used by the
+	 * linear-assignment frame-to-frame tracking mode.
+	 * New in v0.2.2
+	 * @param perFrameCilia: time-ordered list of Cilium objects (each single-frame)
+	 * @param imp: the analyzed image
+	 * @param measureC2 / measureC3 / skeletonize: inherited settings from CiliaQMain
+	 */
+	public TimelapseCilium(ArrayList<Cilium> perFrameCilia, ImagePlus imp,
+			boolean measureC2, boolean measureC3, boolean skeletonize,
+			ProgressDialog progress, boolean showGUIs){	// NEW (whole constructor)
+		
+		bitDepth = imp.getBitDepth();
+		cal = imp.getCalibration().copy();
+		
+		calibration = cal.pixelWidth;
+		voxelDepth = cal.pixelDepth;
+		frameRate = cal.fps;
+		frames = imp.getNFrames();
+		
+		cilia = perFrameCilia;
+		
+		accumulateAveragesFromCilia(skeletonize);
+		
+		ciliumAvailable = true;
+	}
+	
+	/**
+	 * Accumulates and averages all per-frame parameters from the already-built
+	 * per-frame cilia list. Shared by both the CellPoint constructor and the
+	 * per-frame-Cilium (linear-assignment tracking) constructor.
+	 * New in v0.2.2
+	 */
+	private void accumulateAveragesFromCilia(boolean skeletonize) {
+		int counter = 0;
+		for(int cil = 0; cil < cilia.size(); cil++){
+			if(cilia.get(cil).xMax>xMax)	xMax = cilia.get(cil).xMax;
+			if(cilia.get(cil).xMin<xMin)	xMin = cilia.get(cil).xMin;
+			if(cilia.get(cil).yMax>yMax)	yMax = cilia.get(cil).yMax;
+			if(cilia.get(cil).yMin<yMin)	yMin = cilia.get(cil).yMin;
+			if(cilia.get(cil).zMax>zMax)	zMax = cilia.get(cil).zMax;
+			if(cilia.get(cil).zMin<zMin)	zMin = cilia.get(cil).zMin;
+			
+			surfaceVoxelsAvg += (double) cilia.get(cil).surfaceVoxels;
+			voxelsAvg += (double) cilia.get(cil).voxels;
+			volumeAvg += cilia.get(cil).volume;
+			surfaceAvg += cilia.get(cil).surface;
+			sphereRadiusAvg += cilia.get(cil).sphereRadius;
+			shapeComplexityAvg += cilia.get(cil).shapeComplexity;
+			maximumSpanAvg += cilia.get(cil).maximumSpan;	
+			xCAvg += cilia.get(cil).xC;
+			yCAvg += cilia.get(cil).yC;
+			zCAvg += cilia.get(cil).zC;
+			
+			colocalizedVolumeC2Avg += cilia.get(cil).colocalizedVolumeC2;
+			colocalizedFractionC2Avg += cilia.get(cil).colocalizedFractionC2;
+			colocalizedVolumeC3Avg += cilia.get(cil).colocalizedVolumeC3;
+			colocalizedFractionC3Avg += cilia.get(cil).colocalizedFractionC3;
+			
+			colocalizedCompToBGVolumeC2Avg += cilia.get(cil).colocalizedCompToBGVolumeC2;
+			colocalizedCompToBGFractionC2Avg += cilia.get(cil).colocalizedCompToBGFractionC2;
+			colocalizedCompToBGVolumeC3Avg += cilia.get(cil).colocalizedCompToBGVolumeC3;
+			colocalizedCompToBGFractionC3Avg += cilia.get(cil).colocalizedCompToBGFractionC3;
+					
+			maxCiliumIntensityAvg += cilia.get(cil).maxCiliumIntensity;
+			maxTenPercentCiliumIntensityAvg += cilia.get(cil).maxTenPercentCiliumIntensity;
+			minCiliumIntensityAvg += cilia.get(cil).minCiliumIntensity;
+			averageCiliumIntensityAvg += cilia.get(cil).averageCiliumIntensity;
+			SDCiliumIntensityAvg += cilia.get(cil).SDCiliumIntensity;
+			
+			maxC2IntensityAvg += cilia.get(cil).maxC2Intensity;
+			maxTenPercentC2IntensityAvg += cilia.get(cil).maxTenPercentC2Intensity;
+			minC2IntensityAvg += cilia.get(cil).minC2Intensity;
+			averageC2IntensityAvg += cilia.get(cil).averageC2Intensity;
+			SDC2IntensityAvg += cilia.get(cil).SDC2Intensity;
+					
+			maxC3IntensityAvg += cilia.get(cil).maxC3Intensity;
+			maxTenPercentC3IntensityAvg += cilia.get(cil).maxTenPercentC3Intensity;
+			minC3IntensityAvg += cilia.get(cil).minC3Intensity;
+			averageC3IntensityAvg += cilia.get(cil).averageC3Intensity;
+			SDC3IntensityAvg += cilia.get(cil).SDC3Intensity;
+			
+			if(skeletonize){
+				foundSklAvg += (double)cilia.get(cil).foundSkl;
+				branchesAvg += (double)cilia.get(cil).branches;
+				treeLengthAvg += cilia.get(cil).treeLength;
+				largestShortestPathOfLargestAvg += cilia.get(cil).largestShortestPathOfLargest;
+				orientationVectorAvg [0] += cilia.get(cil).orientationVector[0];
+				orientationVectorAvg [1] += cilia.get(cil).orientationVector[1];
+				orientationVectorAvg [2] += cilia.get(cil).orientationVector[2];
+				bendingIndexAvg += cilia.get(cil).bendingIndex;
+			}			
+			
+			if(!cilia.get(cil).sklAvailable){
+				sklAvailableInAllFrames = false;
+			}
+			
+			counter++;
+		}	
+
+		surfaceVoxelsAvg /= (double) counter;
+		voxelsAvg /= (double) counter;
+		volumeAvg /= (double) counter;
+		surfaceAvg /= (double) counter;
+		sphereRadiusAvg /= (double) counter;
+		shapeComplexityAvg /= (double) counter;
+		maximumSpanAvg /= (double) counter;
+		xCAvg /= (double) counter;
+		yCAvg /= (double) counter;
+		zCAvg /= (double) counter;	
+		
+		colocalizedVolumeC2Avg /= (double) counter;
+		colocalizedFractionC2Avg /= (double) counter;
+		colocalizedVolumeC3Avg /= (double) counter;
+		colocalizedFractionC3Avg /= (double) counter;
+		
+		colocalizedCompToBGVolumeC2Avg /= (double) counter;
+		colocalizedCompToBGFractionC2Avg /= (double) counter;
+		colocalizedCompToBGVolumeC3Avg /= (double) counter;
+		colocalizedCompToBGFractionC3Avg /= (double) counter;
+				
+		maxCiliumIntensityAvg /= (double) counter;
+		maxTenPercentCiliumIntensityAvg /= (double) counter;
+		minCiliumIntensityAvg /= (double) counter;
+		averageCiliumIntensityAvg /= (double) counter;
+		SDCiliumIntensityAvg /= (double) counter;
+		
+		maxC2IntensityAvg /= (double) counter;
+		maxTenPercentC2IntensityAvg /= (double) counter;
+		minC2IntensityAvg /= (double) counter;
+		averageC2IntensityAvg /= (double) counter;
+		SDC2IntensityAvg /= (double) counter;
+				
+		maxC3IntensityAvg /= (double) counter;
+		maxTenPercentC3IntensityAvg /= (double) counter;
+		minC3IntensityAvg /= (double) counter;
+		averageC3IntensityAvg /= (double) counter;
+		SDC3IntensityAvg /= (double) counter;
+		
+		if(skeletonize){
+			foundSklAvg /= (double) counter;
+			branchesAvg /= (double) counter;
+			treeLengthAvg /= (double) counter;
+			largestShortestPathOfLargestAvg /= (double) counter;
+			orientationVectorAvg [0] /= (double) counter;
+			orientationVectorAvg [1] /= (double) counter;
+			orientationVectorAvg [2] /= (double) counter;
+			bendingIndexAvg  /= (double) counter;
+		}		
+	}
+
 	/**
 	 * Create timelapse cilium object based on a single basal body
 	 * @param bbOnlyCilium: the basal body cilium object
@@ -339,14 +378,14 @@ class TimelapseCilium{
 			}
 			
 			if(cilia.get(cil).sklAvailable){
-				foundSklAvg += (double)cilia.get(cilia.size()-1).foundSkl;
-				branchesAvg += (double)cilia.get(cilia.size()-1).branches;
-				treeLengthAvg += cilia.get(cilia.size()-1).treeLength;
-				largestShortestPathOfLargestAvg += cilia.get(cilia.size()-1).largestShortestPathOfLargest;
-				orientationVectorAvg [0] += cilia.get(cilia.size()-1).orientationVector[0];
-				orientationVectorAvg [1] += cilia.get(cilia.size()-1).orientationVector[1];
-				orientationVectorAvg [2] += cilia.get(cilia.size()-1).orientationVector[2];
-				bendingIndexAvg += cilia.get(cilia.size()-1).bendingIndex;
+				foundSklAvg += (double)cilia.get(cil).foundSkl;
+				branchesAvg += (double)cilia.get(cil).branches;
+				treeLengthAvg += cilia.get(cil).treeLength;
+				largestShortestPathOfLargestAvg += cilia.get(cil).largestShortestPathOfLargest;
+				orientationVectorAvg [0] += cilia.get(cil).orientationVector[0];
+				orientationVectorAvg [1] += cilia.get(cil).orientationVector[1];
+				orientationVectorAvg [2] += cilia.get(cil).orientationVector[2];
+				bendingIndexAvg += cilia.get(cil).bendingIndex;
 				counter ++;
 			}
 		}	
