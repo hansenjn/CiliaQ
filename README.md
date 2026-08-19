@@ -11,7 +11,8 @@ The ImageJ plugins are published along:
 - **CiliaQ**: An ImageJ plugin to quantify the ciliary shape, length, and fluorescence in images that were pre-processed with CiliaQ_Preparator (and eventually edited with CiliaQ_Editor).
 
 ## Tools for post-hoc analysis of the output data
-See our [R scripts](https://github.com/hansenjn/CiliaQ/tree/master/R%20Scripts) for combining results produced with CiliaQ.
+- In early CiliaQ years (2017-2020), we created and provided several [R scripts](https://github.com/hansenjn/CiliaQ/tree/master/R%20Scripts) for combining results produced with CiliaQ.
+- Since 2026, we offer a python-based QC and plotting pipeline called [CiliaQ Explorer](https://github.com/burgdorfd/CiliaQ-Explorer).
 
 ## How to cite?
 When using any of the CiliaQ plugins, please cite:
@@ -30,8 +31,8 @@ Contact: jan.hansen (at) uni-bonn.de
 For information on hardware and software requirements and a guide on how to get CiliaQ running on your computer, please follow the [installation instructions in the CiliaQ Wiki](https://github.com/hansenjn/CiliaQ/wiki/Installing-CiliaQ).
 
 ### User Guide / Manual
-A very detailed User Guide for the whole CiliaQ pipeline is available [here](https://github.com/hansenjn/CiliaQ/blob/master/Webfiles/CiliaQ_SOP.pdf) as a PDF.
-Please also take a look at the tutorials, instructions, examples, and Q&As in the [CiliaQ wiki](https://github.com/hansenjn/CiliaQ/wiki/Home/).
+Originally, we provided a very detailed Manual for the CiliaQ tools as a PDF [here](https://github.com/hansenjn/CiliaQ/blob/master/Webfiles/CiliaQ_SOP.pdf).
+Since then, we created a [CiliaQ wiki](https://github.com/hansenjn/CiliaQ/wiki/Home/) that is more current and dynamically kept up-to-date, with tutorials, instructions, examples, and Q&As.
 
 ### How to stay up-to-date?
 You want to be always up-to-date about CiliaQ and get news on CiliaQ (new features, updates, etc.)? Watch this repository on GitHub (see Watch button on upper right) or send an email with "Subscribe CiliaQ" to jan.hansen (at) uni-bonn.de.
