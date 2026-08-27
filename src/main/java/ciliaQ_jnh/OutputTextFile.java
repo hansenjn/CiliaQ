@@ -1,10 +1,10 @@
 /***===============================================================================
  *  
- * CiliaQ, a plugin for imagej - Version 0.1.8
+ * CiliaQ, a plugin for imagej - Version 0.2.2
  * 
- * Copyright (C) 2017-2023 Jan Niklas Hansen
+ * Copyright (C) 2017-2026 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: September 18, 2023
+ * This Version: August 25, 2026
  * 
  * Parts of the code in this class were inherited 
  * from MotiQ 3D Analyzer Version v0.3.4
@@ -34,33 +34,34 @@ import java.io.FileWriter;
 import java.io.IOException;
 
 class OutputTextFile {
-	String path;	
-	FileWriter writer = null;
-	String output;
+	String path;
+	StringBuilder output;		// V0.2.2: switched to StringBuilder from simple string for efficiency
 	
 	public OutputTextFile(String outputPath) {
-		output = "";
+		output = new StringBuilder();
 		path = outputPath;		
 	}
 	
 	public void append(String text) {
-		output += (text + "\n");
+		output.append(text).append("\n");
 	}
 	
 	public boolean finish() {
 		if(output.length() == 0) return false;
 		if(path.length() == 0) return false;
-		
-		output = output.replaceAll("\n$", "");
 				
-		try {
-			writer = new FileWriter(new File(path));
-			writer.write(output);
-			writer.close();
+		if(output.charAt(output.length()-1) == '\n'){
+		    output.setLength(output.length()-1);
+		}
+		String text = output.toString();
+				
+		try (FileWriter w = new FileWriter(new File(path))) {	// NEW in V0.2.2: try-with-resources closes on every path
+		    w.write(text);
 		} catch (IOException e) {
 			e.printStackTrace();
+			return false;	// NEW in V0.2.2: do not claim success
 		}
-		output = "";
+		output.setLength(0);
 		path = "";
 		return true;
 	}

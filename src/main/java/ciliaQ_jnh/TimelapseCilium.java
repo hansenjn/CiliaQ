@@ -4,7 +4,7 @@ package ciliaQ_jnh;
  * 
  * Copyright (C) 2017-2019 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: July 15, 2026
+ * This Version: August 24, 2026
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -56,7 +56,7 @@ class TimelapseCilium{
 		surfaceAvg = 0.0,
 		sphereRadiusAvg = 0.0,
 		shapeComplexityAvg = 0.0,
-		maximumSpanAvg = -1.0; //TODO	- 	method needs to be implemented
+		maximumSpanAvg = 0.0;		// Implemented in v0.2.2
 	
 	double colocalizedVolumeC2Avg = 0.0,
 			colocalizedFractionC2Avg = 0.0,
@@ -103,9 +103,8 @@ class TimelapseCilium{
 
 	public TimelapseCilium(ArrayList<CellPoint> ciliaPoints, ImagePlus imp, 
 			boolean measureC2, int channel2, boolean measureC3, int channel3, boolean measureBasalBody, int channelBasalBody,
-			int channelReconstruction, double gXY, double gZ, double intensityThresholds [], ProgressDialog progress, 
-			boolean skeletonize, boolean segmentedBB,
-			boolean showGUIs){
+			int channelReconstruction, double gXY, double gZ, double intensityThresholds [], ProgressReporter progress, 
+			boolean skeletonize, boolean segmentedBB){
 		
 		bitDepth = imp.getBitDepth();
 		cal = imp.getCalibration().copy();
@@ -123,8 +122,8 @@ class TimelapseCilium{
 				kineticList.get(ciliaPoints.get(p).t).add(ciliaPoints.get(p));
 			}
 			for(int t = 0; t < imp.getNFrames(); t++){
-				if(showGUIs)	progress.updateBarText("Timepoint generated in timelapse cilium: " 
-						+ (t+1) + "/" + imp.getNFrames() + ": " + kineticList.get(t).size() + " points");
+				progress.updateBarText("Timepoint generated in timelapse cilium: " 
+					+ (t+1) + "/" + imp.getNFrames() + ": " + kineticList.get(t).size() + " points");
 			}
 			cilia = new ArrayList<Cilium>(imp.getNFrames());
 		
@@ -135,7 +134,7 @@ class TimelapseCilium{
 				}
 				
 				cilia.add(new Cilium(kineticList.get(t), imp, measureC2, channel2, measureC3, channel3, measureBasalBody, channelBasalBody,
-						channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, showGUIs));
+						channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize));
 			}
 			
 			accumulateAveragesFromCilia(skeletonize);	// NEW (all accumulation + division moved here)
@@ -154,11 +153,14 @@ class TimelapseCilium{
 	 * New in v0.2.2
 	 * @param perFrameCilia: time-ordered list of Cilium objects (each single-frame)
 	 * @param imp: the analyzed image
-	 * @param measureC2 / measureC3 / skeletonize: inherited settings from CiliaQMain
+	 * @param measureC2: inherited settings from CiliaQMain
+	 * @param measureC3: inherited settings from CiliaQMain
+	 * @param skeletonize: inherited settings from CiliaQMain
+	 * @param progress: ProgressReporter for printing messages
 	 */
 	public TimelapseCilium(ArrayList<Cilium> perFrameCilia, ImagePlus imp,
 			boolean measureC2, boolean measureC3, boolean skeletonize,
-			ProgressDialog progress, boolean showGUIs){	// NEW (whole constructor)
+			ProgressReporter progress){
 		
 		bitDepth = imp.getBitDepth();
 		cal = imp.getCalibration().copy();
@@ -180,6 +182,7 @@ class TimelapseCilium{
 	 * per-frame cilia list. Shared by both the CellPoint constructor and the
 	 * per-frame-Cilium (linear-assignment tracking) constructor.
 	 * New in v0.2.2
+	 * @param skeletonize: inherited settings from CiliaQMain
 	 */
 	private void accumulateAveragesFromCilia(boolean skeletonize) {
 		int counter = 0;
@@ -197,7 +200,7 @@ class TimelapseCilium{
 			surfaceAvg += cilia.get(cil).surface;
 			sphereRadiusAvg += cilia.get(cil).sphereRadius;
 			shapeComplexityAvg += cilia.get(cil).shapeComplexity;
-			maximumSpanAvg += cilia.get(cil).maximumSpan;	
+			maximumSpanAvg += cilia.get(cil).maximumSpan;	// Implemented in v0.2.2
 			xCAvg += cilia.get(cil).xC;
 			yCAvg += cilia.get(cil).yC;
 			zCAvg += cilia.get(cil).zC;
@@ -254,7 +257,7 @@ class TimelapseCilium{
 		surfaceAvg /= (double) counter;
 		sphereRadiusAvg /= (double) counter;
 		shapeComplexityAvg /= (double) counter;
-		maximumSpanAvg /= (double) counter;
+		maximumSpanAvg /= (double) counter;	// Implemented in v0.2.2
 		xCAvg /= (double) counter;
 		yCAvg /= (double) counter;
 		zCAvg /= (double) counter;	
@@ -303,11 +306,10 @@ class TimelapseCilium{
 	 * Create timelapse cilium object based on a single basal body
 	 * @param bbOnlyCilium: the basal body cilium object
 	 * @param imp: the corresponding image
-	 * @param progress
-	 * @param showGUIs
+	 * @param progress: for printing messages
 	 */
 	public TimelapseCilium(Cilium bbOnlyCilium, ImagePlus imp, 
-			ProgressDialog progress, boolean showGUIs){
+			ProgressReporter progress){
 		
 		bitDepth = imp.getBitDepth();
 		cal = imp.getCalibration().copy();
@@ -419,7 +421,7 @@ class TimelapseCilium{
 	/**
 	 * Create cilium image as stack
 	 * */
-	public ImagePlus getCiliumImp(double intensityThresholds [], int channelC2, int channelC3, ProgressDialog progress){
+	public ImagePlus getCiliumImp(double intensityThresholds [], int channelC2, int channelC3, ProgressReporter progress){
 		int width = xMax - xMin + 1 + 4,
 				height = yMax - yMin + 1 + 4,
 				slices = zMax - zMin + 1 + 2;

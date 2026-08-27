@@ -4,7 +4,7 @@ package ciliaQ_jnh;
  * 
  * Copyright (C) 2017-2023 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: July 16, 2026
+ * This Version: August 24, 2026
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -79,7 +79,7 @@ public class CiliaQMain implements PlugIn, Measurements {
     boolean showGUIs = true;
 	
 	//Progress Dialog
-	ProgressDialog progress;	
+	ProgressReporter progress;	
 	boolean processingDone = false;	
 	boolean continueProcessing = true;
 	
@@ -177,7 +177,7 @@ public void run(String arg) {
     	GenericDialog gdW2 = new GenericDialog(PLUGINNAME + " on " + System.getProperty("os.name") + " - Version Warning!");
     	
 		gdW2.setInsets(0,0,0);	gdW2.addMessage("WARNING", HeadingFont, Color.MAGENTA);
-		gdW2.setInsets(0,0,0);	gdW2.addMessage("Hello CiliaQ-user! This is a beta version of CiliaQ: Version v0.2.0.", InstructionsFont);
+		gdW2.setInsets(0,0,0);	gdW2.addMessage("Hello CiliaQ-user! This is a beta version of CiliaQ: Version " + PLUGINVERSION + ".", InstructionsFont);
 		gdW2.setInsets(10,0,0);	gdW2.addMessage("This version is still in extensive testing and might need further development.", InstructionsFont);
 		gdW2.setInsets(0,0,0);	gdW2.addMessage("Do not use this version but instead install a previous version (e.g., v0.1.7) at:", InstructionsFont);
 		gdW2.setInsets(0,0,0);	gdW2.addMessage("https://github.com/hansenjn/CiliaQ/releases/tag/v0.1.7", InstructionsFont);		
@@ -409,12 +409,12 @@ public void run(String arg) {
 		}
 	}
 	 	
-	//add progressDialog
+	//add progress reporter: a dialog interactively, the log when headless
 	if(showGUIs) {
-		progress = new ProgressDialog(name, tasks);
-		progress.setLocation(0,0);
-		progress.setVisible(true);
-		progress.addWindowListener(new java.awt.event.WindowAdapter() {
+		ProgressDialog dialog = new ProgressDialog(name, tasks);
+		dialog.setLocation(0,0);
+		dialog.setVisible(true);
+		dialog.addWindowListener(new java.awt.event.WindowAdapter() {
 	        public void windowClosing(WindowEvent winEvt) {
 	        	if (record) {	
 	        		Recorder.record = true;
@@ -426,6 +426,9 @@ public void run(String arg) {
 	        	return;
 	        }
 		});
+		progress = dialog;
+	}else {
+		progress = new ConsoleProgress(name, tasks);   // NEW: the whole else branch
 	}
 
 //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
@@ -434,25 +437,17 @@ public void run(String arg) {
 	for(int task = 0; task < tasks; task++){
 	running: while(continueProcessing){
 		Date startDate = new Date();
-		if(showGUIs)	progress.updateBarText("in progress...");
+		progress.updateBarText("in progress...");
 				
 		//Check for problems
 				if(name[task].substring(name[task].lastIndexOf("."),name[task].length()).equals(".txt")){
-					if(showGUIs) {
-						progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": File is no image! Could not be processed!", ProgressDialog.ERROR);
-						progress.moveTask(task);
-					}else {
-						System.out.println("File " + name[task] + " is no image! Could not be processed!");
-					}	
+					progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": File " + name[task] + " is no image! Could not be processed!", ProgressReporter.ERROR);
+					progress.moveTask(task);
 					break running;
 				}
 				if(name[task].substring(name[task].lastIndexOf("."),name[task].length()).equals(".zip")){	
-					if(showGUIs) {
-						progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": File is no image! Could not be processed!", ProgressDialog.ERROR);
-						progress.moveTask(task);
-					}else {
-						System.out.println("File " + name[task] + " is no image! Could not be processed!");
-					}
+					progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": File " + name[task] + " is no image! Could not be processed!", ProgressReporter.ERROR);
+					progress.moveTask(task);
 					break running;
 				}		
 		//Check for problems
@@ -471,12 +466,9 @@ public void run(String arg) {
 		   			imp.deleteRoi();
 		   		}
 		   	}catch (Exception e) {
-		   		if(showGUIs){
-			   		progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": file is no image - could not be processed!", ProgressDialog.ERROR);
-					progress.moveTask(task);		   			
-		   		}else {
-		   			System.out.println("File " + name[task] + " is no image - could not be processed!");
-		   		}
+		   		progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": file " + name[task] + " is no image - could not be processed!",
+		   				ProgressReporter.ERROR);
+				progress.moveTask(task);
 				break running;
 			}
 			
@@ -514,10 +506,8 @@ public void run(String arg) {
 				calibrationDimension = ""+unit;
 				voxelDepth = pixelDepth;
 				if(pixelWidth!=pixelHeight){
-					if(showGUIs){
-						progress.notifyMessage("Task " + (task+1) + "/" + tasks 
-								+ ": x and y calibration in metadata differ - used only x metadata calibration for both, x and y!", ProgressDialog.NOTIFICATION);	
-					}
+					progress.notifyMessage("Task " + (task+1) + "/" + tasks 
+							+ ": x and y calibration in metadata differ - used only x metadata calibration for both, x and y!", ProgressReporter.NOTIFICATION);
 				}
 				timePerFrame = frameInterval;
 				if(timePerFrame==0.0){timePerFrame=1.0;}
@@ -530,40 +520,24 @@ public void run(String arg) {
 			
 		//check for correctness
 			if(channelReconstruction>imp.getNChannels()){
-				if(showGUIs) {
-					progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": reconstruction channel does not exist - analysis cancelled!", ProgressDialog.ERROR);
-					progress.moveTask(task);
-				}else {
-					IJ.error("Image " + name[task] + ": reconstruction channel does not exist - analysis cancelled!");
-				}
+				progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": reconstruction channel does not exist - analysis cancelled!", ProgressReporter.ERROR);
+				progress.moveTask(task);				
 				break running;
 			}
 			boolean measureC2local = measureC2;
 			if(measureC2 && channelC2>imp.getNChannels()){
 				measureC2local = false;
-				if(showGUIs) {
-					progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": channel A does not exist - skipped channel A parameters!", ProgressDialog.NOTIFICATION);
-				}else {
-					System.out.println("Image " + name[task] + ": channel A does not exist - skipped channel A parameters!");
-				}
+				progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": channel A does not exist - skipped channel A parameters!", ProgressReporter.NOTIFICATION);
 			}
 			boolean measureC3local = measureC3;
 			if(measureC3 && channelC3>imp.getNChannels()){
 				measureC3local = false;
-				if(showGUIs) {
-					progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": channel B does not exist - skipped channel B parameters!", ProgressDialog.NOTIFICATION);
-				}else {
-					System.out.println("Image " + name[task] + ": channel B does not exist - skipped channel A parameters!");
-				}
+				progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": channel B does not exist - skipped channel B parameters!", ProgressReporter.NOTIFICATION);				
 			}
 			boolean measureBasalLocal = measureBasal;
 			if(measureBasalLocal && basalStainC>imp.getNChannels()){
 				measureBasalLocal = false;
-				if(showGUIs) {
-					progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": basal channel does not exist - skiped basal channel-based processing!", ProgressDialog.NOTIFICATION);
-				}else {
-					System.out.println("Image " + name[task] + ": basal channel  does not exist - skipped basal channel-based processing!");
-				}
+				progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": basal channel does not exist - skiped basal channel-based processing!", ProgressReporter.NOTIFICATION);
 			}
 			
 		//size-filter images
@@ -594,11 +568,9 @@ public void run(String arg) {
 				try{
 					new File(dir [task] + filePrefix).mkdirs();						
 				}catch(Exception e){
-					if(showGUIs) {
-						progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": Failed to create subfolder to save additional plots! Will save plots into origianl folder!",ProgressDialog.NOTIFICATION);
-					}else {
-						System.out.println("Image " + name[task] + ": Failed to create subfolder to save additional plots! Will save plots into origianl folder!");
-					}				
+					progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": Failed to create subfolder ["
+							+ (dir [task] + filePrefix)
+							+ "] to save additional plots! Will save plots into original folder!",ProgressReporter.NOTIFICATION);
 				}
 			}
 			
@@ -609,42 +581,28 @@ public void run(String arg) {
 			String tempExcludeSelection = excludeSelection;
 			if(imp.getNSlices() == 1 && (excludeSelection.equals(excludeOptions [2]) || excludeSelection.equals(excludeOptions [3]))){
 				tempExcludeSelection = excludeOptions [1];
-				if(showGUIs) {
-					progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": This is a 2D image - setting '"
-							+ excludeSelection
-							+ "' was switched to '"
-							+ tempExcludeSelection
-							+ "' for this image, to ensure that cilia can be detected.", ProgressDialog.NOTIFICATION);
-				}else {
-					System.out.println("Image " + name[task] + ": This is a 2D image - setting '"
-							+ excludeSelection
-							+ "' was switched to '"
-							+ tempExcludeSelection
-							+ "' for this image, to ensure that cilia can be detected.");
-				}
+				progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": File "
+					+ name [task]
+					+ " is a 2D image - setting '"
+					+ excludeSelection
+					+ "' was switched to '"
+					+ tempExcludeSelection
+					+ "' for this image, to ensure that cilia can be detected.", ProgressReporter.NOTIFICATION);
 			}
 			
 		//Get cilia data and save them
 			if(imp.getNFrames()!=1){
 				//Timelapse Mode
-				if(showGUIs) {
-					progress.notifyMessage("Timelapse workflow started...", ProgressDialog.LOG);
-				}
+				progress.notifyMessage("Timelapse workflow started...", ProgressReporter.LOG);				
 //				if(segmentedBB) { // TODO remove
-//					if(showGUIs) {
-//						progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": deriving basal body parameters from segmented basal body channel is not yet implemented for 4D and can only be applied in non-timelapse analysis - analysis cancelled!", ProgressDialog.ERROR);
-//						progress.moveTask(task);
-//					}else {
-//						IJ.error("Image " + name[task] + ": deriving basal body parameters from segmented basal body channel is not yet implemented for 4D\n and can only be applied in non-time-lapse analysis - analysis cancelled!");
-//					}
+//					progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": deriving basal body parameters from segmented basal body channel is not yet implemented for 4D and can only be applied in non-timelapse analysis - analysis cancelled!", ProgressReporter.ERROR);
+//					progress.moveTask(task);
 //					break running;
 //				}
 				this.analyzeCiliaIn4DAndSaveResults(imp, measureC2local, measureC3local, measureBasalLocal, name[task], dir[task], startDate, filePrefix, subfolderPrefix, tempExcludeSelection);
 			}else{
 				//Single-frame Mode
-				if(showGUIs) {
-					progress.notifyMessage("Single-timepoint workflow started...", ProgressDialog.LOG);
-				}				
+				progress.notifyMessage("Single-timepoint workflow started...", ProgressReporter.LOG);
 				this.analyzeCiliaIn3DAndSaveResults(imp, measureC2local, measureC3local, measureBasalLocal, name[task], dir[task], startDate, filePrefix, subfolderPrefix, tempExcludeSelection);
 			}
 			
@@ -653,11 +611,9 @@ public void run(String arg) {
 	break running;
 	}	
 	System.gc();
-	if(showGUIs) {
-		progress.updateBarText("finished!");
-		progress.setBar(1.0);
-		progress.moveTask(task);		
-	}
+	progress.updateBarText("finished!");
+	progress.setBar(1.0);
+	progress.moveTask(task);		
 }
 }
 
@@ -665,113 +621,53 @@ public void run(String arg) {
  * A function that sets all settings based on an option String
  * given when calling this plugin from a Macro.
  * If commands are missing, parameters will be left at default.
+ * New function in v0.2.2 using helpers for better parsing.
  * @param macroOptions: String containing commands for setting up the settings
  * @param logDetection: If true, logs what was detected.
  */
 private void readSettingsFromMacroString(String macroOptions, boolean logDetection) {
 	if(logDetection) IJ.log("Input macro Options: " + macroOptions);
 
-	String temp;
-	
+	String o = macroOptions;
+
 	//In macro mode CiliaQ by default will run on the front-most opened image.
 	selectedTaskVariant = taskVariant[0];
-	
-	temp = "";
-	if(macroOptions.contains("re-calibrate") || macroOptions.contains("recalibrate")) {
-		recalibrate = true;
-		
-		temp = "";
-		if(macroOptions.contains("length=")){
-			temp = macroOptions.substring(macroOptions.indexOf("length="));
-    		temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-    		calibration = Double.parseDouble(temp);
-    		if(logDetection) IJ.log("detected calibration: " + calibration);
-		}else if(macroOptions.contains("length-calibration=")){
-			temp = macroOptions.substring(macroOptions.indexOf("length-calibration=")); 
-			temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-			calibration = Double.parseDouble(temp);
-    		if(logDetection) IJ.log("detected calibration: " + calibration);
+
+	recalibrate = macroFlag(o, "re-calibrate") || macroFlag(o, "recalibrate");
+	if(recalibrate) {
+		calibration = macroDouble(o, "length", macroDouble(o, "length-calibration", 0.21, logDetection), logDetection);
+		if(logDetection) IJ.log("detected calibration: " + calibration);
+
+		voxelDepth = macroDouble(o, "depth", macroDouble(o, "depth-calibration", 1.0, logDetection), logDetection);
+		if(logDetection) IJ.log("detected voxelDepth: " + voxelDepth);
+
+		calibrationDimension = macroString(o, "calibration-unit", "µm");
+		if(logDetection) IJ.log("detected calibrationDimensions: " + calibrationDimension);
+
+		timePerFrame = macroDouble(o, "time-interval", 0.5, logDetection);
+		if(timePerFrame==0.0){
+			timePerFrame=1.0;
 		}
-		
-		if(macroOptions.contains("depth=")){
-			temp = macroOptions.substring(macroOptions.indexOf("depth="));
-    		temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-    		voxelDepth = Double.parseDouble(temp);
-    		if(logDetection) IJ.log("detected voxelDepth: " + voxelDepth);
-		}else if(macroOptions.contains("depth-calibration=")){
-			temp = macroOptions.substring(macroOptions.indexOf("depth-calibration=")); 
-			temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-			voxelDepth = Double.parseDouble(temp);
-    		if(logDetection) IJ.log("detected voxelDepth: " + voxelDepth);
-		}
-		
-		if(macroOptions.contains("alibration-unit=")){
-			temp = macroOptions.substring(macroOptions.indexOf("alibration-unit="));
-    		temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-    		calibrationDimension = temp;
-    		if(logDetection) IJ.log("detected calibrationDimensions: " + calibrationDimension);
-		}
-		
-		if(macroOptions.contains("ime-interval=")){
-			temp = macroOptions.substring(macroOptions.indexOf("ime-interval="));
-    		temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-    		timePerFrame = Double.parseDouble(temp);
-    		if(timePerFrame==0.0){
-        		timePerFrame=1.0;
-        	}
-    		if(logDetection) IJ.log("detected timePerFrame: " + timePerFrame);
-		}
-		
-		if(macroOptions.contains("ime-unit=")){
-			temp = macroOptions.substring(macroOptions.indexOf("ime-unit="));
-    		temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-    		timeUnit = temp;
-    		if(logDetection) IJ.log("detected timeUnit: " + timeUnit);
-		}
-	}else {
-		recalibrate = false;
+		if(logDetection) IJ.log("detected timePerFrame: " + timePerFrame);
+
+		timeUnit = macroChoice(o, "time-unit", timeFormats, timeFormats[1]);
+		if(logDetection) IJ.log("detected timeUnit: " + timeUnit);
 	}
 
-	if(macroOptions.contains("include-date")){
-		saveDate = true;
-		if(logDetection) IJ.log("detected saveDate: " + saveDate);
-	}else {
-		saveDate = false;
-	}
-	
-	if(macroOptions.contains("save-single-cilia-result-images")){
-		saveSingleCiliaTifs = true;
-		if(logDetection) IJ.log("detected save-single-cilia-result-images: " + saveSingleCiliaTifs);
-	}else {
-		saveSingleCiliaTifs = false;
-	}
+	saveDate = macroFlag(o, "include-date");
+	if(logDetection) IJ.log("detected saveDate: " + saveDate);
 
-	if(macroOptions.contains("save-3D-individual-cilia")){
-		saveSingleCilia3DImages = true;
-		if(logDetection) IJ.log("detected saveSingleCilia3DImages: " + saveSingleCilia3DImages);
-	}else {
-		saveSingleCilia3DImages = false;
-	}
+	saveSingleCiliaTifs = macroFlag(o, "save-single-cilia-result-images");
+	if(logDetection) IJ.log("detected save-single-cilia-result-images: " + saveSingleCiliaTifs);
 
-	if(macroOptions.contains("save-3D-whole-image")){
-		saveOverview3DImages = true;
-		if(logDetection) IJ.log("detected saveOverview3DImages: " + saveOverview3DImages);
-	}else {
-		saveOverview3DImages = false;
-	}
-	
+	saveSingleCilia3DImages = macroFlag(o, "save-3D-individual-cilia");
+	if(logDetection) IJ.log("detected saveSingleCilia3DImages: " + saveSingleCilia3DImages);
 
-	if(macroOptions.contains("number-format=")){
-		temp = macroOptions.substring(macroOptions.indexOf("number-format="));
-		temp = temp.substring(temp.indexOf("=")+1);
-		temp = temp.substring(0,temp.indexOf(" "));
-		if(temp.toLowerCase().contains("us")) {
-			ChosenNumberFormat = nrFormats[0];
-		}else {
-			ChosenNumberFormat = nrFormats[1];				
-		}
-		if(logDetection) IJ.log("detected numberFormat: " + ChosenNumberFormat);
-	}
+	saveOverview3DImages = macroFlag(o, "save-3D-whole-image");
+	if(logDetection) IJ.log("detected saveOverview3DImages: " + saveOverview3DImages);
+
+	ChosenNumberFormat = macroChoice(o, "number-format", nrFormats, nrFormats[0]);
+	if(logDetection) IJ.log("detected numberFormat: " + ChosenNumberFormat);
 	if(ChosenNumberFormat.equals(nrFormats[0])){ //US-Format
 		dformat6.setDecimalFormatSymbols(new DecimalFormatSymbols(Locale.US));
 		dformat3.setDecimalFormatSymbols(new DecimalFormatSymbols(Locale.US));
@@ -781,315 +677,104 @@ private void readSettingsFromMacroString(String macroOptions, boolean logDetecti
 		dformat3.setDecimalFormatSymbols(new DecimalFormatSymbols(Locale.GERMANY));
 		dformat0.setDecimalFormatSymbols(new DecimalFormatSymbols(Locale.GERMANY));
 	}
-	
 
-	if(macroOptions.contains("reconstruction-channel=")){
-		temp = macroOptions.substring(macroOptions.indexOf("reconstruction-channel="));
-		temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-		channelReconstruction = Integer.parseInt(temp);
-		if(logDetection) IJ.log("detected reconstruction-channel: " + channelReconstruction);
-	}else {
-		IJ.error("Macro options missed definition 'reconstruction-channel=<an Integer Number>'");
-	}
+	channelReconstruction = (int) macroDouble(o, "reconstruction-channel", 1, logDetection);
+	if(logDetection) IJ.log("detected reconstruction-channel: " + channelReconstruction);
 
-	if(macroOptions.contains("measure-intensity-A")){
-		measureC2 = true;
+	measureC2 = macroFlag(o, "measure-intensity-A");
+	if(measureC2){
 		if(logDetection) IJ.log("detected measure intensity A: " + measureC2);
-		
-		if(macroOptions.contains("channel-A=")){
-			temp = macroOptions.substring(macroOptions.indexOf("channel-A="));
-			temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-			channelC2 = Integer.parseInt(temp);
-			if(logDetection) IJ.log("detected channel-A: " + channelC2);
-		}else {
-			IJ.error("Macro options missed definition 'channel-A=<an Integer Number>'");
-		}
-	}else {
-		measureC2 = false;
+		channelC2 = (int) macroDouble(o, "channel-A", 2, logDetection);
+		if(logDetection) IJ.log("detected channel-A: " + channelC2);
 	}
 
-	if(macroOptions.contains("measure-intensity-B")){
-		measureC3 = true;
+	measureC3 = macroFlag(o, "measure-intensity-B");
+	if(measureC3){
 		if(logDetection) IJ.log("detected measure intensity B: " + measureC3);
-		
-		if(macroOptions.contains("channel-B=")){
-			temp = macroOptions.substring(macroOptions.indexOf("channel-B="));
-			temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-			channelC3 = Integer.parseInt(temp);
-			if(logDetection) IJ.log("detected channel-B: " + channelC3);
-		}else {
-			IJ.error("Macro options missed definition 'channel-B=<an Integer Number>'");
-		}
-	}else {
-		measureC3 = false;
+		channelC3 = (int) macroDouble(o, "channel-B", 3, logDetection);
+		if(logDetection) IJ.log("detected channel-B: " + channelC3);
 	}
 
-	if(macroOptions.contains("basal-stain-present")){
+	if(macroFlag(o, "basal-stain-present")){
 		measureBasal = true;
 		if(logDetection) IJ.log("detected basal stain present: " + measureBasal);
-		
-		if(macroOptions.contains("channel-basal-stain=")){
-			temp = macroOptions.substring(macroOptions.indexOf("channel-basal-stain="));
-			temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-			basalStainC = Integer.parseInt(temp);
-			if(logDetection) IJ.log("detected channel-basal-stain: " + basalStainC);
-		}else {
-			IJ.error("Macro options missed definition 'channel-basal-stain=<an Integer Number>'");
-		}
-		
-	} else if (macroOptions.contains("basal-stain-segmented")){
+
+		basalStainC = (int) macroDouble(o, "channel-basal-stain", 4, logDetection);
+		if(logDetection) IJ.log("detected channel-basal-stain: " + basalStainC);
+
+	} else if (macroFlag(o, "basal-stain-segmented")){
 		measureBasal = true;
 		segmentedBB = true;
 		if(logDetection) IJ.log("detected basal stain present: " + measureBasal);
 		if(logDetection) IJ.log("detected basal stain segmented: " + segmentedBB);
 
-		if(macroOptions.contains("channel-basal-stain=")){
-			temp = macroOptions.substring(macroOptions.indexOf("channel-basal-stain="));
-			temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-			basalStainC = Integer.parseInt(temp);
-			if(logDetection) IJ.log("detected channel-basal-stain: " + basalStainC);
-		}else {
-			IJ.error("Macro options missed definition 'channel-basal-stain=<an Integer Number>'");
-		}
-		
-		if(macroOptions.contains("minimum-basal-body-size=")){
-			temp = macroOptions.substring(macroOptions.indexOf("minimum-basal-body-size="));
-			temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-			minBBSize = Integer.parseInt(temp);
-			if(logDetection) IJ.log("detected minimum-basal-body-size: " + minBBSize);
-		}else {
-			IJ.error("Macro options missed definition 'minimum-basal-body-size=<an Integer Number>'");
-		}
-		
-		if (macroOptions.contains("increase-range-basal-body")){
-			increaseRangeBB = true;
-			if(logDetection) IJ.log("detected basal stain segmented: " + increaseRangeBB);
-		}
-		
-		if(macroOptions.contains("assign=")){
-			temp = macroOptions.substring(macroOptions.indexOf("assign="));
-			temp = temp.substring(temp.indexOf("=")+1);
-			if(temp.startsWith("[") || temp.startsWith("//[")) {
-				if(temp.contains("]")) {
-					temp = temp.substring(1,temp.indexOf("]"));
-				}else {
-					temp = temp.substring(1,temp.indexOf("//]"));
-				}			    				
-			}else {
-				temp = temp.substring(0,temp.indexOf(" "));
-			}    			
-			bbAssignmentSelection = temp;
-			
-			//Validate excludeSelection
-			for(int i = 0; i < bbAssignmentOptions.length; i++) {
-				if(bbAssignmentSelection.equals(bbAssignmentOptions [i])) {				
-					break;
-				}
-				if(i == bbAssignmentOptions.length-1) {
-					String temp2 = "";
-					for(int j = 0; j < bbAssignmentOptions.length; j++) {
-						temp2 += "\n";
-						temp2 += bbAssignmentOptions[j];
-					}
-					IJ.error("Macro options did not contain a valid definition for 'assign='.\n"
-							+ "Valid definitions are: " + temp2);
-				}
-			}
-			
-			if(logDetection) IJ.log("detected exclude selection: " + bbAssignmentSelection);
-		}else {
-			IJ.error("Macro options missed definition 'exclude=<...>'");
-		}
-		
-		if(macroOptions.contains("max-bb-to-cilium-distance=")){
-			temp = macroOptions.substring(macroOptions.indexOf("max-bb-to-cilium-distance="));
-			temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-			maxDistanceBBCiliumEnd = Double.parseDouble(temp);
-			if(logDetection) IJ.log("detected max-bb-to-cilium-distance: " + maxDistanceBBCiliumEnd);
-		}else {
-			IJ.error("Macro options missed definition 'max-bb-to-cilium-distance=<a Double Number>'");
-		}
+		basalStainC = (int) macroDouble(o, "channel-basal-stain", 4, logDetection);
+		if(logDetection) IJ.log("detected channel-basal-stain: " + basalStainC);
 
-		if(macroOptions.contains("remove=")){
-			temp = macroOptions.substring(macroOptions.indexOf("remove="));
-			temp = temp.substring(temp.indexOf("=")+1);
-			if(temp.startsWith("[") || temp.startsWith("//[")) {
-				if(temp.contains("]")) {
-					temp = temp.substring(1,temp.indexOf("]"));
-				}else {
-					temp = temp.substring(1,temp.indexOf("//]"));
-				}			    				
-			}else {
-				temp = temp.substring(0,temp.indexOf(" "));
-			}    			
-			bbCiliaFilterSelection = temp;
-			
-			//Validate excludeSelection
-			for(int i = 0; i < bbCiliaFilterOptions.length; i++) {
-				if(bbCiliaFilterSelection.equals(bbCiliaFilterOptions [i])) {				
-					break;
-				}
-				if(i == bbCiliaFilterOptions.length-1) {
-					String temp2 = "";
-					for(int j = 0; j < bbCiliaFilterOptions.length; j++) {
-						temp2 += "\n";
-						temp2 += bbCiliaFilterOptions[j];
-					}
-					IJ.error("Macro options did not contain a valid definition for 'remove='.\n"
-							+ "Valid definitions are: " + temp2);
-				}
-			}
-			
-			if(logDetection) IJ.log("detected exclude selection: " + bbCiliaFilterSelection);
-		}else {
-			IJ.error("Macro options missed definition 'exclude=<...>'");
-		}		
+		minBBSize = (int) macroDouble(o, "minimum-basal-body-size", 1, logDetection);
+		if(logDetection) IJ.log("detected minimum-basal-body-size: " + minBBSize);
+
+		increaseRangeBB = macroFlag(o, "increase-range-basal-body");
+		if(logDetection) IJ.log("detected basal stain segmented: " + increaseRangeBB);
+
+		bbAssignmentSelection = macroChoice(o, "assign", bbAssignmentOptions, bbAssignmentOptions[0]);
+		if(logDetection) IJ.log("detected exclude selection: " + bbAssignmentSelection);
+
+		maxDistanceBBCiliumEnd = macroDouble(o, "max-bb-to-cilium-distance", 2.0, logDetection);
+		if(logDetection) IJ.log("detected max-bb-to-cilium-distance: " + maxDistanceBBCiliumEnd);
+
+		bbCiliaFilterSelection = macroChoice(o, "remove", bbCiliaFilterOptions, bbCiliaFilterOptions[3]);
+		if(logDetection) IJ.log("detected exclude selection: " + bbCiliaFilterSelection);
 	}else {
 		measureBasal = false;
 	}
-	
-	if(macroOptions.contains("minimum-cilium-size=")){
-		temp = macroOptions.substring(macroOptions.indexOf("minimum-cilium-size="));
-		temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-		minSize = Integer.parseInt(temp);
-		if(logDetection) IJ.log("detected minimum-cilium-size: " + minSize);
-	}else {
-		IJ.error("Macro options missed definition 'minimum-cilium-size=<an Integer Number>'");
-	}
-	
-	if(macroOptions.contains("increase-range-cilia")){
-		increaseRangeCilia = true;
-		if(logDetection) IJ.log("detected increase-range-cilia: " + increaseRangeCilia);
-	}else {
-		increaseRangeCilia = false;
-	}
 
-	if(macroOptions.contains("exclude=")){
-		temp = macroOptions.substring(macroOptions.indexOf("exclude="));
-		temp = temp.substring(temp.indexOf("=")+1);
-		if(temp.startsWith("[") || temp.startsWith("//[")) {
-			if(temp.contains("]")) {
-				temp = temp.substring(1,temp.indexOf("]"));
-			}else {
-				temp = temp.substring(1,temp.indexOf("//]"));
-			}			    				
-		}else {
-			temp = temp.substring(0,temp.indexOf(" "));
-		}    			
-		excludeSelection = temp;
-		
-		//Validate excludeSelection
-		for(int i = 0; i < excludeOptions.length; i++) {
-			if(excludeSelection.equals(excludeOptions [i])) {				
-				break;
-			}
-			if(i == excludeOptions.length-1) {
-				String temp2 = "";
-				for(int j = 0; j < excludeOptions.length; j++) {
-					temp2 += "\n";
-					temp2 += excludeOptions[j];
-				}
-				IJ.error("Macro options did not contain a valid definition for 'exclude='.\n"
-						+ "Valid definitions are: " + temp2);
-			}
-		}
-		
-		if(logDetection) IJ.log("detected exclude selection: " + excludeSelection);
-	}else {
-		IJ.error("Macro options missed definition 'exclude=<...>'");
-	}
+	minSize = (int) macroDouble(o, "minimum-cilium-size", 10, logDetection);
+	if(logDetection) IJ.log("detected minimum-cilium-size: " + minSize);
 
-	if(macroOptions.contains("minimum-size-intensity=")){
-		temp = macroOptions.substring(macroOptions.indexOf("minimum-size-intensity="));
-		temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-		minRestSize = Integer.parseInt(temp);
-		if(logDetection) IJ.log("detected minimum-size-intensity: " + minRestSize);
-	}else {
-		IJ.error("Macro options missed definition 'minimum-size-intensity=<an Integer Number>'");
-	}
-	
-	if(macroOptions.contains("increase-range-intensity")){
-		increaseRangeRegions = true;
-		if(logDetection) IJ.log("detected increase-range-intensity: " + increaseRangeRegions);
-	}else {
-		increaseRangeRegions = false;
-	}
+	increaseRangeCilia = macroFlag(o, "increase-range-cilia");
+	if(logDetection) IJ.log("detected increase-range-cilia: " + increaseRangeCilia);
 
+	excludeSelection = macroChoice(o, "exclude", excludeOptions, excludeOptions[2]);
+	if(logDetection) IJ.log("detected exclude selection: " + excludeSelection);
 
-	if(macroOptions.contains("skeleton")){
-		skeletonize = true;
-		if(logDetection) IJ.log("detected skeletonize: " + skeletonize);
-	}else {
-		skeletonize = false;
-	}
-	
+	minRestSize = (int) macroDouble(o, "minimum-size-intensity", 1, logDetection);
+	if(logDetection) IJ.log("detected minimum-size-intensity: " + minRestSize);
 
-	if(macroOptions.contains("gauss-xy=")){
-		temp = macroOptions.substring(macroOptions.indexOf("gauss-xy="));
-		temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-		gXY = Double.parseDouble(temp);
-		if(logDetection) IJ.log("detected gSigmaXY: " + gXY);
-	}else if(skeletonize) {
-		IJ.error("Macro options missed definition gauss-xy=<a number>'");
-	}
-	
-	if(macroOptions.contains("gauss-z=")){
-		temp = macroOptions.substring(macroOptions.indexOf("gauss-z="));
-		temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-		gZ = Double.parseDouble(temp);
-		if(logDetection) IJ.log("detected gSigmaZ: " + gZ);
-	}else if(skeletonize) {
-		IJ.error("Macro options missed definition gauss-z=<a number>'");
-	}
-	
-	if(macroOptions.contains("distance-curvature=")){
-		temp = macroOptions.substring(macroOptions.indexOf("distance-curvature="));
-		temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-		refDistance = Double.parseDouble(temp);
-		if(logDetection) IJ.log("detected reference distance for tangets and curvature: " + refDistance);
-	}else {
-		IJ.error("Macro options missed definition distance-curvature=<a number>'");
-	}	
+	increaseRangeRegions = macroFlag(o, "increase-range-intensity");
+	if(logDetection) IJ.log("detected increase-range-intensity: " + increaseRangeRegions);
+
+	skeletonize = macroFlag(o, "skeleton");
+	if(logDetection) IJ.log("detected skeletonize: " + skeletonize);
+
+	gXY = macroDouble(o, "gauss-xy", 2.0, logDetection);
+	if(logDetection) IJ.log("detected gSigmaXY: " + gXY);
+
+	gZ = macroDouble(o, "gauss-z", 0.0, logDetection);
+	if(logDetection) IJ.log("detected gSigmaZ: " + gZ);
+
+	refDistance = macroDouble(o, "distance-curvature", 1.0, logDetection);
+	if(logDetection) IJ.log("detected reference distance for tangets and curvature: " + refDistance);
 
 	//NEW from v0.2.2 on: timelapse cilium bb tracking
-	if(macroOptions.contains("tl-tracking=")){
-		temp = macroOptions.substring(macroOptions.indexOf("tl-tracking="));
-		temp = temp.substring(temp.indexOf("=")+1);
-		if(temp.startsWith("[") || temp.startsWith("//[")) {
-			if(temp.contains("]")) { temp = temp.substring(1,temp.indexOf("]")); }
-			else { temp = temp.substring(1,temp.indexOf("//]")); }
-		} else { temp = temp.substring(0,temp.indexOf(" ")); }
-		timelapseTrackingSelection = temp;
-		if(logDetection) IJ.log("detected tl-tracking: " + timelapseTrackingSelection);
-	}
-	if(macroOptions.contains("max-tracking-distance=")){
-		temp = macroOptions.substring(macroOptions.indexOf("max-tracking-distance="));
-		temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-		maxTrackingDistance = Double.parseDouble(temp);
-		if(logDetection) IJ.log("detected max-tracking-distance: " + maxTrackingDistance);
-	}
-	if(macroOptions.contains("max-frame-gap=")){
-		temp = macroOptions.substring(macroOptions.indexOf("max-frame-gap="));
-		temp = temp.substring(temp.indexOf("=")+1,temp.indexOf(" "));
-		maxFrameGap = Integer.parseInt(temp);
-		if(logDetection) IJ.log("detected max-frame-gap: " + maxFrameGap);
-	}
-	
-	if(macroOptions.contains("showgui") || macroOptions.contains("showGUI") || macroOptions.contains("SHOWGUI")){
-		showGUIs = true;
-		if(logDetection) IJ.log("detected show GUIs: " + showGUIs);
-	}else {
-		showGUIs = false;
-		if(logDetection) IJ.log("detected show GUIs: " + showGUIs);
-	}
+	timelapseTrackingSelection = macroChoice(o, "tl-tracking", timelapseTrackingOptions, timelapseTrackingOptions[0]);
+	if(logDetection) IJ.log("detected tl-tracking: " + timelapseTrackingSelection);
+
+	maxTrackingDistance = macroDouble(o, "max-tracking-distance", 5.0, logDetection);
+	if(logDetection) IJ.log("detected max-tracking-distance: " + maxTrackingDistance);
+
+	maxFrameGap = (int) macroDouble(o, "max-frame-gap", 1, logDetection);
+	if(logDetection) IJ.log("detected max-frame-gap: " + maxFrameGap);
+
+	showGUIs = macroFlag(o, "showgui");
+	if(logDetection) IJ.log("detected show GUIs: " + showGUIs);
 }
 
 /**
  * A function to create
- * @return an option String
- * based on the settings applied. This option String will be usable
- * to call this plugin under the same options as when recording it
- * from a Macro
+ * @return an option String based on the settings applied.
+ * This option String will be usable to call this plugin under
+ * the same options as when recording it from a Macro
  */
 private String createRecordString() {
 	String recordString = "";
@@ -1169,6 +854,10 @@ private String createRecordString() {
 	recordString += "tl-tracking=[" + timelapseTrackingSelection + "] ";
 	recordString += "max-tracking-distance=" + dfDialog.format(maxTrackingDistance) + " ";
 	recordString += "max-frame-gap=" + maxFrameGap + " ";
+	
+	if(showGUIs) {
+		recordString += "showgui" + " ";
+	}
 	
 	recordString = recordString.substring(0,recordString.length()-1);	
 	return recordString;
@@ -1261,11 +950,7 @@ int getMaxIntensity(ImagePlus imp, int task, int tasks){
 	}else if(imp.getBitDepth()==32){
 		maxThreshold = 2147483647;
 	}else{
-		if(showGUIs){
-			progress.notifyMessage("Task " + task + "/" + tasks + ": Error! No gray scale image!",ProgressDialog.ERROR);
-		}else {
-			IJ.error("Error! No gray scale image!");
-		}
+		progress.notifyMessage("Task " + task + "/" + tasks + ": Error! No gray scale image!",ProgressReporter.ERROR);		
 	}
 	return maxThreshold;	
 }
@@ -1686,10 +1371,8 @@ void filterChannel(ImagePlus imp, int c, String particleLabel, int minSize, bool
 						}
 						
 						if(floodFilledPc%(pc100)<pc1000){
-							if(showGUIs) {
-								progress.updateBarText("Connecting " + particleLabel + " complete: " + dformat3.format(((double)(floodFilledPc)/(double)(nrOfPoints))*100) + "%");
-								progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(nrOfPoints)));								
-							}
+							progress.updateBarText("Connecting " + particleLabel + " complete: " + dformat3.format(((double)(floodFilledPc)/(double)(nrOfPoints))*100) + "%");
+							progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(nrOfPoints)));								
 							floodFilledPcOld = floodFilledPc;
 						}	
 					}				
@@ -1700,10 +1383,8 @@ void filterChannel(ImagePlus imp, int c, String particleLabel, int minSize, bool
 			}
 		}
 	}
-	if(showGUIs) {
-		progress.updateBarText("Connecting " + particleLabel + " complete: " + dformat3.format(((double)(floodFilledPc)/(double)(nrOfPoints))*100) + "%");
-		progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(nrOfPoints)));
-	}	
+	progress.updateBarText("Connecting " + particleLabel + " complete: " + dformat3.format(((double)(floodFilledPc)/(double)(nrOfPoints))*100) + "%");
+	progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(nrOfPoints)));
 	particles.trimToSize();
 	
 	refImp.changes = false;
@@ -1934,10 +1615,8 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjects (ImagePlus imp, int c){
 					}
 
 					if(floodFilledPc%(pc100)<pc1000){
-						if(showGUIs) {
-							progress.updateBarText("Reconstruction of ciliary structures complete: " + dformat3.format(((double)(floodFilledPc)/(double)(nrOfPoints))*100) + "%");
-							progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(nrOfPoints)));							
-						}
+						progress.updateBarText("Reconstruction of ciliary structures complete: " + dformat3.format(((double)(floodFilledPc)/(double)(nrOfPoints))*100) + "%");
+						progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(nrOfPoints)));							
 						floodFilledPcOld = floodFilledPc;
 					}	
 				}				
@@ -1951,10 +1630,8 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjects (ImagePlus imp, int c){
 	refImp.changes = false;
 	refImp.close();
 	
-	if(showGUIs) {
-		progress.updateBarText("Reconstruction of ciliary structures complete: " + dformat3.format(((double)(floodFilledPc)/(double)(nrOfPoints))*100) + "%");
-		progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(nrOfPoints)));
-	}
+	progress.updateBarText("Reconstruction of ciliary structures complete: " + dformat3.format(((double)(floodFilledPc)/(double)(nrOfPoints))*100) + "%");
+	progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(nrOfPoints)));
 	
 	particles.trimToSize();
 	
@@ -1998,22 +1675,12 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 	}
 	
 	if(nrOfPoints == imp.getNSlices()*imp.getNFrames()*imp.getWidth()*imp.getHeight()) {
-		if(showGUIs) {
-			progress.notifyMessageWithTaskNr("ERROR - The channel set for reconstruction (" + c 
-					+ ") is not segmented - make sure to set the correct channel nr for reconstruction in the preferences!", ProgressDialog.ERROR);
-		}else {
-			System.out.println("ERROR - The channel set for reconstruction (" + c 
-					+ ") is not segmented - make sure to set the correct channel nr for reconstruction in the preferences!");
-		}
+		progress.notifyMessageWithTaskNr("ERROR - The channel set for reconstruction (" + c 
+				+ ") is not segmented - make sure to set the correct channel nr for reconstruction in the preferences!", ProgressReporter.ERROR);
 		return new ArrayList<ArrayList<CellPoint>>(0);
 	}else if(nrOfPoints == 0) {
-		if(showGUIs) {
-			progress.notifyMessageWithTaskNr("ERROR - The channel for reconstruction (" + c 
-					+ ") is empty - no cilia found!", ProgressDialog.ERROR);
-		}else {
-			System.out.println("ERROR - The channel for reconstruction (" + c 
-					+ ") is empty - no cilia found!");
-		}
+		progress.notifyMessageWithTaskNr("ERROR - The channel for reconstruction (" + c 
+				+ ") is empty - no cilia found!", ProgressReporter.ERROR);
 		return new ArrayList<ArrayList<CellPoint>>(0);
 	}
 		
@@ -2553,10 +2220,8 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 						}
 
 						if(floodFilledPc%(pc100)<pc1000){
-							if(showGUIs) {
-								progress.updateBarText("Reconstruction of ciliary structures complete: " + dformat3.format(((double)(floodFilledPc)/(double)(nrOfPoints))*100) + "%");
-								progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(nrOfPoints)));								
-							}
+							progress.updateBarText("Reconstruction of ciliary structures complete: " + dformat3.format(((double)(floodFilledPc)/(double)(nrOfPoints))*100) + "%");
+							progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(nrOfPoints)));								
 							floodFilledPcOld = floodFilledPc;
 						}	
 					}				
@@ -2571,10 +2236,8 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 	refImp.changes = false;
 	refImp.close();
 	
-	if(showGUIs) {
-		progress.updateBarText("Reconstruction of ciliary structures complete: " + dformat3.format(((double)(floodFilledPc)/(double)(nrOfPoints))*100) + "%");
-		progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(nrOfPoints)));
-	}
+	progress.updateBarText("Reconstruction of ciliary structures complete: " + dformat3.format(((double)(floodFilledPc)/(double)(nrOfPoints))*100) + "%");
+	progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(nrOfPoints)));
 	particles.trimToSize();
 	
 	//write back to image
@@ -2623,22 +2286,12 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 	}
 	
 	if(totalNrOfPoints == imp.getNSlices()*imp.getNFrames()*imp.getWidth()*imp.getHeight()) {
-		if(showGUIs) {
-			progress.notifyMessageWithTaskNr("ERROR - The channel set for reconstruction (" + c 
-					+ ") is not segmented - make sure to set the correct channel nr for reconstruction in the preferences!", ProgressDialog.ERROR);
-		}else {
-			System.out.println("ERROR - The channel set for reconstruction (" + c 
-					+ ") is not segmented - make sure to set the correct channel nr for reconstruction in the preferences!");
-		}
+		progress.notifyMessageWithTaskNr("ERROR - The channel set for reconstruction (" + c 
+				+ ") is not segmented - make sure to set the correct channel nr for reconstruction in the preferences!", ProgressReporter.ERROR);
 		return new ArrayList<ArrayList<Uncalibrated3DPoint>>(0);
 	}else if(totalNrOfPoints == 0) {
-		if(showGUIs) {
-			progress.notifyMessageWithTaskNr("ERROR - The channel for reconstruction (" + c 
-					+ ") is empty - no cilia found!", ProgressDialog.ERROR);
-		}else {
-			System.out.println("ERROR - The channel for reconstruction (" + c 
-					+ ") is empty - no cilia found!");
-		}
+		progress.notifyMessageWithTaskNr("ERROR - The channel for reconstruction (" + c 
+				+ ") is empty - no cilia found!", ProgressReporter.ERROR);
 		return new ArrayList<ArrayList<Uncalibrated3DPoint>>(0);
 	}
 	
@@ -3075,12 +2728,10 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 			}			
 		}
 		
-		if(showGUIs) {
-			progress.updateBarText("Reconstruction basal bodies in frame " 
-					+ (t+1) + " of " + imp.getNFrames()
-					+ " complete.");
-			progress.addToBar(0.2/(double)imp.getNFrames());								
-		}
+		progress.updateBarText("Reconstruction basal bodies in frame " 
+				+ (t+1) + " of " + imp.getNFrames()
+				+ " complete.");
+		progress.addToBar(0.2/(double)imp.getNFrames());
 	}
 				
 	refImp.changes = false;
@@ -3273,16 +2924,12 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		if(ciliaParticles.size() == 0) {
 			return;
 		}
-		if(showGUIs) {
-			progress.updateBarText("Structure reconstruction completed.");
-		}
+		progress.updateBarText("Structure reconstruction completed.");
 		
 		//TODO implement method to move on if no cells detected
 		
 		//Determine intensity thresholds for each other channel
-		if(showGUIs) {
-			progress.updateBarText("Determining intensity thresholds ...");
-		}
+		progress.updateBarText("Determining intensity thresholds ...");
 		intensityThresholds = getIntensityThresholds(imp, ciliaParticles);
 		
 		
@@ -3291,21 +2938,15 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		
 		cilia.ensureCapacity(ciliaParticles.size());
 		for(int i = 0; i < ciliaParticles.size(); i++){
-			if(showGUIs) {
-				progress.updateBarText("Quantifying cilia objects (" + i + "/" + ciliaParticles.size() + " done)");
-			}
+			progress.updateBarText("Quantifying cilia objects (" + i + "/" + ciliaParticles.size() + " done)");
 			cilia.add(new Cilium(ciliaParticles.get(i), imp, measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC, 
-					channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, showGUIs));
+					channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize));
 			if(cilia.size()!=i+1) {
-				if(showGUIs) {
-					progress.notifyMessage("Error while measuring cilium " + (i+1), ProgressDialog.NOTIFICATION);
-				}
+				progress.notifyMessage("Error while measuring cilium " + (i+1), ProgressReporter.NOTIFICATION);
 			}
 			
-			if(showGUIs) {
-				progress.addToBar(0.1/cilia.size());
-				progress.updateBarText("reconstructing cilia... (" + (i+1) + "/" + cilia.size() + ")");
-			}	
+			progress.addToBar(0.1/cilia.size());
+			progress.updateBarText("reconstructing cilia... (" + (i+1) + "/" + cilia.size() + ")");	
 		}
 		
 		ciliaParticles.clear();
@@ -3333,9 +2974,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			double matrixDistSquared [][] = new double [cilia.size()][bbParticles.size()];
 			Cilium theCilium;
 
-			if(showGUIs) {
-				progress.updateBarText("assigning basal bodies to cilia... compute distances");
-			}
+			progress.updateBarText("assigning basal bodies to cilia... compute distances");
 			for(int bb = 0; bb < bbParticles.size(); bb++){
 				for(int cil = 0; cil < cilia.size(); cil++){
 					theCilium = cilia.get(cil);
@@ -3375,9 +3014,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			}
 			
 			//Applying HungarianAlgorithm = linear_sum_assignment in python to get best solution
-			if(showGUIs) {
-				progress.updateBarText("assigning basal bodies to cilia... assigning by minimizing linear sum");
-			}
+			progress.updateBarText("assigning basal bodies to cilia... assigning by minimizing linear sum");
 			int [] bbForCilium = new HungarianAlgorithm(matrixDistSquared).execute();
 			
 
@@ -3386,12 +3023,10 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			boolean bbUsed [] = new boolean [bbParticles.size()];
 			Arrays.fill(bbUsed,false);
 			for(int cil = 0; cil < cilia.size(); cil++){
-				if(showGUIs) {
-					progress.updateBarText("assigning basal bodies to cilia... adding basal body to cilium " + (cil+1) + " of " + cilia.size() + "!");
-				}
+				progress.updateBarText("assigning basal bodies to cilia... adding basal body to cilium " + (cil+1) + " of " + cilia.size() + "!");
 				if(bbForCilium[cil] > -1 && matrixDist[cil][bbForCilium[cil]] <= maxDistanceBBCiliumEnd) {
 					cilia.get(cil).addBasalBody(bbParticles.get(bbForCilium[cil]), imp, measureC2local, channelC2, measureC3local, channelC3,
-							channelReconstruction, progress, showGUIs);
+							channelReconstruction, progress);
 					bbUsed[bbForCilium[cil]] = true;
 				}else {
 					nrOfCiliaWithoutBBs ++;
@@ -3428,7 +3063,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 						}
 						// ADD the BB without cilium
 						cilia.add(new Cilium(bbParticles.get(bb), imp, measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC, 
-								channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, showGUIs));
+								channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize));
 					}
 				}
 				
@@ -3476,9 +3111,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			}
 			//Exclude cilia
 			if(!tempExcludeSelection.equals(excludeOptions[0])){
-				if(showGUIs) {
-					progress.updateBarText("Quantifying cilia objects (" + i + "/" + cilia.size() + " done): checking xyz borders...");
-				}
+				progress.updateBarText("Quantifying cilia objects (" + i + "/" + cilia.size() + " done): checking xyz borders...");
 				touchesXY = false; touchesZ = false;
 				Arrays.fill(sliceCounter, 0);
 				
@@ -3538,14 +3171,10 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				imp.getOverlay().add(txtID);				
 			}
 								
-			if(showGUIs) {
-				progress.addToBar(0.1/cilia.size());
-			}		
+			progress.addToBar(0.1/cilia.size());		
 		}
 	}		
-	if(showGUIs) {
-		progress.updateBarText("" + cilia.size() + " cilia reconstructed!");
-	}
+	progress.updateBarText("" + cilia.size() + " cilia reconstructed!");
 	
 
 	double maximumArcLength = 0.0;
@@ -3572,9 +3201,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		for(int i = 0; i < cilia.size(); i++){
 			if(cilia.get(i).excluded) continue;
 			if(!cilia.get(i).ciliumAvailable) continue;
-			if(showGUIs) {
-				progress.updateBarText("Writing single cilia images (" + i + "/" + cilia.size() + " done)");
-			}
+			progress.updateBarText("Writing single cilia images (" + i + "/" + cilia.size() + " done)");
 			//save channel information
 			OutputTextFile tp = new OutputTextFile("");
 			tp.append("Channel information for results images obtained by analysis of:	" + name);
@@ -3590,11 +3217,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			
 			addFooter(tp, currentDate);					
 			if(!tp.saveAndFinish(subfolderPrefix + "_P" + dformat0.format(i+1) + "_ci.txt")) {
-				if(showGUIs) {
-					progress.notifyMessage("IO ERROR when saving file " + (subfolderPrefix + "_P" + dformat0.format(i+1) + "_ci.txt"), ProgressDialog.ERROR);
-				}else {
-					System.out.println("IO ERROR when saving file " + (subfolderPrefix + "_P" + dformat0.format(i+1) + "_ci.txt"));
-				}
+				progress.notifyMessage("IO ERROR when saving file " + (subfolderPrefix + "_P" + dformat0.format(i+1) + "_ci.txt"), ProgressReporter.ERROR);
 			}
 			
 			ImagePlus impC = cilia.get(i).getCiliumImp(intensityThresholds, channelC2, channelC3);
@@ -3604,11 +3227,9 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		}					
 	}
 	
-	if(showGUIs) {
-		progress.updateBarText("saving results...");
-		progress.setBar(0.8);		
-	}
-
+	progress.updateBarText("saving results...");
+	progress.setBar(0.8);		
+	
 	//Output images
 			
 	//Save Textfile--------------------------------------	
@@ -3630,7 +3251,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	appendTxt += "	" + "Surface ["+calibrationDimension+"^2]";
 	appendTxt += "	" + "Shape complexity index";
 	appendTxt += "	" + "Sphere radius ["+calibrationDimension+"]";
-	appendTxt += "	" + ""; //"Maximum span ["+calibrationDimension+"]";	//TODO - method to be implemented
+	appendTxt += "	" + "Maximum span ["+calibrationDimension+"]";		// NEWly implemented in V0.2.2
 	
 	appendTxt += "	"; if(measureC2local){appendTxt += "A: Colocalized volume [" + calibrationDimension + "^3] (if channel in input image was background-removed)";}
 	appendTxt += "	"; if(measureC2local){appendTxt += "A: Colocalized volume [% total volume] (if channel in input image was background-removed)";}
@@ -3739,7 +3360,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).surface);}
 		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).shapeComplexity);}
 		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).sphereRadius);}
-		appendTxt += "	"; //if(cilia.get(i).ciliumAvailable){dformat6.format(cilia.get(i).maximumSpan);}	//maximum span TODO - method to be implemented
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).maximumSpan);}		// Implemented in v0.2.2
 		
 		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).colocalizedVolumeC2);}
 		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(100.0*cilia.get(i).colocalizedFractionC2);}
@@ -3754,19 +3375,19 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).maxCiliumIntensity);}
 		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).maxTenPercentCiliumIntensity);}
 		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).averageCiliumIntensity);}
-		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).SDCiliumIntensity);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += fmt6(cilia.get(i).SDCiliumIntensity);}
 		
 		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).minC2Intensity);}
 		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).maxC2Intensity);}
 		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).maxTenPercentC2Intensity);}
 		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).averageC2Intensity);}
-		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).SDC2Intensity);}
+		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += fmt6(cilia.get(i).SDC2Intensity);}
 		
 		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).minC3Intensity);}
 		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).maxC3Intensity);}
 		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).maxTenPercentC3Intensity);}
 		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).averageC3Intensity);}
-		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).SDC3Intensity);}
+		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += fmt6(cilia.get(i).SDC3Intensity);}
 		
 		appendTxt += "	"; if(skeletonize && cilia.get(i).ciliumAvailable) appendTxt += dformat0.format(cilia.get(i).foundSkl);
 		appendTxt += "	"; if(cilia.get(i).ciliumAvailable && cilia.get(i).sklAvailable){appendTxt += dformat0.format(cilia.get(i).branches);}
@@ -3775,7 +3396,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		appendTxt += "	"; if(cilia.get(i).ciliumAvailable && cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilia.get(i).orientationVector[0]);}
 		appendTxt += "	"; if(cilia.get(i).ciliumAvailable && cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilia.get(i).orientationVector[1]);}
 		appendTxt += "	"; if(cilia.get(i).ciliumAvailable && cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilia.get(i).orientationVector[2]);}
-		appendTxt += "	"; if(cilia.get(i).ciliumAvailable && cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilia.get(i).bendingIndex);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable && cilia.get(i).sklAvailable){appendTxt += fmt6(cilia.get(i).bendingIndex);}
 		
 		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(intensityThresholds[channelC2-1]);}
 		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(intensityThresholds[channelC3-1]);}
@@ -3895,23 +3516,21 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	
 	addFooter(tw1, currentDate);
 	if(!tw1.saveAndFinish(filePrefix + ".txt")) {
-		if(showGUIs)	progress.notifyMessage("IO ERROR when saving file " + filePrefix + ".txt", ProgressDialog.ERROR);
+		progress.notifyMessage("IO ERROR when saving file " + filePrefix + ".txt", ProgressReporter.ERROR);
 	}
 	
 	//save one row results file
 	if(!tw2.saveAndFinish(filePrefix + "s.txt")) {
-		if(showGUIs)	progress.notifyMessage("Did not save file " + (filePrefix + "s.txt because empty"), ProgressDialog.NOTIFICATION);
+		progress.notifyMessage("Did not save file " + (filePrefix + "s.txt because empty"), ProgressReporter.NOTIFICATION);
 	}
 	
 	//save profile text file
 	saveSkeletonPoints(cilia, dir, name, filePrefix + "l.txt", currentDate);
 	
 	//save RP image
-	if(showGUIs) {
-		progress.updateBarText("saving images...");
-		progress.setBar(0.85);
-	}		
-	
+	progress.updateBarText("saving images...");
+	progress.setBar(0.85);
+		
 	IJ.saveAsTiff(imp, filePrefix + "_RP"); 
 
 	//save 3D images
@@ -3921,9 +3540,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			if(!cilia.get(i).ciliumAvailable) {
 				continue;
 			}
-			if(showGUIs) {
-				progress.updateBarText("Producing 3D images of individual cilia (" + i + "/" + cilia.size() + " done)");
-			}
+			progress.updateBarText("Producing 3D images of individual cilia (" + i + "/" + cilia.size() + " done)");
 			impTemp = cilia.get(i).getCiliumImp(intensityThresholds, channelC2, channelC3);
 			saveImageAs3D(subfolderPrefix + "_C" + (i+1) + "",impTemp, false, true, false);
 			impTemp.changes = false;
@@ -3931,17 +3548,13 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		}
 	}		
 	{		
-		if(showGUIs) {
-			progress.updateBarText("Producing Overview Images");
-		}
+		progress.updateBarText("Producing Overview Images");
 		if(skeletonize){
 			saveSkeletonOverviewImageNonTimeLapse(filePrefix + "_SKL", imp, cilia,
 					name, dir, currentDate, startDate);
 		}
 		if(saveOverview3DImages){
-			if(showGUIs) {
-				progress.updateBarText("Producing Overview 3D Image");	
-			}
+			progress.updateBarText("Producing Overview 3D Image");	
 			saveImageAs3D(filePrefix + "_RP", reduceToMaskChannel(imp, channelReconstruction), false, true, false);
 		}		
 	}	
@@ -3950,9 +3563,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		imp.changes = false;
 		imp.close();
 	}
-	if(showGUIs) {
-		progress.setBar(0.95);
-	}
+	progress.setBar(0.95);
 }
 
 /**
@@ -3977,20 +3588,15 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		//Retrieving ciliary objects from the image
 		ArrayList<ArrayList<CellPoint>> ciliaParticles = getCiliaObjectsTimelapse(imp, channelReconstruction, increaseRangeCilia, true);	//Method changed on 23.04.2019
 		if(ciliaParticles.size() == 0) {
-			if(showGUIs) {
-				progress.notifyMessage("No cilia found in image " + name 
-						+ " (Dir: " + dir + ") - skipped analysis", ProgressDialog.NOTIFICATION);
-				return;
-			}else {
-				System.out.println("No cilia found in image " + name + " (Dir: " + dir + ") - skipped analysis");
-				return;
-			}
+			progress.notifyMessage("No cilia found in image " + name 
+					+ " (Dir: " + dir + ") - skipped analysis", ProgressReporter.NOTIFICATION);
+			return;
 		}
 		
-		if(showGUIs)	progress.updateBarText("Cilia reconstruction completed.");
+		progress.updateBarText("Cilia reconstruction completed.");
 				
 		//Determine intensity thresholds for each other channel
-		if(showGUIs)	progress.updateBarText("Determining intensity thresholds...");
+		progress.updateBarText("Determining intensity thresholds...");
 		intensityThresholds = getIntensityThresholds(imp, ciliaParticles);
 				
 		boolean touchesXY, touchesZ;
@@ -3999,17 +3605,12 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		//Create timelapse cilia objects
 		timelapseCilia.ensureCapacity(ciliaParticles.size());
 		for(int i = 0; i < ciliaParticles.size(); i++){
-			if(showGUIs)	progress.updateBarText("Quantifying cilia (" + i + "/" + ciliaParticles.size() + " done)");
+			progress.updateBarText("Quantifying cilia (" + i + "/" + ciliaParticles.size() + " done)");
 			timelapseCilia.add(new TimelapseCilium(ciliaParticles.get(i), imp, measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC, 
-					channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, segmentedBB, showGUIs));
+					channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, segmentedBB));
 			if(timelapseCilia.size()!=i+1) {
-				if(showGUIs) {
-					progress.notifyMessage("Error while measuring cilium " + (i+1)
-							+ " for file " + name + " (Dir: " + dir + ").", ProgressDialog.NOTIFICATION);
-				}else {
-					System.out.println("Error while measuring cilium " + (i+1)
-							+ " for file " + name + " (Dir: " + dir + ").");
-				}
+				progress.notifyMessage("Error while measuring cilium " + (i+1)
+						+ " for file " + name + " (Dir: " + dir + ").", ProgressReporter.NOTIFICATION);
 				return;
 			}
 		}
@@ -4025,21 +3626,12 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			}
 			
 			if(totalNrOfBBs == 0) {
-				if(showGUIs) {
-					progress.notifyMessage("No BBs found in image - no BBs added. File " + name 
-							+ " (Dir: " + dir + ") - skipped analysis", ProgressDialog.NOTIFICATION);
-				}else {
-					System.out.println("No BBs found in image - no BBs added. File " + name + " (Dir: " + dir + ") - skipped analysis");
-				}
+				progress.notifyMessage("No BBs found in image - no BBs added. File " + name 
+						+ " (Dir: " + dir + ") - skipped analysis", ProgressReporter.NOTIFICATION);
 				if (bbCiliaFilterSelection.equals(bbCiliaFilterOptions[2]) || bbCiliaFilterSelection.equals(bbCiliaFilterOptions[3])) { //  "cilia without BBs" or "cilia without BBs and BBs without cilia"
 					// Exclude Cilia without BBs. If no BBs detected, need to cancel whole image.
-					if(showGUIs) {
-						progress.notifyMessage("Since no BBs found and cilia without BBs excluded, no cilia remaining in file " + name 
-								+ " (Dir: " + dir + ") - skipped analysis", ProgressDialog.NOTIFICATION);
-					}else {
-						System.out.println("Since no BBs found and cilia without BBs excluded, no cilia remaining in file " + name 
-								+ " (Dir: " + dir + ") - skipped analysis");
-					}
+					progress.notifyMessage("Since no BBs found and cilia without BBs excluded, no cilia remaining in file " + name 
+							+ " (Dir: " + dir + ") - skipped analysis", ProgressReporter.NOTIFICATION);
 					return;
 				}
 			}else {
@@ -4067,10 +3659,8 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 					double matrixDistSquared [][] = new double [cilia.size()][bbParticles.get(t).size()];
 					Cilium theCilium;
 
-					if(showGUIs) {
-						progress.updateBarText("assigning basal bodies to cilia (t "
-								+ t + ")... compute distances");
-					}
+					progress.updateBarText("assigning basal bodies to cilia (t "
+							+ t + ")... compute distances");
 					
 					for(int bb = 0; bb < bbParticles.get(t).size(); bb++){
 						for(int cil = 0; cil < cilia.size(); cil++){
@@ -4112,9 +3702,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 					}
 					
 					//Applying HungarianAlgorithm = linear_sum_assignment in python to get best solution
-					if(showGUIs) {
-						progress.updateBarText("assigning basal bodies to cilia... assigning by minimizing linear sum");
-					}
+					progress.updateBarText("assigning basal bodies to cilia... assigning by minimizing linear sum");
 					int [] bbForCilium = new HungarianAlgorithm(matrixDistSquared).execute();
 					
 					//Now assign BBs to cilia
@@ -4122,13 +3710,10 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 					boolean bbUsed [] = new boolean [bbParticles.get(t).size()];
 					Arrays.fill(bbUsed,false);
 					for(int cil = 0; cil < cilia.size(); cil++){
-						if(showGUIs) {
-							progress.updateBarText("assigning basal bodies to cilia... adding basal body to cilium " + (cil+1) + " of " + cilia.size() + "!");
-						}
+						progress.updateBarText("assigning basal bodies to cilia... adding basal body to cilium " + (cil+1) + " of " + cilia.size() + "!");
 						if(bbForCilium[cil] > -1 && matrixDist[cil][bbForCilium[cil]] <= maxDistanceBBCiliumEnd) {
 							cilia.get(cil).addBasalBody(bbParticles.get(t).get(bbForCilium[cil]), imp, measureC2local, channelC2, measureC3local, channelC3,
-									channelReconstruction, progress, showGUIs);
-							//TODO check whether this works or we need to edit the object in the timelapse cilium
+									channelReconstruction, progress);
 							bbUsed[bbForCilium[cil]] = true;
 						}else {
 							nrOfCiliaWithoutBBs ++;
@@ -4136,13 +3721,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 					}
 
 					int nrOfBBsWithoutCilia = (bbParticles.get(t).size()-cilia.size()-nrOfCiliaWithoutBBs);			
-					
-					{// Delete in brackets if works TODO
-						IJ.log("FINAL STATS OF ASSIGNMENTS: " + nrOfCiliaWithoutBBs + " cilia without BB, " 
-								+ (cilia.size()-nrOfCiliaWithoutBBs) + " cilia with BBs, "
-								+ nrOfBBsWithoutCilia + " unassigned BBs.");
-					}
-					
+										
 					// Exclusion or inclusion of BBs without cilia / BBs with cilia
 					// "nothing based on BB-cilia-linking", "BBs without cilia", "cilia without BBs", "cilia without BBs and BBs without cilia"
 					{
@@ -4163,10 +3742,10 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 									continue;
 								}
 								// ADD the BB without cilium into a cilium and then timelapsecilium object
-								// (May require later linkage)
+								// (TODO May require later linkage)
 								timelapseCilia.add(new TimelapseCilium(new Cilium(bbParticles.get(t).get(bb), imp, measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC, 
-										channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, showGUIs),
-										imp, progress, showGUIs));
+										channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize),
+										imp, progress));
 							}
 						}
 						
@@ -4185,9 +3764,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				}
 			}
 		}
-		
-		// TODO: Evtl track based on BBs or add improved tracking based on linear assignment
-		
+				
 		// Compute timelapse parameters
 		for(int i = 0; i < timelapseCilia.size(); i++){
 			timelapseCilia.get(i).computeBBParameters();
@@ -4228,7 +3805,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			
 			//Exclude cilia if selected
 			if(!timelapseCilia.get(i).excluded && !tempExcludeSelection.equals(excludeOptions[0])){
-				if(showGUIs)	progress.updateBarText("Quantifying cilia (" + i + "/" + timelapseCilia.size() + " done): checking xyz borders...");
+				progress.updateBarText("Quantifying cilia (" + i + "/" + timelapseCilia.size() + " done): checking xyz borders...");
 				touchesXY = false; touchesZ = false;
 				Arrays.fill(sliceCounter, 0);
 				for(int k = 0; k < timelapseCilia.get(i).cilia.size(); k++){
@@ -4269,7 +3846,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				
 				if(timelapseCilia.get(i).excluded)	excludedCilia++;
 				
-				if(showGUIs)	progress.updateBarText("filter cilia... (" + (i+1) + "/" + timelapseCilia.size() + ")");
+				progress.updateBarText("filter cilia... (" + (i+1) + "/" + timelapseCilia.size() + ")");
 			}
 			
 			//write ID into image
@@ -4283,29 +3860,23 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			}
 			imp.getOverlay().add(txtID);
 								
-			if(showGUIs) {
-				progress.addToBar(0.2/timelapseCilia.size());
-				progress.updateBarText("reconstructing cilia... (" + (i+1) + "/" + timelapseCilia.size() + ")");
-			}
+			progress.addToBar(0.2/timelapseCilia.size());
+			progress.updateBarText("reconstructing cilia... (" + (i+1) + "/" + timelapseCilia.size() + ")");
 		}
 		
 		ciliaParticles.clear();
 		ciliaParticles.trimToSize();
 	}else {
-		// NEW: linear-assignment branch
+		// NEW in v0.2.2: linear-assignment branch
 		timelapseCilia = trackCiliaLinearAssignment(imp, measureC2local, measureC3local,
 				measureBasalLocal, intensityThresholds, dir, name);
 		if(timelapseCilia.size() == 0){
-			if(showGUIs) {
-				progress.notifyMessage("No cilia found in image " + name + " (Dir: " + dir + ") - skipped analysis", ProgressDialog.NOTIFICATION);
-			}else {
-				System.out.println("No cilia found in image " + name + " (Dir: " + dir + ") - skipped analysis");
-			}
+			progress.notifyMessage("No cilia found in image " + name + " (Dir: " + dir + ") - skipped analysis", ProgressReporter.NOTIFICATION);
 			return;
 		}
 		
 	}
-	if(showGUIs)	progress.updateBarText("" + timelapseCilia.size() + " cilia reconstructed!");
+	progress.updateBarText("" + timelapseCilia.size() + " cilia reconstructed!");
 	
 //	for saving profiles
 	double maximumArcLength = 0.0;
@@ -4331,11 +3902,9 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	
 	Date currentDate = new Date();
 		
-	if(showGUIs) {
-		progress.updateBarText("saving results...");
-		progress.setBar(0.9);
-	}
-
+	progress.updateBarText("saving results...");
+	progress.setBar(0.9);
+	
 	//Output images
 			
 	//Save Textfile--------------------------------------	
@@ -4357,7 +3926,8 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	appendTxt += "	" + "surface (time-averaged) ["+calibrationDimension+"^2]";
 	appendTxt += "	" + "shape complexity index (time-averaged)";
 	appendTxt += "	" + "sphere radius (time-averaged) ["+calibrationDimension+"]";
-	appendTxt += "	"; // + "Maximum span (time-averaged) ["+calibrationDimension+"]";	//TODO - to be implemented
+	appendTxt += "	" + "Maximum span (time-averaged) ["+calibrationDimension+"]";		// Implemented in V0.2.2
+	
 	
 	appendTxt += "	"; if(measureC2local){appendTxt += "A: Colocalized volume (time-averaged) [" + calibrationDimension + "^3] (if channel in input image was background-removed)";}
 	appendTxt += "	"; if(measureC2local){appendTxt += "A: Colocalized volume (time-averaged) [% total volume] (if channel in input image was background-removed)";}
@@ -4414,7 +3984,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	tw1.append(""+appendTxt);
 				
 	for(int i = 0; i < timelapseCilia.size(); i++){
-		if(showGUIs)	progress.updateBarText("Saving individual cilia averages (" + i + "/" + timelapseCilia.size() + " done)");
+		progress.updateBarText("Saving individual cilia averages (" + i + "/" + timelapseCilia.size() + " done)");
 		if(timelapseCilia.get(i).excluded){
 			continue;
 		}
@@ -4430,7 +4000,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		appendTxt += "	"; if(timelapseCilia.get(i).ciliumAvailable) appendTxt += dformat6.format(timelapseCilia.get(i).surfaceAvg);
 		appendTxt += "	"; if(timelapseCilia.get(i).ciliumAvailable) appendTxt += dformat6.format(timelapseCilia.get(i).shapeComplexityAvg);
 		appendTxt += "	"; if(timelapseCilia.get(i).ciliumAvailable) appendTxt += dformat6.format(timelapseCilia.get(i).sphereRadiusAvg);
-		appendTxt += "	"; //if(timelapseCilia.get(i).ciliumAvailable) appendTxt += dformat6.format(timelapseCilia.get(i).maximumSpanAvg);	//maximum span TODO - to be implemented
+		appendTxt += "	"; if(timelapseCilia.get(i).ciliumAvailable) appendTxt += dformat6.format(timelapseCilia.get(i).maximumSpanAvg);	// Implemented in V0.2.2
 		appendTxt += "	"; if(measureC2local && timelapseCilia.get(i).ciliumAvailable){appendTxt += dformat6.format(timelapseCilia.get(i).colocalizedVolumeC2Avg);}
 		appendTxt += "	"; if(measureC2local && timelapseCilia.get(i).ciliumAvailable){appendTxt += dformat6.format(100.0*timelapseCilia.get(i).colocalizedFractionC2Avg);}
 		appendTxt += "	"; if(measureC3local && timelapseCilia.get(i).ciliumAvailable){appendTxt += dformat6.format(timelapseCilia.get(i).colocalizedVolumeC3Avg);}
@@ -4444,19 +4014,19 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		appendTxt += "	"; if(timelapseCilia.get(i).ciliumAvailable) appendTxt += dformat6.format(timelapseCilia.get(i).maxCiliumIntensityAvg);
 		appendTxt += "	"; if(timelapseCilia.get(i).ciliumAvailable) appendTxt += dformat6.format(timelapseCilia.get(i).maxTenPercentCiliumIntensityAvg);
 		appendTxt += "	"; if(timelapseCilia.get(i).ciliumAvailable) appendTxt += dformat6.format(timelapseCilia.get(i).averageCiliumIntensityAvg);
-		appendTxt += "	"; if(timelapseCilia.get(i).ciliumAvailable) appendTxt += dformat6.format(timelapseCilia.get(i).SDCiliumIntensityAvg);
+		appendTxt += "	"; if(timelapseCilia.get(i).ciliumAvailable) appendTxt += fmt6(timelapseCilia.get(i).SDCiliumIntensityAvg);
 		
 		appendTxt += "	"; if(measureC2local && timelapseCilia.get(i).ciliumAvailable){appendTxt += dformat6.format(timelapseCilia.get(i).minC2IntensityAvg);}
 		appendTxt += "	"; if(measureC2local && timelapseCilia.get(i).ciliumAvailable){appendTxt += dformat6.format(timelapseCilia.get(i).maxC2IntensityAvg);}
 		appendTxt += "	"; if(measureC2local && timelapseCilia.get(i).ciliumAvailable){appendTxt += dformat6.format(timelapseCilia.get(i).maxTenPercentC2IntensityAvg);}
 		appendTxt += "	"; if(measureC2local && timelapseCilia.get(i).ciliumAvailable){appendTxt += dformat6.format(timelapseCilia.get(i).averageC2IntensityAvg);}
-		appendTxt += "	"; if(measureC2local && timelapseCilia.get(i).ciliumAvailable){appendTxt += dformat6.format(timelapseCilia.get(i).SDC2IntensityAvg);}
+		appendTxt += "	"; if(measureC2local && timelapseCilia.get(i).ciliumAvailable){appendTxt += fmt6(timelapseCilia.get(i).SDC2IntensityAvg);}
 		
 		appendTxt += "	"; if(measureC3local && timelapseCilia.get(i).ciliumAvailable){appendTxt += dformat6.format(timelapseCilia.get(i).minC3IntensityAvg);}
 		appendTxt += "	"; if(measureC3local && timelapseCilia.get(i).ciliumAvailable){appendTxt += dformat6.format(timelapseCilia.get(i).maxC3IntensityAvg);}
 		appendTxt += "	"; if(measureC3local && timelapseCilia.get(i).ciliumAvailable){appendTxt += dformat6.format(timelapseCilia.get(i).maxTenPercentC3IntensityAvg);}
 		appendTxt += "	"; if(measureC3local && timelapseCilia.get(i).ciliumAvailable){appendTxt += dformat6.format(timelapseCilia.get(i).averageC3IntensityAvg);}
-		appendTxt += "	"; if(measureC3local && timelapseCilia.get(i).ciliumAvailable){appendTxt += dformat6.format(timelapseCilia.get(i).SDC3IntensityAvg);}
+		appendTxt += "	"; if(measureC3local && timelapseCilia.get(i).ciliumAvailable){appendTxt += fmt6(timelapseCilia.get(i).SDC3IntensityAvg);}
 		
 		appendTxt += "	"; if(skeletonize) appendTxt += dformat6.format(timelapseCilia.get(i).foundSklAvg);
 		appendTxt += "	"; if(timelapseCilia.get(i).sklAvailableInAllFrames){appendTxt += "yes";}else if(skeletonize){appendTxt += "no";}
@@ -4466,7 +4036,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		appendTxt += "	"; if(timelapseCilia.get(i).sklAvailableInAllFrames){appendTxt += dformat6.format(timelapseCilia.get(i).orientationVectorAvg[0]);}
 		appendTxt += "	"; if(timelapseCilia.get(i).sklAvailableInAllFrames){appendTxt += dformat6.format(timelapseCilia.get(i).orientationVectorAvg[1]);}
 		appendTxt += "	"; if(timelapseCilia.get(i).sklAvailableInAllFrames){appendTxt += dformat6.format(timelapseCilia.get(i).orientationVectorAvg[2]);}
-		appendTxt += "	"; if(timelapseCilia.get(i).sklAvailableInAllFrames){appendTxt += dformat6.format(timelapseCilia.get(i).bendingIndexAvg);}
+		appendTxt += "	"; if(timelapseCilia.get(i).sklAvailableInAllFrames){appendTxt += fmt6(timelapseCilia.get(i).bendingIndexAvg);}
 		
 		appendTxt += "	"; if(measureC2local){appendTxt += dformat6.format(intensityThresholds[channelC2-1]);}
 		appendTxt += "	"; if(measureC3local){appendTxt += dformat6.format(intensityThresholds[channelC3-1]);}
@@ -4490,7 +4060,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		appendTxt += getOneRowFooter(currentDate);
 		tw2.append(""+appendTxt);
 		
-		if(showGUIs)	progress.updateBarText("Saving individual cilium kinetics (" + i + "/" + timelapseCilia.size() + " done)");
+		progress.updateBarText("Saving individual cilium kinetics (" + i + "/" + timelapseCilia.size() + " done)");
 		saveIndividualCiliumKinetics(timelapseCilia.get(i), ""+(i+1), imp, 
 				measureC2local, measureC3local, measureBasalLocal, 
 				nrOfProfileCols, name, dir, currentDate, startDate,
@@ -4500,20 +4070,12 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	
 	addFooter(tw1, currentDate);				
 	if(!tw1.saveAndFinish(filePrefix + ".txt")) {
-		if(showGUIs) {
-			progress.notifyMessage("IO ERROR when saving file " + filePrefix + ".txt", ProgressDialog.ERROR);
-		}else {
-			System.out.println("IO ERROR when saving file " + filePrefix + ".txt");
-		}
+		progress.notifyMessage("IO ERROR when saving file " + filePrefix + ".txt", ProgressReporter.ERROR);
 	}
 	
 	//save one row results file
 	if(!tw2.saveAndFinish(filePrefix + "s.txt")) {
-		if(showGUIs) {
-			progress.notifyMessage("IO ERROR when saving file " + (filePrefix + "s.txt"), ProgressDialog.ERROR);
-		}else {
-			System.out.println("IO ERROR when saving file " + (filePrefix + "s.txt"));
-		}
+		progress.notifyMessage("IO ERROR when saving file " + (filePrefix + "s.txt"), ProgressReporter.ERROR);
 	}
 	//Save Textfile--------------------------------------
 	
@@ -4527,7 +4089,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		ImagePlus impC;
 		//save cilium-specific images
 		for(int i = 0; i < timelapseCilia.size(); i++){
-			if(showGUIs)	progress.updateBarText("Saving cilium-specific images (" + i + "/" + timelapseCilia.size() + " done)");
+			progress.updateBarText("Saving cilium-specific images (" + i + "/" + timelapseCilia.size() + " done)");
 			if(timelapseCilia.get(i).excluded) continue;
 			
 			//save channel information
@@ -4546,11 +4108,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			
 			addFooter(tp, currentDate);			
 			if(!tp.saveAndFinish(subfolderPrefix + "_C" + dformat0.format(i+1) + "_img.txt")) {
-				if(showGUIs) {
-					progress.notifyMessage("IO ERROR when saving file " + (subfolderPrefix + "_C" + dformat0.format(i+1) + "_img.txt"), ProgressDialog.ERROR);
-				}else {
-					System.out.println("IO ERROR when saving file " + (subfolderPrefix + "_C" + dformat0.format(i+1) + "_img.txt"));
-				}
+				progress.notifyMessage("IO ERROR when saving file " + (subfolderPrefix + "_C" + dformat0.format(i+1) + "_img.txt"), ProgressReporter.ERROR);
 			}
 			
 			
@@ -4563,18 +4121,18 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	
 	//save 3D images
 	{		
-		if(showGUIs)	progress.updateBarText("Producing Overview Skeleton Image");
+		progress.updateBarText("Producing Overview Skeleton Image");
 		saveSkeletonOverviewImagesTimelapse(filePrefix + "_SKL", imp, timelapseCilia,
 				name, dir, currentDate, startDate);
 		if(this.saveOverview3DImages){			
-			if(showGUIs)	progress.updateBarText("Producing Overview 3D Image");		
+			progress.updateBarText("Producing Overview 3D Image");		
 			saveImageAs3D(filePrefix + "_RP", reduceToMaskChannel(imp, channelReconstruction), false, true, false);
 		}		
 	}
 	
 	if(saveSingleCilia3DImages){
 		for(int i = 0; i < timelapseCilia.size(); i++){
-			if(showGUIs)	progress.updateBarText("Producing 3D images of individual cilia (" + i + "/" + timelapseCilia.size() + " done)");
+			progress.updateBarText("Producing 3D images of individual cilia (" + i + "/" + timelapseCilia.size() + " done)");
 			saveImageAs3D(subfolderPrefix + "_C" + (i+1), timelapseCilia.get(i).getCiliumImp(intensityThresholds, channelC2, channelC3, progress),
 					false, true, false);
 		}
@@ -4583,7 +4141,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		imp.changes = false;
 		imp.close();
 	}
-	if(showGUIs)	progress.setBar(0.95);
+	progress.setBar(0.95);
 }
 
 public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID, ImagePlus imp,
@@ -4612,7 +4170,7 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 	appendTxt += "	" + "surface ["+calibrationDimension+"^2]";
 	appendTxt += "	" + "shape complexity index";
 	appendTxt += "	" + "sphere radius ["+calibrationDimension+"]";
-	appendTxt += "	"; //+ "Maximum span ["+calibrationDimension+"]";	//TODO - method to be implemented
+	appendTxt += "	" + "Maximum span ["+calibrationDimension+"]";		// Implemented in V0.2.2
 	
 	appendTxt += "	"; if(measureC2local){appendTxt += "A: Colocalized volume [" + calibrationDimension + "^3] (if channel in input image was background-removed)";}
 	appendTxt += "	"; if(measureC2local){appendTxt += "A: Colocalized volume [% total volume] (if channel in input image was background-removed)";}
@@ -4704,28 +4262,28 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 				
 	int time = 0;
 	double [] iProfileC2, iProfileC3, coloc;
-	scanningTimePoints: for(int i = 0; i < cilium.cilia.size(); i++){			
-		while(true){
-			if (cilium.cilia.get(i).t!=time){
-				if(showGUIs)	progress.updateBarText("Skip frame for cilium " + ciliumID + ": " + time + " of " + cilium.cilia.size());
-				appendTxt = "		" + ciliumID + "	" + dformat0.format(time);
-				tw1.append(""+appendTxt);
+	for(int i = 0; i < cilium.cilia.size(); i++){			
+		while(cilium.cilia.get(i).t > time){
+			progress.updateBarText("Skip frame for cilium " + ciliumID + ": " + time + " of " + cilium.cilia.size());
+			appendTxt = "		" + ciliumID + "	" + dformat0.format(time);
+			tw1.append(""+appendTxt);
+			
+			appendTxt = name + appendTxt;
+			appendTxt += getOneRowFooter(currentDate);
+			tw2.append(""+appendTxt);
 				
-				appendTxt = name + appendTxt;
-				appendTxt += getOneRowFooter(currentDate);
-				tw2.append(""+appendTxt);
-				
-				time++;
-			}else if(time>cilium.cilia.get(cilium.cilia.size()-1).t){
-				break scanningTimePoints;
-			}else{
-				break;
-			}
+			time++;
+		}
+		if(cilium.cilia.get(i).t < time){		// NEW in V0.2.2: never pad backwards
+			progress.notifyMessage("Cilium " + ciliumID + ": frame " + cilium.cilia.get(i).t
+					+ " arrived after frame " + (time-1) + " - track not in frame order",
+					ProgressReporter.NOTIFICATION);
+			time = cilium.cilia.get(i).t;
 		}
 		time++;
 		
 		if(cilium.cilia.get(i).excluded){
-			if(showGUIs)	progress.updateBarText("Skip frame for cilium " + ciliumID + " because excluded: " + time);
+			progress.updateBarText("Skip frame for cilium " + ciliumID + " because excluded: " + time);
 			appendTxt = "		" + ciliumID + "	" + dformat0.format(cilium.cilia.get(i).t);
 			tw1.append(""+appendTxt);
 			
@@ -4747,7 +4305,7 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).surface);
 		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).shapeComplexity);
 		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).sphereRadius);
-		appendTxt += "	"; // if(cilium.cilia.get(i).ciliumAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).maximumSpan);	//maximum span TODO - method to be implemented
+		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).maximumSpan);		// Implemented in V0.2.2
 
 		appendTxt += "	"; if(measureC2local && cilium.cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).colocalizedVolumeC2);}
 		appendTxt += "	"; if(measureC2local && cilium.cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(100.0*cilium.cilia.get(i).colocalizedFractionC2);}
@@ -4762,19 +4320,19 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).maxCiliumIntensity);
 		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).maxTenPercentCiliumIntensity);
 		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).averageCiliumIntensity);
-		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).SDCiliumIntensity);
+		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable) appendTxt += fmt6(cilium.cilia.get(i).SDCiliumIntensity);
 		
 		appendTxt += "	"; if(measureC2local && cilium.cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).minC2Intensity);}
 		appendTxt += "	"; if(measureC2local && cilium.cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).maxC2Intensity);}
 		appendTxt += "	"; if(measureC2local && cilium.cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).maxTenPercentC2Intensity);}
 		appendTxt += "	"; if(measureC2local && cilium.cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).averageC2Intensity);}
-		appendTxt += "	"; if(measureC2local && cilium.cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).SDC2Intensity);}
+		appendTxt += "	"; if(measureC2local && cilium.cilia.get(i).ciliumAvailable){appendTxt += fmt6(cilium.cilia.get(i).SDC2Intensity);}
 		
 		appendTxt += "	"; if(measureC3local && cilium.cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).minC3Intensity);}
 		appendTxt += "	"; if(measureC3local && cilium.cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).maxC3Intensity);}
 		appendTxt += "	"; if(measureC3local && cilium.cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).maxTenPercentC3Intensity);}
 		appendTxt += "	"; if(measureC3local && cilium.cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).averageC3Intensity);}
-		appendTxt += "	"; if(measureC3local && cilium.cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).SDC3Intensity);}
+		appendTxt += "	"; if(measureC3local && cilium.cilia.get(i).ciliumAvailable){appendTxt += fmt6(cilium.cilia.get(i).SDC3Intensity);}
 		
 		appendTxt += "	"; if(skeletonize && cilium.cilia.get(i).ciliumAvailable) appendTxt += dformat0.format(cilium.cilia.get(i).foundSkl);
 		appendTxt += "	"; if(cilium.cilia.get(i).sklAvailable){appendTxt += "yes";}else if(skeletonize){appendTxt += "no";}
@@ -4784,7 +4342,7 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 		appendTxt += "	"; if(cilium.cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).orientationVector[0]);}
 		appendTxt += "	"; if(cilium.cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).orientationVector[1]);}
 		appendTxt += "	"; if(cilium.cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).orientationVector[2]);}
-		appendTxt += "	"; if(cilium.cilia.get(i).sklAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).bendingIndex);}
+		appendTxt += "	"; if(cilium.cilia.get(i).sklAvailable){appendTxt += fmt6(cilium.cilia.get(i).bendingIndex);}
 		
 		appendTxt += "	"; if(measureC2local && cilium.cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(intensityThresholds[channelC2-1]);}
 		appendTxt += "	"; if(measureC3local && cilium.cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(intensityThresholds[channelC3-1]);}
@@ -4792,7 +4350,7 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 		
 		//profiles
 		if(skeletonize){
-			if(showGUIs)	progress.updateBarText("Determine intensity profiles for cilium " + ciliumID + " - time " + time);
+			progress.updateBarText("Determine intensity profiles for cilium " + ciliumID + " - time " + time);
 			if(measureC2local){
 				iProfileC2 = cilium.cilia.get(i).getIntensityProfile(2, calibration, false);
 				appendTxt += "	";
@@ -4902,25 +4460,17 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 		tw2.append(""+appendTxt);			
 	}	
 	
-	if(showGUIs)	progress.updateBarText("Save text file cilium " + ciliumID);	
+	progress.updateBarText("Save text file cilium " + ciliumID);	
 	
 	addFooter(tw1, currentDate);				
 	
 	if(!tw1.saveAndFinish(subfolderPrefix + ".txt")) {
-		if(showGUIs) {
-			progress.notifyMessage("IO ERROR when saving file " + subfolderPrefix + ".txt", ProgressDialog.ERROR);
-		}else {
-			System.out.println("IO ERROR when saving file " + subfolderPrefix + ".txt");
-		}
+		progress.notifyMessage("IO ERROR when saving file " + subfolderPrefix + ".txt", ProgressReporter.ERROR);		
 	}
 	
 	//save one row results file
 	if(!tw2.saveAndFinish(subfolderPrefix + "s.txt")) {
-		if(showGUIs) {
-			progress.notifyMessage("IO ERROR when saving file " + subfolderPrefix + "s.txt", ProgressDialog.ERROR);
-		}else {
-			System.out.println("IO ERROR when saving file " + subfolderPrefix + "s.txt");
-		}
+		progress.notifyMessage("IO ERROR when saving file " + subfolderPrefix + "s.txt", ProgressReporter.ERROR);
 	}
 }
 
@@ -4938,7 +4488,7 @@ private void saveSkeletonOverviewImagesTimelapse(String savePath, ImagePlus imp,
 	double points [][];
 	int sklBaseX, sklBaseY, sklBaseZ;
 	for(int i = 0; i < cilia.size(); i++){
-		if(showGUIs)	progress.updateBarText("Producing timelapse skeleton overview image (" + (i+1) + "/" + cilia.size() + ")");
+		progress.updateBarText("Producing timelapse skeleton overview image (" + (i+1) + "/" + cilia.size() + ")");
 		for(int j = 0; j < cilia.get(i).cilia.size(); j++){
 			if(!cilia.get(i).cilia.get(j).sklAvailable) continue;
 			points = cilia.get(i).cilia.get(j).getSkeletonPointsForOriginalImage();
@@ -5013,11 +4563,7 @@ private void saveSkeletonOverviewImagesTimelapse(String savePath, ImagePlus imp,
 	
 	addFooter(tp, currentDate);
 	if(!tp.saveAndFinish(savePath + "_info.txt")) {
-		if(showGUIs) {
-			progress.notifyMessage("IO ERROR when saving file " + savePath + "_info.txt", ProgressDialog.ERROR);
-		}else {
-			System.out.println("IO ERROR when saving file " + savePath + "_info.txt");
-		}
+		progress.notifyMessage("IO ERROR when saving file " + savePath + "_info.txt", ProgressReporter.ERROR);
 	}
 	
 	// make 3D visualization
@@ -5025,7 +4571,7 @@ private void saveSkeletonOverviewImagesTimelapse(String savePath, ImagePlus imp,
 		ImagePlus impCal, imp3D;
 		Visualizer3D v3D;	
 		try {
-			if(showGUIs)	progress.updateBarText("Producing 3D TL skeleton overview image...launch 3Dvis");
+			progress.updateBarText("Producing 3D TL skeleton overview image...launch 3Dvis");
 			v3D = new Visualizer3D(imp, 3.0f);
 			v3D.setAngle(10.0f, -10.0f, 0.0f);
 			v3D.setImage(getTimePointFor3D(impOut, 1));
@@ -5039,13 +4585,13 @@ private void saveSkeletonOverviewImagesTimelapse(String savePath, ImagePlus imp,
 			TextRoi txtR;
 			Color txtc;
 			for(int i = 0; i < impOut.getNFrames(); i++){
-				if(showGUIs)	progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ")");
+				progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ")");
 				impCal = getTimePointFor3D(impOut, i+1);
-				if(showGUIs)	progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ") ... add scale bar");
+				progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ") ... add scale bar");
 				double calBarLength = this.addContainedScalerBarAndGetBarValue(impCal);
-				if(showGUIs)	progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ") ... convert to RGB");
+				progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ") ... convert to RGB");
 				convertToRGB(impCal);			
-				if(showGUIs)	progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ") ... write IDs");
+				progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ") ... write IDs");
 				if(impOut.getOverlay()!=null){
 					impCal.setSlice(1);
 					for(int j = 0; j < impOut.getOverlay().size(); j++){
@@ -5058,19 +4604,15 @@ private void saveSkeletonOverviewImagesTimelapse(String savePath, ImagePlus imp,
 						impCal.getProcessor().drawRoi(txtR);
 						txtR.setStrokeColor(txtc);											
 	//					progress.notifyMessage("Producing 3D NTL skeleton overview image...write ID " 
-	//							+ j + "/" + impOut.getOverlay().size() + "", ProgressDialog.LOG);
+	//							+ j + "/" + impOut.getOverlay().size() + "", ProgressReporter.LOG);
 					}
 				}else{
-					if(showGUIs) {
-						progress.notifyMessage("no overlay in TL skeleton overview", ProgressDialog.LOG);
-					}else {
-						System.out.println("no overlay in TL skeleton overview");
-					}
+					progress.notifyMessage("no overlay in TL skeleton overview", ProgressReporter.LOG);
 				}
 				
 	//			if(impCal == null) impCal = particleImp.duplicate();
 				
-				if(showGUIs)	progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ") ... create 3D vis");
+				progress.updateBarText("Producing timelapse skeleton overview 3D image (" + (i+1) + "/" + impOut.getNFrames() + ") ... create 3D vis");
 				v3D.setImage(impCal);
 				imp3D = v3D.get3DVisualization(false);
 				
@@ -5089,7 +4631,7 @@ private void saveSkeletonOverviewImagesTimelapse(String savePath, ImagePlus imp,
 				imp3D.close();
 			}
 			
-			if(showGUIs)	progress.updateBarText("Saving timelapse skeleton overview 3D image...");		
+			progress.updateBarText("Saving timelapse skeleton overview 3D image...");		
 			imp3D = IJ.createImage("3D", width, height, impOut.getNFrames(), 24);
 			imp3D.setStack(stackOut);
 			IJ.saveAsTiff(imp3D, savePath + "_3D.tif"); 
@@ -5101,9 +4643,9 @@ private void saveSkeletonOverviewImagesTimelapse(String savePath, ImagePlus imp,
 			for(int err = 0; err < e.getStackTrace().length; err++){
 				out += " \n " + e.getStackTrace()[err].toString();
 			}			
-			if(showGUIs)	progress.notifyMessage("Image: " + savePath.substring(savePath.lastIndexOf(System.getProperty("file.separator"))) 
+			progress.notifyMessage("Image: " + savePath.substring(savePath.lastIndexOf(System.getProperty("file.separator"))) 
 				+ "_3D.tif: Producing timelapse skeleton overview 3D image failed - error message: \n"
-				+ "" + out,ProgressDialog.ERROR);
+				+ "" + out,ProgressReporter.ERROR);
 		}
 		v3D = null;
 		
@@ -5126,7 +4668,7 @@ private void saveSkeletonOverviewImageNonTimeLapse(String savePath, ImagePlus im
 	int sklBaseX, sklBaseY, sklBaseZ;
 	for(int j = 0; j < cilia.size(); j++){
 		if(!cilia.get(j).sklAvailable) continue;
-		if(showGUIs)	progress.updateBarText("Producing non-timelapse skeleton overview image (" + (j+1) + "/" + cilia.size() + ")");
+		progress.updateBarText("Producing non-timelapse skeleton overview image (" + (j+1) + "/" + cilia.size() + ")");
 		points = cilia.get(j).getSkeletonPointsForOriginalImageInPixel();
 		
 		/*
@@ -5183,7 +4725,7 @@ private void saveSkeletonOverviewImageNonTimeLapse(String savePath, ImagePlus im
 	/*
 	 * save channel information in a text file
 	 */
-	if(showGUIs)	progress.updateBarText("Writing metadata text file for non-timelapse skeleton overview image...");
+	progress.updateBarText("Writing metadata text file for non-timelapse skeleton overview image...");
 	OutputTextFile tp =new OutputTextFile ("");
 	tp.append("Channel information for skeleton results image - analysis of:	" + name);
 	tp.append("Saving date:	" + FullDateFormatter.format(currentDate)
@@ -5196,20 +4738,16 @@ private void saveSkeletonOverviewImageNonTimeLapse(String savePath, ImagePlus im
 	
 	addFooter(tp, currentDate);
 	if(!tp.saveAndFinish(savePath + "_info.txt")) {
-		if(showGUIs) {
-			progress.notifyMessage("IO ERROR when saving file " + savePath + "_info.txt", ProgressDialog.ERROR);
-		}else {
-			System.out.println("IO ERROR when saving file " + savePath + "_info.txt");
-		}
+		progress.notifyMessage("IO ERROR when saving file " + savePath + "_info.txt", ProgressReporter.ERROR);
 	}
 	
 	// make 3D visualization
 	if(saveOverview3DImages){
-		if(showGUIs)	progress.updateBarText("Producing 3D NTL skeleton overview image...make scale bar");
+		progress.updateBarText("Producing 3D NTL skeleton overview image...make scale bar");
 		double calBarLength = this.addContainedScalerBarAndGetBarValue(impOut);
-		if(showGUIs)	progress.updateBarText("Producing 3D NTL skeleton overview image...covert to RGB");
+		progress.updateBarText("Producing 3D NTL skeleton overview image...covert to RGB");
 		convertToRGB(impOut);
-		if(showGUIs)	progress.updateBarText("Producing 3D NTL skeleton overview image...write IDs");	
+		progress.updateBarText("Producing 3D NTL skeleton overview image...write IDs");	
 		
 		if(impOut.getOverlay()!=null){
 			TextRoi txtR;
@@ -5226,14 +4764,10 @@ private void saveSkeletonOverviewImageNonTimeLapse(String savePath, ImagePlus im
 				txtR.setStrokeColor(txtc);				
 				
 //				progress.notifyMessage("Producing 3D NTL skeleton overview image...write ID " 
-//						+ j + "/" + impOut.getOverlay().size() + "", ProgressDialog.LOG);
+//						+ j + "/" + impOut.getOverlay().size() + "", ProgressReporter.LOG);
 			}
 		}else{
-			if(showGUIs) {
-				progress.notifyMessage("no overlay in NTL skeleton overview", ProgressDialog.LOG);
-			}else {
-				System.out.println("no overlay in NTL skeleton overview");
-			}
+			progress.notifyMessage("no overlay in NTL skeleton overview", ProgressReporter.LOG);
 		}
 //		
 //		impOut.show();
@@ -5243,14 +4777,14 @@ private void saveSkeletonOverviewImageNonTimeLapse(String savePath, ImagePlus im
 		Visualizer3D v3D;
 		try {
 			ImagePlus imp3D;	
-			if(showGUIs)	progress.updateBarText("Producing 3D NTL skeleton overview image...launch 3Dvis");
+			progress.updateBarText("Producing 3D NTL skeleton overview image...launch 3Dvis");
 			v3D = new Visualizer3D(impOut, 3.0f);
 			v3D.setImage(impOut);
 			v3D.setAngle(10.0f, -10.0f, 0.0f);
 			v3D.setObjectLightValue(1.2f);
 			v3D.setLightPosX(-0.25f);
 			v3D.setAlphaOffset1(0);
-			if(showGUIs)	progress.updateBarText("Producing 3D NTL skeleton overview image...get 3Dvis");
+			progress.updateBarText("Producing 3D NTL skeleton overview image...get 3Dvis");
 			imp3D = v3D.get3DVisualization(false);
 			
 			writeBarText(imp3D, calBarLength, imp.getCalibration().getUnit(), false, 0.0, "");	
@@ -5259,7 +4793,7 @@ private void saveSkeletonOverviewImageNonTimeLapse(String savePath, ImagePlus im
 //			new WaitForUserDialog("imp3D").show();
 //			imp3D.hide();
 			
-			if(showGUIs)	progress.updateBarText("Producing 3D NTL skeleton overview image...save");								
+			progress.updateBarText("Producing 3D NTL skeleton overview image...save");								
 			IJ.saveAs(imp3D, "PNG", savePath + "_3D.png"); 
 	
 			imp3D.changes = false;
@@ -5270,15 +4804,9 @@ private void saveSkeletonOverviewImageNonTimeLapse(String savePath, ImagePlus im
 			for(int err = 0; err < e.getStackTrace().length; err++){
 				out += " \n " + e.getStackTrace()[err].toString();
 			}			
-			if(showGUIs) {
-				progress.notifyMessage("Image: " + savePath.substring(savePath.lastIndexOf(System.getProperty("file.separator")))
-					+ ": Producing 3D NTL skeleton overview image failed - error message: \n"
-					+ "" + out,ProgressDialog.ERROR); 
-			}else {
-				System.out.println("Image: " + savePath.substring(savePath.lastIndexOf(System.getProperty("file.separator")))
-					+ ": Producing 3D NTL skeleton overview image failed - error message: \n"
-					+ "" + out);
-			}
+			progress.notifyMessage("Image: " + savePath.substring(savePath.lastIndexOf(System.getProperty("file.separator")))
+				+ ": Producing 3D NTL skeleton overview image failed - error message: \n"
+				+ "" + out,ProgressReporter.ERROR);		
 		}		
 		v3D = null;
 		impOut.changes = false;
@@ -5290,19 +4818,19 @@ private void saveSkeletonOverviewImageNonTimeLapse(String savePath, ImagePlus im
 
 private void writeBarText(ImagePlus imp, double calBarLength, String unit, boolean writeTime, double time, String timeUnit){
 	//write bar text:
-		if(showGUIs)	progress.updateBarText("Make cal bar text to image");
+		progress.updateBarText("Make cal bar text to image");
 		TextRoi txtROI = new TextRoi(5,5,
 				"scale bars: " + dformat3.format(calBarLength) + " " + unit, RoiFont);
-		if(showGUIs)	progress.updateBarText("Writing cal bar text to image");
+		progress.updateBarText("Writing cal bar text to image");
 		for(int c = 0; c < imp.getNChannels(); c++){
 			txtROI.drawPixels(imp.getStack().getProcessor(imp.getStackIndex(c+1, 1, 1)));		
 		}
 		
 		if(writeTime){
-			if(showGUIs)	progress.updateBarText("Make time bar text to image");
+			progress.updateBarText("Make time bar text to image");
 			txtROI = new TextRoi(5,20,
 					"time: " + dformat3.format(time) + " " + timeUnit, RoiFont);
-			if(showGUIs)	progress.updateBarText("Writing time bar text to image");
+			progress.updateBarText("Writing time bar text to image");
 			for(int c = 0; c < imp.getNChannels(); c++){
 				txtROI.drawPixels(imp.getStack().getProcessor(imp.getStackIndex(c+1, 1, 1)));		
 			}
@@ -5311,7 +4839,7 @@ private void writeBarText(ImagePlus imp, double calBarLength, String unit, boole
 //		imp.show();
 //		new WaitForUserDialog("imp bar").show();
 //		imp.hide();
-		if(showGUIs)	progress.updateBarText("Cal bar done");
+		progress.updateBarText("Cal bar done");
 }
 
 /**
@@ -5429,15 +4957,10 @@ private void saveImageAs3D(String savePath, ImagePlus imp, boolean transparent, 
 			for(int err = 0; err < e.getStackTrace().length; err++){
 				out += " \n " + e.getStackTrace()[err].toString();
 			}
-			if(showGUIs) {
-				progress.notifyMessage("Image: " + savePath.substring(savePath.lastIndexOf(System.getProperty("file.separator"))) 
-					+ "_3D.tif: Producing 3D image image failed - error message: \n"
-					+ "" + out,ProgressDialog.ERROR);
-			}else {
-				System.out.println("Image: " + savePath.substring(savePath.lastIndexOf(System.getProperty("file.separator"))) 
-					+ "_3D.tif: Producing 3D image image failed - error message: \n"
-					+ "" + out);
-			}
+			
+			progress.notifyMessage("Image: " + savePath.substring(savePath.lastIndexOf(System.getProperty("file.separator"))) 
+				+ "_3D.tif: Producing 3D image image failed - error message: \n"
+				+ "" + out,ProgressReporter.ERROR);
 		}
 		v3D = null;		
 		impOut.changes = false;
@@ -5455,7 +4978,7 @@ private void saveImageAs3D(String savePath, ImagePlus imp, boolean transparent, 
 private double addContainedScalerBarAndGetBarValue(ImagePlus imp){
 	int pxNrX, pxNrY, pxNrZ;
 	double calBarLength = 100000.0;
-	if(showGUIs)	progress.updateBarText("Finding perfect scale bar...");
+	progress.updateBarText("Finding perfect scale bar...");
 	boolean two = false;
 	selecting: while(true){
 		pxNrX = (int)Math.round(calBarLength / imp.getCalibration().pixelHeight);
@@ -5475,9 +4998,9 @@ private double addContainedScalerBarAndGetBarValue(ImagePlus imp){
 			break selecting;
 		}
 	}
-	if(showGUIs)	progress.updateBarText("Perfect scale bar found");
+	progress.updateBarText("Perfect scale bar found");
 	
-	if(showGUIs)	progress.updateBarText("Calculating bar thickness");
+	progress.updateBarText("Calculating bar thickness");
 	int orX = 0, orY = imp.getHeight()-1, orZ = imp.getNSlices()-1;
 	double maxValue = Math.pow(2.0, imp.getBitDepth())-1.0;
 	
@@ -5492,7 +5015,7 @@ private double addContainedScalerBarAndGetBarValue(ImagePlus imp){
 	if(thicknessY < 1)	thicknessY = 1;
 	if(thicknessZ < 1)	thicknessZ = 1;
 	
-	if(showGUIs)	progress.updateBarText("Writing bar");
+	progress.updateBarText("Writing bar");
 	try{
 		for(int i = 0; i < pxNrX; i++){
 			for(int j = 0; j < thicknessY; j++){
@@ -5522,11 +5045,7 @@ private double addContainedScalerBarAndGetBarValue(ImagePlus imp){
 			}
 		}
 	}catch(Exception e){
-		if(showGUIs) {
-			progress.notifyMessage("Failed to produce scale bar in an output image", ProgressDialog.ERROR);
-		}else {
-			System.out.println("Failed to produce scale bar in an output image");
-		}
+		progress.notifyMessage("Failed to produce scale bar in an output image", ProgressReporter.ERROR);
 		return Double.NaN;
 	}	
 	return calBarLength;	
@@ -5814,13 +5333,13 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 			String line = "";							
 			reading: while(true){
 				try{
-					line = br.readLine();	
-					if(!line.equals("") && line.equals(null)){
-						break reading;
-					}
-				}catch(Exception e){
+					line = br.readLine();
+					if(line == null)	break reading;		// NEW in V0.2.2: actual EOF test
+				}catch(IOException e){						// NEW in V0.2.2: report, do not swallow silently
+					IJ.error("Settings file " + settingsFile + " could not be read to the end - "
+							+ "settings are only partially applied: " + e.getMessage());
 					break reading;
-				}					
+				}
 				
 				if(line.contains("Settings")) {
 					readPrefs = true;
@@ -6341,7 +5860,7 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 			if(bbForCilium[cil] > -1 && matrixDist[cil][bbForCilium[cil]] <= maxDistanceBBCiliumEnd) {
 				frameCilia.get(cil).addBasalBody(frameBBs.get(bbForCilium[cil]), imp,
 						measureC2local, channelC2, measureC3local, channelC3,
-						channelReconstruction, progress, showGUIs);
+						channelReconstruction, progress);
 				bbUsed[bbForCilium[cil]] = true;
 			}
 		}
@@ -6386,10 +5905,10 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 		for(int t = 0; t < imp.getNFrames(); t++){
 			perFrameCilia.add(new ArrayList<Cilium>(perFrameParticles.get(t).size()));
 			for(int i = 0; i < perFrameParticles.get(t).size(); i++){
-				if(showGUIs)	progress.updateBarText("Detecting cilia per frame (t " + (t+1) + "/" + imp.getNFrames() + ")");
+				progress.updateBarText("Detecting cilia per frame (t " + (t+1) + "/" + imp.getNFrames() + ")");
 				perFrameCilia.get(t).add(new Cilium(perFrameParticles.get(t).get(i), imp,
 						measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC,
-						channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, showGUIs));
+						channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize));
 			}
 		}
 		perFrameParticles.clear();
@@ -6399,7 +5918,7 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 		if(segmentedBB){
 			ArrayList<ArrayList<Uncalibrated3DPoint>> bbParticles = getBBObjectsTimelapse(imp, basalStainC, increaseRangeBB);
 			for(int t = 0; t < imp.getNFrames() && t < bbParticles.size(); t++){
-				if(showGUIs)	progress.updateBarText("Assigning BBs per frame (t " + (t+1) + "/" + imp.getNFrames() + ")");
+				progress.updateBarText("Assigning BBs per frame (t " + (t+1) + "/" + imp.getNFrames() + ")");
 				
 				boolean[] bbUsed = assignBBsForFrame(perFrameCilia.get(t), bbParticles.get(t), imp, measureC2local, measureC3local);
 				
@@ -6408,7 +5927,7 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 					if(bbUsed[bb]) continue;
 					perFrameCilia.get(t).add(new Cilium(bbParticles.get(t).get(bb), imp,
 							measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC,
-							channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, showGUIs));
+							channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize));
 				}
 			}
 		}
@@ -6462,7 +5981,7 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 				}
 			}
 			
-			if(showGUIs)	progress.updateBarText("Linking cilia across frames (t " + (t+1) + "/" + imp.getNFrames() + ")");
+			progress.updateBarText("Linking cilia across frames (t " + (t+1) + "/" + imp.getNFrames() + ")");
 			int [] curForTrack = new HungarianAlgorithm(cost).execute();
 			
 			boolean curUsed [] = new boolean [current.size()];
@@ -6491,8 +6010,8 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 		// 5) Emit TimelapseCilium objects (tracks are already time-ordered by construction)
 		ArrayList<TimelapseCilium> out = new ArrayList<TimelapseCilium>(tracks.size());
 		for(int tr = 0; tr < tracks.size(); tr++){
-			if(showGUIs)	progress.updateBarText("Assembling tracked cilia (" + (tr+1) + "/" + tracks.size() + ")");
-			out.add(new TimelapseCilium(tracks.get(tr), imp, measureC2local, measureC3local, skeletonize, progress, showGUIs));
+			progress.updateBarText("Assembling tracked cilia (" + (tr+1) + "/" + tracks.size() + ")");
+			out.add(new TimelapseCilium(tracks.get(tr), imp, measureC2local, measureC3local, skeletonize, progress));
 		}
 		
 		// Track-level BB-cilia filtering. Applied per whole track.
@@ -6566,7 +6085,7 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 				}
 				
 				ciliumID = cil + 1;
-				if(showGUIs) progress.updateBarText("Saving individual cilia points (" + cil + "/" + cilia.size() + " done)");
+				progress.updateBarText("Saving individual cilia points (" + cil + "/" + cilia.size() + " done)");
 				
 				points = cilia.get(cil).getSkeletonPointsForOriginalImage();
 				tangents = getTangents(points);
@@ -6613,11 +6132,7 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 						
 		// save file
 		if(!tp.saveAndFinish(path)) {
-			if(showGUIs) {
-				progress.notifyMessage("IO ERROR when saving file " + path, ProgressDialog.ERROR);
-			}else {
-				System.out.println("IO ERROR when saving file " + path);
-			}
+			progress.notifyMessage("IO ERROR when saving file " + path, ProgressReporter.ERROR);
 		}
 	}
 	
@@ -6664,7 +6179,7 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 				}
 				
 				ciliumID = tlc + 1;
-				if(showGUIs)	progress.updateBarText("Saving individual cilia points (" + tlc + "/" + tlCilia.size() + " done)");
+				progress.updateBarText("Saving individual cilia points (" + tlc + "/" + tlCilia.size() + " done)");
 				
 				cilia = tlCilia.get(tlc).cilia;
 				
@@ -6720,7 +6235,7 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 						
 		// save file
 		if(!tp.saveAndFinish(path)) {
-			if(showGUIs)	progress.notifyMessage("IO ERROR when saving file " + path, ProgressDialog.ERROR);
+			progress.notifyMessage("IO ERROR when saving file " + path, ProgressReporter.ERROR);
 		}
 	}
 	
@@ -6741,20 +6256,20 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 			searchUpstream: for(int vu = points.length-1; vu >= p; vu--){
 				if(getArclengthDistance(points,p,vu) <= refDistance){
 					p2 = points [vu];
-//					if(showGUIs)	progress.notifyMessage("boundary: " + getArclengthDistance(points,p,vu) , ProgressDialog.LOG);
+//					progress.notifyMessage("boundary: " + getArclengthDistance(points,p,vu) , ProgressReporter.LOG);
 					break searchUpstream;
 				}else {
-//					if(showGUIs)	progress.notifyMessage("not in boundary", ProgressDialog.ERROR);
+//					progress.notifyMessage("not in boundary", ProgressReporter.ERROR);
 				}
 			}
 			
 			searchDownstream: for(int vd = 0; vd <= p; vd++){
 				if(getArclengthDistance(points,vd,p) <= refDistance){
-//					progress.notifyMessage("boundary: " + getArclengthDistance(points,p,vd) , ProgressDialog.LOG);
+//					progress.notifyMessage("boundary: " + getArclengthDistance(points,p,vd) , ProgressReporter.LOG);
 					p1 = points [vd];
 					break searchDownstream;
 				}else {
-//					if(showGUIs)	progress.notifyMessage("not in boundary", ProgressDialog.ERROR);
+//					progress.notifyMessage("not in boundary", ProgressReporter.ERROR);
 				}
 			}
 			tangents [p][0] = p2 [0] - p1 [0];
@@ -6840,8 +6355,15 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 		return Math.sqrt(Math.pow(pX-qX,2.0)+Math.pow(pY-qY,2.0)+Math.pow(pZ-qZ,2.0));
 	}
 	
+	/** 
+	 * Fix format in V0.2.2:
+	 * Before DecimalFormat rendered NaN as U+FFFD and Infinity as U+221E on Java 8, which Fiji
+	 *  runs. Neither is parseable as a number, so emit an empty cell instead. */
+	private String fmt6(double value){
+		return Double.isFinite(value) ? dformat6.format(value) : "";
+	}
 
-	//
+	// Check whether image is 12 bit
 	static boolean is12Bit(ImagePlus imp) {
 		for(int z = 0; z < imp.getStackSize(); z++){
 			for(int x = 0; x < imp.getWidth(); x++){
@@ -6853,5 +6375,96 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 			}
 		}
 		return true;
+	}
+	
+	/**
+	 * Add helpers for macro string reading
+	 * Added in version v0.2.2
+	 */
+	
+	/** Case-insensitive, index-safe search. regionMatches avoids the length changes toLowerCase
+	 *  can introduce, so the returned index always aligns with the original string. 
+	 *  Added in version v0.2.2
+	 *  */
+	private static int indexOfIgnoreCase(String haystack, String needle){
+	    int n = needle.length(), max = haystack.length() - n;
+	    for(int i = 0; i <= max; i++){
+	        if(haystack.regionMatches(true, i, needle, 0, n))	return i;
+	    }
+	    return -1;
+	}
+
+	/** Value of `key=`, or null when absent. Replaces ij.Macro.getValue, which lowercases the key
+	 *  and so never finds one containing an uppercase letter -- `channel-A=1` was unreadable.
+	 *  The KEY matches case-insensitively (channel-A, channel-a, CHANNEL-A all work); the VALUE is
+	 *  returned verbatim, so [each BB to closest cilium] keeps its capitals. Requiring a preceding
+	 *  space also stops a key matching inside a longer one -- Macro.getValue accepts a match
+	 *  preceded by '-', so getValue(o,"channel") returned 3 from "reconstruction-channel=3". 
+	 *  Added in version v0.2.2
+	 *  */
+	private String macroValue(String options, String key){
+	    if(options == null || key == null)	return null;
+	    String hay = " " + options;
+	    String needle = " " + key + "=";
+	    int i = indexOfIgnoreCase(hay, needle);
+	    if(i < 0)	return null;
+	    String rest = hay.substring(i + needle.length());
+	    if(rest.startsWith("[")){
+	        int end = rest.indexOf(']');
+	        return end < 0 ? rest.substring(1) : rest.substring(1, end);
+	    }
+	    int sp = rest.indexOf(' ');
+	    return sp < 0 ? rest : rest.substring(0, sp);
+	}
+	
+	/** String macro option that returns fallback when absent or empty.
+	 * Added in version v0.2.2
+	 * */
+	private String macroString(String options, String key, String fallback){
+	    String raw = macroValue(options, key);
+	    return (raw == null || raw.isEmpty()) ? fallback : raw;
+	}
+
+	
+	/** Numeric macro option. Returns fallback and warns if absent or unparseable.
+	 * Added in version v0.2.2 
+	 */
+	private double macroDouble(String options, String key, double fallback, boolean logDetection){
+		String raw = macroValue(options, key);
+		if(raw == null || raw.isEmpty()){
+			if(logDetection)	IJ.log("macro option '" + key + "' absent; using " + fallback);
+			return fallback;
+		}
+		try{
+			return Double.parseDouble(raw.replace(",", "."));
+		}catch(NumberFormatException e){
+			IJ.log("CiliaQ WARNING: macro option '" + key + "' is not a number ('" + raw
+				+ "'); using " + fallback + ".");
+			return fallback;
+		}
+	}
+
+	/** Choice macro option, matched exactly against the allowed values.
+	 * Added in version v0.2.2 
+	 * */
+	private String macroChoice(String options, String key, String [] choices, String fallback){
+		String raw = macroValue(options, key);
+		if(raw == null || raw.isEmpty())	return fallback;
+		for(int i = 0; i < choices.length; i++){
+			if(choices[i].equals(raw))	return choices[i];
+		}
+		String valid = "";
+		for(int i = 0; i < choices.length; i++)	valid += "\n" + choices[i];
+		IJ.error("CiliaQ: macro option '" + key + "' value '" + raw
+			+ "' is not valid. Valid values are:" + valid);
+		return fallback;
+	}
+
+	/** Boolean flag: present means true, absent means false. Matches whole tokens only.
+	 * Added in version v0.2.2 
+	 * */
+	private boolean macroFlag(String options, String key){
+	    if(options == null)	return false;
+	    return indexOfIgnoreCase(" " + options + " ", " " + key + " ") >= 0;
 	}
 }//end main class
