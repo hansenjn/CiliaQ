@@ -22,7 +22,9 @@ Jan N. Hansen, Sebastian Rassmann, Birthe Stueven, Nathalie Jurisch-Yaksi, Dagma
 ## Copyright notice and contacts
 Copyright (C) 2017-2026: Jan N. Hansen. 
 
-CiliaQ has been originally developed in the research group [Biophysical Imaging, Institute of Innate Immunity, Bonn, Germany](https://www.iiibonn.de/dagmar-wachten-lab/dagmar-wachten-lab-science), where it was, at that time, mainly funded by the [DFG priority program SPP 1726 "Microswimmers"](https://www.fz-juelich.de/ibi/ibi-5//EN/Leistungen/SPP1726/_node.html). Since then, Jan Hansen has continued to support and maintain the tool.
+CiliaQ has been originally developed in the research group [Biophysical Imaging, Institute of Innate Immunity, Bonn, Germany](https://www.iiibonn.de/dagmar-wachten-lab/dagmar-wachten-lab-science),
+where it was, at that time, mainly funded by the [DFG priority program SPP 1726 "Microswimmers"](https://www.fz-juelich.de/ibi/ibi-5//EN/Leistungen/SPP1726/_node.html).
+Since then, Jan Hansen has continued to support and maintain the tool.
 
 Contact: jan.hansen (at) uni-bonn.de
 
@@ -33,6 +35,7 @@ For information on hardware and software requirements and a guide on how to get 
 ### User Guide / Manual
 Originally, we provided a very detailed Manual for the CiliaQ tools as a PDF [here](https://github.com/hansenjn/CiliaQ/blob/master/Webfiles/CiliaQ_SOP.pdf).
 Since then, we created a [CiliaQ wiki](https://github.com/hansenjn/CiliaQ/wiki/Home/) that is more current and dynamically kept up-to-date, with tutorials, instructions, examples, and Q&As.
+Since 2026, you can get help from an AI assistant with the [CiliaQ LLM Kit](https://github.com/hansenjn/CiliaQ-LLM-Kit).
 
 ### How to stay up-to-date?
 You want to be always up-to-date about CiliaQ and get news on CiliaQ (new features, updates, etc.)? Watch this repository on GitHub (see Watch button on upper right) or send an email with "Subscribe CiliaQ" to jan.hansen (at) uni-bonn.de.
