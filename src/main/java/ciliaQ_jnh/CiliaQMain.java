@@ -21,7 +21,7 @@ package ciliaQ_jnh;
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
- *    
+ * 
  * For any questions please feel free to contact me (jan.hansen@uni-bonn.de).
 * =============================================================================== */
 
@@ -40,6 +40,7 @@ import ij.measure.*;
 import ij.plugin.*;
 import ij.plugin.frame.Recorder;
 import ij.process.ImageConverter;
+import ij.process.ImageProcessor;
 import ij.process.LUT;
 import ij.Prefs;
 
@@ -76,7 +77,7 @@ public class CiliaQMain implements PlugIn, Measurements {
 	
 	//Macro-related settings
 	boolean record = false;
-    boolean showGUIs = true;
+	boolean showGUIs = true;
 	
 	//Progress Dialog
 	ProgressReporter progress;	
@@ -129,8 +130,8 @@ public class CiliaQMain implements PlugIn, Measurements {
 	//Timelapse tracking TODO implement into generic dialog (enterSettings()), readSettingsFromMacroString(), createRecordString(), and addSettingsBlockToPanel())
 	static final String[] timelapseTrackingOptions = {"classic pixel-based frame connection", "linear assignment (frame-to-frame)"};
 	String timelapseTrackingSelection = timelapseTrackingOptions[0];
-	double maxTrackingDistance = 5.0;   // calibrated units
-	int maxFrameGap = 1;                // frames a cilium may vanish and rejoin
+	double maxTrackingDistance = 5.0;	// calibrated units
+	int maxFrameGap = 1;				// frames a cilium may vanish and rejoin
 	
 	//Saving
 	boolean saveDate = false;	
@@ -149,87 +150,113 @@ public void run(String arg) {
 	//-----------Eventually read settings from macro input------------------------
 	//&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 	boolean showDialog = true;
-    if (IJ.macroRunning() 
-    		&& Macro.getOptions() != null
-    		&& Macro.getOptions().length()>0) {
-    	
-    	readSettingsFromMacroString(Macro.getOptions(), false);
-    			
-        showDialog = false;
-    }
+	if (IJ.macroRunning() && Macro.getOptions() != null && Macro.getOptions().length() > 0) {
+		readSettingsFromMacroString(Macro.getOptions(), false);
+		showDialog = false;
+	}
 
-    record = false;    
-    if(showDialog && showGUIs) {
-    	if(Recorder.record) {
-    		/*
-    		 * Deactivate recording tool, since it will not work based on how
-    		 * the different settings are named in CiliaQ
-    		 * It will be reactivated when all Generic Dialogs for setting
-    		 * selection have passed.
-    		 */
-    		record = true;
-    		Recorder.record = false;
-    	}
-    	
-    	/** 
-    	 * Display exceptional warning dialog
-    	 */
-    	GenericDialog gdW2 = new GenericDialog(PLUGINNAME + " on " + System.getProperty("os.name") + " - Version Warning!");
-    	
-		gdW2.setInsets(0,0,0);	gdW2.addMessage("WARNING", HeadingFont, Color.MAGENTA);
-		gdW2.setInsets(0,0,0);	gdW2.addMessage("Hello CiliaQ-user! This is a beta version of CiliaQ: Version " + PLUGINVERSION + ".", InstructionsFont);
-		gdW2.setInsets(10,0,0);	gdW2.addMessage("This version is still in extensive testing and might need further development.", InstructionsFont);
-		gdW2.setInsets(0,0,0);	gdW2.addMessage("Do not use this version but instead install a previous version (e.g., v0.1.7) at:", InstructionsFont);
-		gdW2.setInsets(0,0,0);	gdW2.addMessage("https://github.com/hansenjn/CiliaQ/releases/tag/v0.1.7", InstructionsFont);		
-		gdW2.setInsets(10,0,0);	gdW2.addMessage("Follow this wiki post for installing a different CiliaQ version than this:", InstructionsFont);    		
-		gdW2.setInsets(0,0,0);	gdW2.addMessage("https://github.com/hansenjn/CiliaQ/wiki/Q&A:-How-to-install-a-specific-version-of-a-CiliaQ-plugin%3F", InstructionsFont);
+	record = false;
+	if (showDialog && showGUIs) {
+		if (Recorder.record) {
+			/*
+			 * Deactivate recording tool, since it will not work based on how the different
+			 * settings are named in CiliaQ It will be reactivated when all Generic Dialogs
+			 * for setting selection have passed.
+			 */
+			record = true;
+			Recorder.record = false;
+		}
+
+		/**
+		 * Display exceptional warning dialog
+		 */
+		GenericDialog gdW2 = new GenericDialog(
+				PLUGINNAME + " on " + System.getProperty("os.name") + " - Version Warning!");
+
+		gdW2.setInsets(0, 0, 0);
+		gdW2.addMessage("WARNING", HeadingFont, Color.MAGENTA);
+		gdW2.setInsets(0, 0, 0);
+		gdW2.addMessage("Hello CiliaQ-user! This is a beta version of CiliaQ: Version " + PLUGINVERSION + ".",
+				InstructionsFont);
+		gdW2.setInsets(10, 0, 0);
+		gdW2.addMessage("This version is still in extensive testing and might need further development.",
+				InstructionsFont);
+		gdW2.setInsets(0, 0, 0);
+		gdW2.addMessage("Do not use this version but instead install a previous version (e.g., v0.1.7) at:",
+				InstructionsFont);
+		gdW2.setInsets(0, 0, 0);
+		gdW2.addMessage("https://github.com/hansenjn/CiliaQ/releases/tag/v0.1.7", InstructionsFont);
+		gdW2.setInsets(10, 0, 0);
+		gdW2.addMessage("Follow this wiki post for installing a different CiliaQ version than this:", InstructionsFont);
+		gdW2.setInsets(0, 0, 0);
+		gdW2.addMessage("https://github.com/hansenjn/CiliaQ/wiki/Q&A:-How-to-install-a-specific-version-of-a-CiliaQ-plugin%3F",
+				InstructionsFont);
 
 		gdW2.addHelp("https://github.com/hansenjn/CiliaQ/releases/");
-		
+
 		gdW2.showDialog();
-				
-		if(gdW2.wasCanceled()) {
+
+		if (gdW2.wasCanceled()) {
 			return;
 		}
-    	
-    	/** 
-    	 * Display warning dialog
-    	 */    	    	
-    	if(Prefs.getBoolean("ciliaQ.v0.2.0.showVersionWarning", true)){
-        	GenericDialog gdW = new GenericDialog(PLUGINNAME + " on " + System.getProperty("os.name") + " - Version Warning!");
-        	
-    		gdW.setInsets(0,0,0);	gdW.addMessage("WARNING", HeadingFont, Color.MAGENTA);
-    		gdW.setInsets(0,0,0);	gdW.addMessage("Hello CiliaQ-user! This is a new version of CiliaQ: Version v0.2.0.", InstructionsFont);
-    		gdW.setInsets(10,0,0);	gdW.addMessage("Length measurements were improved in version v0.1.7!", InstructionsFont);
-    		gdW.setInsets(0,0,0);	gdW.addMessage("Do not mix results from this version with results from versions prior to v0.1.7.", InstructionsFont);
-    		gdW.setInsets(0,0,0);	gdW.addMessage("Find out more about changes in length determination introduced in v0.1.7 at:", InstructionsFont);
-    		gdW.setInsets(0,0,0);	gdW.addMessage("https://github.com/hansenjn/CiliaQ/releases/tag/v0.1.7", InstructionsFont);
-    		gdW.setInsets(10,0,0);	gdW.addMessage("This version (v0.2.0) additionally has new functions for tracking the basal body.", InstructionsFont);
-    		gdW.setInsets(0,0,0);	gdW.addMessage("Thus, some menu options have changed.", InstructionsFont);
-    		gdW.setInsets(0,0,0);	gdW.addMessage("Find out more at the release notes for v0.2.0: https://github.com/hansenjn/CiliaQ/releases/tag/v0.2.0.", InstructionsFont);
-    		gdW.setInsets(10,0,0);	gdW.addMessage("If your FIJI automatically updated to this verison and you want to return to a previous version follow this wiki post:", InstructionsFont);    		
-    		gdW.setInsets(0,0,0);	gdW.addMessage("https://github.com/hansenjn/CiliaQ/wiki/Q&A:-How-to-install-a-specific-version-of-a-CiliaQ-plugin%3F", InstructionsFont);
 
-    		gdW.addCheckbox("Check this box if you never want to see this warning again", false);
-    		
-    		gdW.addHelp("https://github.com/hansenjn/CiliaQ/releases/");
-    		
-    		gdW.showDialog();
-    		
-    		if(gdW.getNextBoolean()) {
-    			Prefs.set("ciliaQ.v0.2.0.showVersionWarning", false);
-    			Prefs.savePreferences();
-    		}
-    		
-    		if(gdW.wasCanceled()) {
-    			return;
-    		}
-    	}
+		/**
+		 * Display warning dialog
+		 */
+		if (Prefs.getBoolean("ciliaQ.v0.2.0.showVersionWarning", true)) {
+			GenericDialog gdW = new GenericDialog(
+					PLUGINNAME + " on " + System.getProperty("os.name") + " - Version Warning!");
 
-    	//&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-    	//-------------------------GenericDialog--------------------------------------
-    	//&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-		
+			gdW.setInsets(0, 0, 0);
+			gdW.addMessage("WARNING", HeadingFont, Color.MAGENTA);
+			gdW.setInsets(0, 0, 0);
+			gdW.addMessage("Hello CiliaQ-user! This is a new version of CiliaQ: Version v0.2.0.", InstructionsFont);
+			gdW.setInsets(10, 0, 0);
+			gdW.addMessage("Length measurements were improved in version v0.1.7!", InstructionsFont);
+			gdW.setInsets(0, 0, 0);
+			gdW.addMessage("Do not mix results from this version with results from versions prior to v0.1.7.",
+					InstructionsFont);
+			gdW.setInsets(0, 0, 0);
+			gdW.addMessage("Find out more about changes in length determination introduced in v0.1.7 at:",
+					InstructionsFont);
+			gdW.setInsets(0, 0, 0);
+			gdW.addMessage("https://github.com/hansenjn/CiliaQ/releases/tag/v0.1.7", InstructionsFont);
+			gdW.setInsets(10, 0, 0);
+			gdW.addMessage("This version (v0.2.0) additionally has new functions for tracking the basal body.",
+					InstructionsFont);
+			gdW.setInsets(0, 0, 0);
+			gdW.addMessage("Thus, some menu options have changed.", InstructionsFont);
+			gdW.setInsets(0, 0, 0);
+			gdW.addMessage("Find out more at the release notes for v0.2.0: https://github.com/hansenjn/CiliaQ/releases/tag/v0.2.0.",
+					InstructionsFont);
+			gdW.setInsets(10, 0, 0);
+			gdW.addMessage(
+					"If your FIJI automatically updated to this verison and you want to return to a previous version follow this wiki post:",
+					InstructionsFont);
+			gdW.setInsets(0, 0, 0);
+			gdW.addMessage("https://github.com/hansenjn/CiliaQ/wiki/Q&A:-How-to-install-a-specific-version-of-a-CiliaQ-plugin%3F",
+					InstructionsFont);
+
+			gdW.addCheckbox("Check this box if you never want to see this warning again", false);
+
+			gdW.addHelp("https://github.com/hansenjn/CiliaQ/releases/");
+
+			gdW.showDialog();
+
+			if (gdW.getNextBoolean()) {
+				Prefs.set("ciliaQ.v0.2.0.showVersionWarning", false);
+				Prefs.savePreferences();
+			}
+
+			if (gdW.wasCanceled()) {
+				return;
+			}
+		}
+
+		// &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+		// -------------------------GenericDialog--------------------------------------
+		// &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+
 		GenericDialog gd = new GenericDialog(PLUGINNAME + " on " + System.getProperty("os.name") + " - set parameters");
 		gd.addHelp("https://github.com/hansenjn/CiliaQ#user-guide--manual");
 		//show Dialog-----------------------------------------------------------------
@@ -239,7 +266,7 @@ public void run(String arg) {
 			
 		gd.setInsets(10,0,0);	gd.addChoice("process ", taskVariant, selectedTaskVariant);
 		
-//    	gd.setInsets(10,0,0);	gd.addMessage("Calibration", HeadingFont);
+//		gd.setInsets(10,0,0);	gd.addMessage("Calibration", HeadingFont);
 		gd.setInsets(10,0,0);	gd.addMessage("Calibration settings", SubHeadingFont);
 		gd.setInsets(5,0,0);	gd.addCheckbox("manually calibrate image", recalibrate);
 		gd.setInsets(0,0,0);	gd.addNumericField("    -> calibration [unit/px]: ", calibration, 4);
@@ -294,10 +321,10 @@ public void run(String arg) {
 		//read and process variables--------------------------------------------------
 		if (gd.wasCanceled()) return;
 		
-    	//&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-    	//---------------------end-GenericDialog-end----------------------------------
-    	//&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-    		
+		// &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+		// ---------------------end-GenericDialog-end----------------------------------
+		// &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+
 		// LOAD SETTINGS FOR DETECTION
 		if(selectedSettingsVariant.equals(settingsMethod [0])){
 			if(!enterSettings()) {
@@ -307,25 +334,35 @@ public void run(String arg) {
 			IJ.error("Preferences were not completely loaded ...");
 			return;
 		}
-    	
-    	if(record) {
-    		/*
-    		 * Reactivate recording.
-    		 */
-    		Recorder.record = true;
-    	}
-    }
-    
-    /*
-     * Create macro recording string if macro recording activated:
-     */
-    if (record) {  
-    	String recordString = createRecordString();
-		Recorder.record = true;
-    	Recorder.recordString("run(\"" + PLUGINNAME + " v" + PLUGINVERSION + "\",\"" + recordString + "\");\n");    	
-    }
-    
 	
+		if (record) {
+			/*
+			 * Reactivate recording.
+			 */
+			Recorder.record = true;
+		}
+	}
+
+	/*
+	 * Create macro recording string if macro recording activated:
+	 */
+	if (record) {
+		String recordString = createRecordString();
+		Recorder.record = true;
+
+		/*
+		 * Cancel ImageJ's own pending auto-record of the menu command. Without this the
+		 * Recorder emits BOTH our option string and a bare run("CiliaQ v0.2.2");
+		 * replaying that macro runs CiliaQ a second time with no options, so it falls
+		 * back to defaults on whatever image is in front.
+		 */
+		if (Recorder.getInstance() != null) {
+			Recorder.setCommand(null);
+		}
+
+		Recorder.recordString("run(\"" + PLUGINNAME + " v" + PLUGINVERSION + "\",\"" + recordString + "\");\n");
+	}
+
 	// LOAD FILES
 	String name [] = {"",""};
 	String dir [] = {"",""};
@@ -339,17 +376,17 @@ public void run(String arg) {
 			od.setVisible(true);
 			
 			od.addWindowListener(new java.awt.event.WindowAdapter() {
-		        public void windowClosing(WindowEvent winEvt) {
-		        	return;
-		        }
-		    });
+				public void windowClosing(WindowEvent winEvt) {
+					return;
+				}
+			});
 		
-			//Waiting for od to be done
-			while(od.done==false){
-				try{
+			// Waiting for od to be done
+			while (od.done == false) {
+				try {
 					Thread.currentThread().sleep(50);
-			    }catch(Exception e){
-			    }
+				} catch (Exception e) {
+				}
 			}
 			
 			tasks = od.filesToOpen.size();
@@ -415,20 +452,20 @@ public void run(String arg) {
 		dialog.setLocation(0,0);
 		dialog.setVisible(true);
 		dialog.addWindowListener(new java.awt.event.WindowAdapter() {
-	        public void windowClosing(WindowEvent winEvt) {
-	        	if (record) {	
-	        		Recorder.record = true;
-	        	}
-	        	if(processingDone==false){
-	        		IJ.error("Script stopped...");
-	        	}
-	        	continueProcessing = false;	        	
-	        	return;
-	        }
+			public void windowClosing(WindowEvent winEvt) {
+				if (record) {
+					Recorder.record = true;
+				}
+				if (processingDone == false) {
+					IJ.error("Script stopped...");
+				}
+				continueProcessing = false;
+				return;
+			}
 		});
 		progress = dialog;
 	}else {
-		progress = new ConsoleProgress(name, tasks);   // NEW: the whole else branch
+		progress = new ConsoleProgress(name, tasks);
 	}
 
 //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
@@ -453,70 +490,80 @@ public void run(String arg) {
 		//Check for problems
 				
 		//open Image
-		   	ImagePlus imp;
-		   	try{
-		   		if(selectedTaskVariant.equals(taskVariant[1])){
-		   			imp = IJ.openImage(""+dir[task]+name[task]+"");			   			
+			ImagePlus imp;
+			try {
+				if (selectedTaskVariant.equals(taskVariant[1])) {
+					imp = IJ.openImage("" + dir[task] + name[task] + "");
 					imp.deleteRoi();
-		   		}else if(selectedTaskVariant.equals(taskVariant[0])){
-		   			imp = WindowManager.getCurrentImage().duplicate();
-		   			imp.deleteRoi();
-		   		}else{
-		   			imp = allImps[task].duplicate();
-		   			imp.deleteRoi();
-		   		}
-		   	}catch (Exception e) {
-		   		progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": file " + name[task] + " is no image - could not be processed!",
-		   				ProgressReporter.ERROR);
+				} else if (selectedTaskVariant.equals(taskVariant[0])) {
+					imp = WindowManager.getCurrentImage().duplicate();
+					imp.deleteRoi();
+				} else {
+					imp = allImps[task].duplicate();
+					imp.deleteRoi();
+				}
+			} catch (Exception e) {
+				progress.notifyMessage("Task " + (task + 1) + "/" + tasks + ": file " + name[task]
+						+ " is no image - could not be processed!", ProgressReporter.ERROR);
 				progress.moveTask(task);
 				break running;
 			}
 			
 		//Calibrate
-		   	imp.hide();
+			imp.hide();
 			double pixelWidth = imp.getCalibration().pixelWidth;
-			double pixelHeight = imp.getCalibration().pixelHeight; 
+			double pixelHeight = imp.getCalibration().pixelHeight;
 			double pixelDepth = imp.getCalibration().pixelDepth;
 			fps = imp.getCalibration().fps;
 			double frameInterval = imp.getCalibration().frameInterval;
-			String unit = imp.getCalibration().getUnit();	
+			String unit = imp.getCalibration().getUnit();
 			String calTimeUnit = imp.getCalibration().getTimeUnit();
-			if(recalibrate){
-				pixelWidth = calibration;		imp.getCalibration().pixelWidth = pixelWidth;
-				pixelHeight = calibration;		imp.getCalibration().pixelHeight = pixelHeight;
-				pixelDepth = voxelDepth;		imp.getCalibration().pixelDepth = pixelDepth;
-				unit = calibrationDimension;	imp.getCalibration().setUnit(unit);
-				frameInterval = timePerFrame;	imp.getCalibration().frameInterval = frameInterval;
-				calTimeUnit = timeUnit; 		imp.getCalibration().setTimeUnit(calTimeUnit);
-				if(timeUnit.equals(timeFormats[0])){
-					fps = 1.0 / (double)timePerFrame;
+			if (recalibrate) {
+				pixelWidth = calibration;
+				imp.getCalibration().pixelWidth = pixelWidth;
+				pixelHeight = calibration;
+				imp.getCalibration().pixelHeight = pixelHeight;
+				pixelDepth = voxelDepth;
+				imp.getCalibration().pixelDepth = pixelDepth;
+				unit = calibrationDimension;
+				imp.getCalibration().setUnit(unit);
+				frameInterval = timePerFrame;
+				imp.getCalibration().frameInterval = frameInterval;
+				calTimeUnit = timeUnit;
+				imp.getCalibration().setTimeUnit(calTimeUnit);
+				if (timeUnit.equals(timeFormats[0])) {
+					fps = 1.0 / (double) timePerFrame;
 					imp.getCalibration().fps = fps;
-				}else if(timeUnit.equals(timeFormats[1])){
-					fps = 1.0 / (60*(double)timePerFrame);
+				} else if (timeUnit.equals(timeFormats[1])) {
+					fps = 1.0 / (60 * (double) timePerFrame);
 					imp.getCalibration().fps = fps;
-				}else if(timeUnit.equals(timeFormats[2])){
-					fps = 1.0 / (60*60*(double)timePerFrame);
+				} else if (timeUnit.equals(timeFormats[2])) {
+					fps = 1.0 / (60 * 60 * (double) timePerFrame);
 					imp.getCalibration().fps = fps;
-				}else{
-					fps = 1.0 / (24*60*60*(double)timePerFrame);
+				} else {
+					fps = 1.0 / (24 * 60 * 60 * (double) timePerFrame);
 					imp.getCalibration().fps = fps;
 				}
-			}else{				
+			} else {
 				calibration = pixelWidth;
-				calibrationDimension = ""+unit;
+				calibrationDimension = "" + unit;
 				voxelDepth = pixelDepth;
-				if(pixelWidth!=pixelHeight){
-					progress.notifyMessage("Task " + (task+1) + "/" + tasks 
-							+ ": x and y calibration in metadata differ - used only x metadata calibration for both, x and y!", ProgressReporter.NOTIFICATION);
+				if (pixelWidth != pixelHeight) {
+					progress.notifyMessage("Task " + (task + 1) + "/" + tasks
+							+ ": x and y calibration in metadata differ - used only x metadata calibration for both, x and y!",
+							ProgressReporter.NOTIFICATION);
 				}
 				timePerFrame = frameInterval;
-				if(timePerFrame==0.0){timePerFrame=1.0;}
+				if (timePerFrame == 0.0) {
+					timePerFrame = 1.0;
+				}
 				imp.getCalibration().frameInterval = timePerFrame;
-				if(fps==0.0){fps = 1.0;}
+				if (fps == 0.0) {
+					fps = 1.0;
+				}
 				imp.getCalibration().fps = fps;
 				timeUnit = calTimeUnit;
 			}
-		//Calibrate
 			
 		//check for correctness
 			if(channelReconstruction>imp.getNChannels()){
@@ -590,6 +637,9 @@ public void run(String arg) {
 					+ "' for this image, to ensure that cilia can be detected.", ProgressReporter.NOTIFICATION);
 			}
 			
+			runStartupChecks(imp, channelReconstruction, segmentedBB ? basalStainC : -1,
+					name [task], dir [task], progress);
+				
 		//Get cilia data and save them
 			if(imp.getNFrames()!=1){
 				//Timelapse Mode
@@ -789,17 +839,17 @@ private String createRecordString() {
 			+ " ";
 	}
 	
-	if(saveDate) {
-    	recordString += "include-date ";    		
-	}	
-	if(saveSingleCiliaTifs) {
-    	recordString += "save-single-cilia-result-images ";    		
-	}	
-	if(saveSingleCilia3DImages) {
-    	recordString += "save-3D-individual-cilia ";    		
-	}	
-	if(saveOverview3DImages) {
-    	recordString += "save-3D-whole-image ";    		
+	if (saveDate) {
+		recordString += "include-date ";
+	}
+	if (saveSingleCiliaTifs) {
+		recordString += "save-single-cilia-result-images ";
+	}
+	if (saveSingleCilia3DImages) {
+		recordString += "save-3D-individual-cilia ";
+	}
+	if (saveOverview3DImages) {
+		recordString += "save-3D-whole-image ";
 	}
 	
 	recordString += "number-format=[" + ChosenNumberFormat + "] ";
@@ -814,52 +864,52 @@ private String createRecordString() {
 		recordString += "measure-intensity-B ";
 		recordString += "channel-B=" + channelC3+ " "; 	
 	}
-	if(measureBasal) {
-		if(segmentedBB) {
+	if (measureBasal) {
+		if (segmentedBB) {
 			recordString += "basal-stain-segmented ";
-			recordString += "channel-basal-stain=" + basalStainC+ " ";
+			recordString += "channel-basal-stain=" + basalStainC + " ";
 			recordString += "minimum-basal-body-size=" + minBBSize + " ";
-			if(increaseRangeBB) {
-		    	recordString += "increase-range-basal-body ";    		
+			if (increaseRangeBB) {
+				recordString += "increase-range-basal-body ";
 			}
 			recordString += "assign=[" + bbAssignmentSelection + "] ";
 			recordString += "max-bb-to-cilium-distance=" + maxDistanceBBCiliumEnd + " ";
 			recordString += "remove=[" + bbCiliaFilterSelection + "] ";
-		}else {
+		} else {
 			recordString += "basal-stain-present ";
-			recordString += "channel-basal-stain=" + basalStainC+ " ";
+			recordString += "channel-basal-stain=" + basalStainC + " ";
 		}
-	}	
+	}
 	recordString += "minimum-cilium-size=" + minSize + " ";
-	if(increaseRangeCilia) {
-    	recordString += "increase-range-cilia ";    		
+	if (increaseRangeCilia) {
+		recordString += "increase-range-cilia ";
 	}
-	
+
 	recordString += "exclude=[" + excludeSelection + "] ";
-	
+
 	recordString += "minimum-size-intensity=" + minRestSize + " ";
-	if(increaseRangeRegions) {
-    	recordString += "increase-range-intensity ";    		
+	if (increaseRangeRegions) {
+		recordString += "increase-range-intensity ";
 	}
-	
-	if(skeletonize) {
-		recordString += "skeleton ";			
+
+	if (skeletonize) {
+		recordString += "skeleton ";
 	}
 	recordString += "gauss-xy=" + dfDialog.format(gXY) + " ";
 	recordString += "gauss-z=" + dfDialog.format(gZ) + " ";
-	
+
 	recordString += "distance-curvature=" + dfDialog.format(refDistance) + " ";
-	
+
 	// NEW from v0.2.2 on: Time-lapse BB tracking
 	recordString += "tl-tracking=[" + timelapseTrackingSelection + "] ";
 	recordString += "max-tracking-distance=" + dfDialog.format(maxTrackingDistance) + " ";
 	recordString += "max-frame-gap=" + maxFrameGap + " ";
-	
-	if(showGUIs) {
+
+	if (showGUIs) {
 		recordString += "showgui" + " ";
 	}
-	
-	recordString = recordString.substring(0,recordString.length()-1);	
+
+	recordString = recordString.substring(0, recordString.length() - 1);
 	return recordString;
 }
 
@@ -941,20 +991,6 @@ private void addSettingsBlockToPanel(OutputTextFile tp, Date currentDate, Date s
 	tp.append("");
 }
 
-int getMaxIntensity(ImagePlus imp, int task, int tasks){
-	int maxThreshold = 0;
-	if(imp.getBitDepth()==8){
-		maxThreshold = 255;
-	}else if(imp.getBitDepth()==16){
-		maxThreshold = 65535;
-	}else if(imp.getBitDepth()==32){
-		maxThreshold = 2147483647;
-	}else{
-		progress.notifyMessage("Task " + task + "/" + tasks + ": Error! No gray scale image!",ProgressReporter.ERROR);		
-	}
-	return maxThreshold;	
-}
-
 /**
  * Filter the indicated channel of the image and remove particles below the @param minSize threshold.
  * @param imp: Hyperstack image where one channel represents the )recording of the volume of interest
@@ -1014,7 +1050,7 @@ void filterChannel(ImagePlus imp, int c, String particleLabel, int minSize, bool
 							floodNodeX = floodNodes[index][0];
 							floodNodeY = floodNodes[index][1];
 							floodNodeZ = floodNodes[index][2];						
-							index--;            						
+							index--;
 							if ((floodNodeX > 0) 
 									&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
 								
@@ -1053,7 +1089,7 @@ void filterChannel(ImagePlus imp, int c, String particleLabel, int minSize, bool
 								floodNodes[index][0] = floodNodeX;
 								floodNodes[index][1] = floodNodeY-1;
 								floodNodes[index][2] = floodNodeZ;
-							}                
+							}
 							if ((floodNodeY < (imp.getHeight()-1)) 
 									&& imp.getStack().getVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
 								
@@ -1079,7 +1115,7 @@ void filterChannel(ImagePlus imp, int c, String particleLabel, int minSize, bool
 								floodNodes[index][0] = floodNodeX;
 								floodNodes[index][1] = floodNodeY;
 								floodNodes[index][2] = floodNodeZ-1;
-							}                
+							}
 							if ((floodNodeZ < (imp.getNSlices()-1)) 
 									&& imp.getStack().getVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
 								
@@ -1133,7 +1169,7 @@ void filterChannel(ImagePlus imp, int c, String particleLabel, int minSize, bool
 									floodNodes[index][0] = floodNodeX+1;
 									floodNodes[index][1] = floodNodeY-1;
 									floodNodes[index][2] = floodNodeZ;
-								}                
+								}
 								if ((floodNodeX > 0) && (floodNodeY < (imp.getHeight()-1)) 
 										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
 									
@@ -1292,7 +1328,7 @@ void filterChannel(ImagePlus imp, int c, String particleLabel, int minSize, bool
 									floodNodes[index][0] = floodNodeX+1;
 									floodNodes[index][1] = floodNodeY-1;
 									floodNodes[index][2] = floodNodeZ-1;
-								}                
+								}
 								if ((floodNodeX > 0) && (floodNodeY < (imp.getHeight()-1)) && (floodNodeZ > 0)
 										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
 									
@@ -1345,7 +1381,7 @@ void filterChannel(ImagePlus imp, int c, String particleLabel, int minSize, bool
 									floodNodes[index][0] = floodNodeX+1;
 									floodNodes[index][1] = floodNodeY-1;
 									floodNodes[index][2] = floodNodeZ+1;
-								}                
+								}
 								if ((floodNodeX > 0) && (floodNodeY < (imp.getHeight()-1)) && (floodNodeZ < (imp.getNSlices()-1)) 
 										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
 									
@@ -1466,7 +1502,7 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjects (ImagePlus imp, int c){
 						floodNodeX = floodNodes[index][0];
 						floodNodeY = floodNodes[index][1];
 						floodNodeZ = floodNodes[index][2];						
-						index--;            						
+						index--;
 						if ((floodNodeX > 0) 
 								&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, 1)-1) > 0.0){
 							
@@ -1518,7 +1554,7 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjects (ImagePlus imp, int c){
 							floodNodes[index][0] = floodNodeX;
 							floodNodes[index][1] = floodNodeY-1;
 							floodNodes[index][2] = floodNodeZ;
-						}                
+						}
 						if ((floodNodeY < (imp.getHeight()-1)) 
 								&& imp.getStack().getVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, 1)-1) > 0.0){
 							
@@ -1552,7 +1588,7 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjects (ImagePlus imp, int c){
 							floodNodes[index][0] = floodNodeX;
 							floodNodes[index][1] = floodNodeY;
 							floodNodes[index][2] = floodNodeZ-1;
-						}                
+						}
 						if ((floodNodeZ < (imp.getNSlices()-1)) 
 								&& imp.getStack().getVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, 1)-1) > 0.0){
 							
@@ -1734,7 +1770,7 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 							floodNodeY = floodNodes[index][1];
 							floodNodeZ = floodNodes[index][2];		
 							floodNodeT = floodNodes[index][3];
-							index--;            						
+							index--;
 							if ((floodNodeX > 0) 
 									&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
 								
@@ -1789,7 +1825,7 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 								floodNodes[index][1] = floodNodeY-1;
 								floodNodes[index][2] = floodNodeZ;
 								floodNodes[index][3] = floodNodeT;
-							}                
+							}
 							if ((floodNodeY < (imp.getHeight()-1)) 
 									&& imp.getStack().getVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
 								
@@ -1825,7 +1861,7 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 								floodNodes[index][1] = floodNodeY;
 								floodNodes[index][2] = floodNodeZ-1;
 								floodNodes[index][3] = floodNodeT;
-							}                
+							}
 							if ((floodNodeZ < (imp.getNSlices()-1)) 
 									&& imp.getStack().getVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
 								
@@ -1862,7 +1898,7 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 									floodNodes[index][1] = floodNodeY;
 									floodNodes[index][2] = floodNodeZ;
 									floodNodes[index][3] = floodNodeT-1;
-								}                
+								}
 								if ((floodNodeT < (imp.getNFrames()-1)) 
 										&& imp.getStack().getVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, floodNodeZ+1, ((floodNodeT)+1)+1)-1) > 0.0){
 									
@@ -1925,7 +1961,7 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 									floodNodes[index][1] = floodNodeY-1;
 									floodNodes[index][2] = floodNodeZ;
 									floodNodes[index][3] = floodNodeT;
-								}                
+								}
 								if ((floodNodeX > 0) && (floodNodeY < (imp.getHeight()-1)) 
 										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
 									
@@ -2039,7 +2075,7 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 									floodNodes[index][1] = floodNodeY-1;
 									floodNodes[index][2] = floodNodeZ+1;
 									floodNodes[index][3] = floodNodeT;
-								} 
+								}
 								if ((floodNodeY < (imp.getHeight()-1)) && (floodNodeZ < (imp.getNSlices()-1)) 
 										&& imp.getStack().getVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
 									
@@ -2096,7 +2132,7 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 									floodNodes[index][1] = floodNodeY-1;
 									floodNodes[index][2] = floodNodeZ-1;
 									floodNodes[index][3] = floodNodeT;
-								}                
+								}
 								if ((floodNodeX > 0) && (floodNodeY < (imp.getHeight()-1)) && (floodNodeZ > 0)
 										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
 									
@@ -2153,7 +2189,7 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 									floodNodes[index][1] = floodNodeY-1;
 									floodNodes[index][2] = floodNodeZ+1;
 									floodNodes[index][3] = floodNodeT;
-								}                
+								}
 								if ((floodNodeX > 0) && (floodNodeY < (imp.getHeight()-1)) && (floodNodeZ < (imp.getNSlices()-1)) 
 										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
 									
@@ -2297,7 +2333,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 	
 	ArrayList<ArrayList<ArrayList<PartPoint>>> particles = new ArrayList<ArrayList<ArrayList<PartPoint>>>(imp.getNFrames());
 	for(int t = 0; t < imp.getNFrames(); t++){
-		particles.add(new ArrayList<ArrayList<PartPoint>>((int)Math.round((double)nrOfPoints [t]/(double)minSize)));
+		particles.add(new ArrayList<ArrayList<PartPoint>>((int)Math.round((double)nrOfPoints [t]/(double)minBBSize)));
 	}
 
 	int floodFilledPc [] = new int [imp.getNFrames()];	
@@ -2339,7 +2375,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 							floodNodeY = floodNodes[index][1];
 							floodNodeZ = floodNodes[index][2];		
 							floodNodeT = floodNodes[index][3];
-							index--;            						
+							index--;
 							if ((floodNodeX > 0) 
 									&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
 								
@@ -2382,7 +2418,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 								floodNodes[index][1] = floodNodeY-1;
 								floodNodes[index][2] = floodNodeZ;
 								floodNodes[index][3] = floodNodeT;
-							}                
+							}
 							if ((floodNodeY < (imp.getHeight()-1)) 
 									&& imp.getStack().getVoxel(floodNodeX, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
 								
@@ -2410,7 +2446,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 								floodNodes[index][1] = floodNodeY;
 								floodNodes[index][2] = floodNodeZ-1;
 								floodNodes[index][3] = floodNodeT;
-							}                
+							}
 							if ((floodNodeZ < (imp.getNSlices()-1)) 
 									&& imp.getStack().getVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
 								
@@ -2469,7 +2505,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									floodNodes[index][1] = floodNodeY-1;
 									floodNodes[index][2] = floodNodeZ;
 									floodNodes[index][3] = floodNodeT;
-								}                
+								}
 								if ((floodNodeX > 0) && (floodNodeY < (imp.getHeight()-1)) 
 										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ)+1, (floodNodeT)+1)-1) > 0.0){
 									
@@ -2640,7 +2676,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									floodNodes[index][1] = floodNodeY-1;
 									floodNodes[index][2] = floodNodeZ-1;
 									floodNodes[index][3] = floodNodeT;
-								}                
+								}
 								if ((floodNodeX > 0) && (floodNodeY < (imp.getHeight()-1)) && (floodNodeZ > 0)
 										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ-1)+1, (floodNodeT)+1)-1) > 0.0){
 									
@@ -2697,7 +2733,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 									floodNodes[index][1] = floodNodeY-1;
 									floodNodes[index][2] = floodNodeZ+1;
 									floodNodes[index][3] = floodNodeT;
-								}                
+								}
 								if ((floodNodeX > 0) && (floodNodeY < (imp.getHeight()-1)) && (floodNodeZ < (imp.getNSlices()-1)) 
 										&& imp.getStack().getVoxel(floodNodeX-1, floodNodeY+1, imp.getStackIndex(c, (floodNodeZ+1)+1, (floodNodeT)+1)-1) > 0.0){
 									
@@ -2717,8 +2753,8 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 						//Floodfiller
 						preliminaryParticle.trimToSize();
 
-						if(preliminaryParticle.size() >= minSize){
-							particles.get(t).add(preliminaryParticle);							
+						if(preliminaryParticle.size() >= minBBSize){
+							particles.get(t).add(preliminaryParticle);
 						}else{
 							preliminaryParticle.clear();
 							preliminaryParticle.trimToSize();
@@ -2895,7 +2931,7 @@ private static ImagePlus getChannel(ImagePlus imp, int channel){
 			}
 		}
 	}
-	imp.setDisplayRange(0, 4095);
+	tools.autoscaleDisplayRange(imp, 0.99);
 	
 	impNew.setCalibration(imp.getCalibration());
 	return impNew;
@@ -3062,7 +3098,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 							continue;
 						}
 						// ADD the BB without cilium
-						cilia.add(new Cilium(bbParticles.get(bb), imp, measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC, 
+						cilia.add(new Cilium(bbParticles.get(bb), 0, imp, measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC, 
 								channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize));
 					}
 				}
@@ -3407,9 +3443,9 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			if(measureC2local && cilia.get(i).ciliumAvailable){
 				iProfileC2 = cilia.get(i).getIntensityProfile(2, calibration, false);
 				appendTxt += "	"; 
-				if(iProfileC2!=null && cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC2));
+				if(iProfileC2!=null && cilia.get(i).sklAvailable)	appendTxt += fmt6(tools.getSum(iProfileC2));
 				appendTxt += "	"; 
-				if(iProfileC2!=null && cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC2));
+				if(iProfileC2!=null && cilia.get(i).sklAvailable)	appendTxt += fmt6(tools.getAverage(iProfileC2));
 			}else{
 				iProfileC2  = null;
 				appendTxt += "		";
@@ -3418,9 +3454,9 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			if(measureC3local && cilia.get(i).ciliumAvailable){
 				iProfileC3 = cilia.get(i).getIntensityProfile(3, calibration, false);
 				appendTxt += "	";
-				if(iProfileC3!=null && cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC3));
+				if(iProfileC3!=null && cilia.get(i).sklAvailable)	appendTxt += fmt6(tools.getSum(iProfileC3));
 				appendTxt += "	"; 
-				if(iProfileC3!=null && cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC3));
+				if(iProfileC3!=null && cilia.get(i).sklAvailable)	appendTxt += fmt6(tools.getAverage(iProfileC3));
 			}else{
 				iProfileC3  = null;
 				appendTxt += "		";
@@ -3743,9 +3779,13 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 								}
 								// ADD the BB without cilium into a cilium and then timelapsecilium object
 								// (TODO May require later linkage)
-								timelapseCilia.add(new TimelapseCilium(new Cilium(bbParticles.get(t).get(bb), imp, measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC, 
+								timelapseCilia.add(new TimelapseCilium(new Cilium(bbParticles.get(t).get(bb),
+										t, imp,
+										measureC2local, channelC2, measureC3local, channelC3,
+										measureBasalLocal, basalStainC, 
 										channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize),
 										imp, progress));
+								
 							}
 						}
 						
@@ -3970,16 +4010,16 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	appendTxt += "	"; if(measureC3local){appendTxt += "Intensity threshold B";}
 	appendTxt += "	"; if(measureBasalLocal){appendTxt += "Intensity threshold Basal Stain";}
 	
-	appendTxt += "	"; if(segmentedBB) appendTxt += "basalbody x center ["+calibrationDimension+"]";;
-	appendTxt += "	"; if(segmentedBB) appendTxt += "basalbody y center ["+calibrationDimension+"]";;
-	appendTxt += "	"; if(segmentedBB) appendTxt += "basalbody z center ["+calibrationDimension+"]";;
+	appendTxt += "	"; if(segmentedBB) appendTxt += "basalbody x center (time-averaged) ["+calibrationDimension+"]";
+	appendTxt += "	"; if(segmentedBB) appendTxt += "basalbody y center (time-averaged) ["+calibrationDimension+"]";
+	appendTxt += "	"; if(segmentedBB) appendTxt += "basalbody z center (time-averaged) ["+calibrationDimension+"]";
 
-	appendTxt += "	"; if(segmentedBB) appendTxt += "basalbody center A intensity";
-	appendTxt += "	"; if(segmentedBB) appendTxt += "A intensity within 1 "+calibrationDimension+" to basal body";
-	appendTxt += "	"; if(segmentedBB) appendTxt += "A intensity 1-2 "+calibrationDimension+" to basal body";
-	appendTxt += "	"; if(segmentedBB) appendTxt += "basalbody center B intensity";
-	appendTxt += "	"; if(segmentedBB) appendTxt += "B intensity within 1 "+calibrationDimension+" to basal body";
-	appendTxt += "	"; if(segmentedBB) appendTxt += "B intensity 1-2 "+calibrationDimension+" to basal body";
+	appendTxt += "	"; if(segmentedBB) appendTxt += "basalbody center A intensity (time-averaged)";
+	appendTxt += "	"; if(segmentedBB) appendTxt += "A intensity within 1 "+calibrationDimension+" to basal body (time-averaged)";
+	appendTxt += "	"; if(segmentedBB) appendTxt += "A intensity 1-2 "+calibrationDimension+" to basal body (time-averaged)";
+	appendTxt += "	"; if(segmentedBB) appendTxt += "basalbody center B intensity (time-averaged)";
+	appendTxt += "	"; if(segmentedBB) appendTxt += "B intensity within 1 "+calibrationDimension+" to basal body (time-averaged)";
+	appendTxt += "	"; if(segmentedBB) appendTxt += "B intensity 1-2 "+calibrationDimension+" to basal body (time-averaged)";
 
 	tw1.append(""+appendTxt);
 				
@@ -4216,7 +4256,7 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "Integrated A intensity";
 	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "Average A intensity on center line";
 	appendTxt += "	"; if(skeletonize && measureC3local) appendTxt += "Integrated B intensity";
-	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "Average B intensity on center line";
+	appendTxt += "	"; if(skeletonize && measureC3local) appendTxt += "Average B intensity on center line";
 	
 	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "A: Colocalized on centerline compared to BG volume [" + calibrationDimension + "]";
 	appendTxt += "	"; if(skeletonize && measureC2local) appendTxt += "A: Colocalized on centerline compared to BG volume [% total length]";
@@ -4353,10 +4393,11 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 			progress.updateBarText("Determine intensity profiles for cilium " + ciliumID + " - time " + time);
 			if(measureC2local){
 				iProfileC2 = cilium.cilia.get(i).getIntensityProfile(2, calibration, false);
+				//Note: GetIntensityProfile returns NULL when foundSkl == 0 || sklPointList == null, checked for below from V0.2.2 on				
 				appendTxt += "	";
-				if(cilium.cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC2));
+				if(iProfileC2 != null && cilium.cilia.get(i).sklAvailable)	appendTxt += fmt6(tools.getSum(iProfileC2));
 				appendTxt += "	";
-				if(cilium.cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC2));
+				if(iProfileC2 != null && cilium.cilia.get(i).sklAvailable)	appendTxt += fmt6(tools.getAverage(iProfileC2));
 			}else{
 				iProfileC2  = null;
 				appendTxt += "		";
@@ -4364,10 +4405,11 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 						
 			if(measureC3local){
 				iProfileC3 = cilium.cilia.get(i).getIntensityProfile(3, calibration, false);
+				//Note: GetIntensityProfile returns NULL when foundSkl == 0 || sklPointList == null, checked for below from V0.2.2 on
 				appendTxt += "	"; 
-				if(cilium.cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getSum(iProfileC3));
-				appendTxt += "	"; 
-				if(cilium.cilia.get(i).sklAvailable)	appendTxt += dformat6.format(tools.getAverage(iProfileC3));
+				if(iProfileC3 != null && cilium.cilia.get(i).sklAvailable)	appendTxt += fmt6(tools.getSum(iProfileC3));
+				appendTxt += "	";
+				if(iProfileC3 != null && cilium.cilia.get(i).sklAvailable)	appendTxt += fmt6(tools.getAverage(iProfileC3));
 			}else{
 				iProfileC3  = null;
 				appendTxt += "		";
@@ -4943,7 +4985,7 @@ private void saveImageAs3D(String savePath, ImagePlus imp, boolean transparent, 
 			imp3D = IJ.createImage("3D", width, height, impOut.getNFrames(), 24);
 			imp3D.setStack(stackOut); 
 			
-			if(imp3D.getNFrames() == 1) {
+			if(impOut.getNFrames() == 1) {
 				IJ.saveAs(imp3D, "PNG", savePath + "_3D.png");
 			}else {
 				IJ.saveAsTiff(imp3D, savePath + "_3D.tif");				
@@ -5062,7 +5104,18 @@ private static ImagePlus getTimePointFor3D(ImagePlus imp, int t){
 	ImagePlus impOut = IJ.createHyperStack(imp.getTitle() + " t" + t, 
 //			imp.getWidth()+10, imp.getHeight()+10, imp.getNChannels(), imp.getNSlices()+2, 1, 8);
 			imp.getWidth(), imp.getHeight(), imp.getNChannels(), imp.getNSlices()+2, 1, imp.getBitDepth());
-	int iMax = (int)Math.round(Math.pow(2.0,impOut.getBitDepth())-1.0);
+	
+	/*
+	 *	Changed from int to double in V0.2.2.
+	 *	32-bit ImageJ images are FLOAT. Math.pow(2,32)-1 = 4294967295 does not fit in an int, so
+	 *	the cast overflowed to -1 and the scale bar below was painted at the image MINIMUM instead
+	 *	of its maximum for 32-bit images. Keep the value a double. For float images use the maximum actually present.
+	 *	Matters since Cilia Preparator V0.2.1, where label images may be created in 32-bit format.
+	 */
+	double iMax = impOut.getBitDepth() == 32
+			? impOut.getStatistics().max
+			: Math.pow(2.0, impOut.getBitDepth()) - 1.0;
+	
 	impOut.setCalibration(imp.getCalibration());
 	impOut.setOverlay(imp.getOverlay());
 	for(int c = 0; c < imp.getNChannels(); c++){
@@ -5080,20 +5133,20 @@ private static ImagePlus getTimePointFor3D(ImagePlus imp, int t){
 	
 	//copy colors
 	if (imp.isComposite()) {
-        int mode = ((CompositeImage)imp).getMode();
-        if (imp.getNChannels()!=1) {
-            impOut = new CompositeImage(impOut, mode);
-            for (int c=1; c<=imp.getNChannels(); c++) {
-                LUT lut = ((CompositeImage)imp).getChannelLut(c);
-                ((CompositeImage)impOut).setChannelLut(lut, c);
-            }
-        }else {
-            LUT lut = ((CompositeImage)imp).getChannelLut(1);
-            impOut.getProcessor().setColorModel(lut);
-            impOut.setDisplayRange(lut.min, lut.max);
-        }
-    }
-    impOut.setOpenAsHyperStack(true);
+		int mode = ((CompositeImage) imp).getMode();
+		if (imp.getNChannels() != 1) {
+			impOut = new CompositeImage(impOut, mode);
+			for (int c = 1; c <= imp.getNChannels(); c++) {
+				LUT lut = ((CompositeImage) imp).getChannelLut(c);
+				((CompositeImage) impOut).setChannelLut(lut, c);
+			}
+		} else {
+			LUT lut = ((CompositeImage) imp).getChannelLut(1);
+			impOut.getProcessor().setColorModel(lut);
+			impOut.setDisplayRange(lut.min, lut.max);
+		}
+	}
+	impOut.setOpenAsHyperStack(true);
 
 //	imp.show();
 //	impOut.show();
@@ -5119,7 +5172,7 @@ private void convertToRGB(ImagePlus imp){
 	}else{
 		ImageConverter iCv = new ImageConverter(imp);
 		iCv.convertToRGB();
-	}	        
+	}
 }
 
 /**
@@ -5306,6 +5359,141 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 	}
 
 	/**
+	 * Checking for plausible input: is this plausibly a segmented channel?
+	 *
+	 * Runs for EVERY image, including ones segmented outside the Preparator, and never errors,
+	 * but only notifies.
+	 *
+	 * New in v0.2.2
+	 */
+	void runStartupChecks(ImagePlus imp, int cReconstruction, int cBasalStain, String fileName,
+			String fileDir, ProgressReporter progress){
+		String where = " (File " + fileName + ", Dir: " + fileDir + ")";
+
+		/*
+		 *	Check 1: TIFF slice label.
+		 *	The Preparator marks segmented channels in the TIFF slice label, and that survives the
+		 *	round-trip, e.g.:
+		 *		ch3 -> "segm Channel 3 S1/6 T1/1"	(segmented)
+		 *		ch4 -> "Channel 3 S1/6 T1/1"		(the unsegmented duplicate)
+		 *
+		 *	Three cases, and only the middle one warns:
+		 *		label starts with "segm "
+		 *			-> correct channel, silent
+		 *		no "segm " here BUT another channel has it
+		 *			-> Preparator output, wrong channel picked: warn and name the likely one
+		 *		no Preparator-style label anywhere
+		 *			-> segmented elsewhere: SAY NOTHING
+		 */
+		int segmChannel = -1;
+		boolean chosenIsSegm = false;
+		for(int c = 1; c <= imp.getNChannels(); c++){
+			String label = imp.getStack().getSliceLabel(imp.getStackIndex(c, 1, 1));
+			if(label == null || !label.startsWith("segm ")){
+				continue;
+			}
+			if(c == cReconstruction){
+				chosenIsSegm = true;
+			}else if(segmChannel == -1){
+				segmChannel = c;
+			}
+		}
+		if(!chosenIsSegm && segmChannel != -1){
+			progress.notifyMessage("Channel " + cReconstruction + " is not labeled as segmented channel"
+					+ " - did you mean channel " + segmChannel + "? The input image likely came from CiliaQ"
+					+ " Preparator, which marked channel " + segmChannel + " as segmented."
+					+ where, ProgressReporter.NOTIFICATION);
+		}
+
+		/*
+		 * Check 2: a channel byte-identical to the FOLLOWING channel means segmentation removed
+		 * nothing -- the threshold fell below the lowest non-zero intensity, so the "segmented"
+		 * channel equals the unsegmented duplicate beside it.
+		 *
+		 * The Preparator reports the CAUSE; this reports the SYMPTOM, and it also covers images that
+		 * never went through the Preparator.
+		 */
+		if(cReconstruction + 1 <= imp.getNChannels()
+				&& channelsIdentical(imp, cReconstruction, cReconstruction + 1)){
+			progress.notifyMessage("Channel " + cReconstruction + " is identical to channel "
+					+ (cReconstruction + 1) + " suggesting segmentation removed nothing, so a threshold, "
+					+ "if any intensity threshold was used, was probably below the lowest non-zero intensity."
+					+ where,
+					ProgressReporter.NOTIFICATION);
+		}
+
+		/*
+		 * Check 3: the reconstruction channel holds exactly ONE non-zero value, so it
+		 * carries no intensity information and every "... (in reconstruction channel)" column is
+		 * that constant -- e.g. 65535 for the Preparator's "set to maximum" style.
+		 */
+		double single = singleNonZeroValue(imp, cReconstruction);
+		if(!Double.isNaN(single)){
+			progress.notifyMessage("Channel " + cReconstruction + " holds a single non-zero value ("
+					+ single + "), so it is a binary mask: every intensity column measured in the"
+					+ " reconstruction channel will report that constant and means nothing."
+					+ where, ProgressReporter.NOTIFICATION);
+		}
+		if(cBasalStain > 0){
+			double singleBB = singleNonZeroValue(imp, cBasalStain);
+			if(!Double.isNaN(singleBB)){
+				progress.notifyMessage("Basal stain channel " + cBasalStain + " holds a single"
+					+ " non-zero value (" + singleBB + "), so the basal body intensity columns"
+					+ " report that constant and mean nothing."
+					+ where, ProgressReporter.NOTIFICATION);
+			}
+		}
+	}
+
+	/** 
+	 * True if two channels are pixel-identical across every slice and frame.
+	 * New in v0.2.2
+	 * */
+	boolean channelsIdentical(ImagePlus imp, int cA, int cB){
+		for(int z = 1; z <= imp.getNSlices(); z++){
+			for(int f = 1; f <= imp.getNFrames(); f++){
+				ImageProcessor a = imp.getStack().getProcessor(imp.getStackIndex(cA, z, f));
+				ImageProcessor b = imp.getStack().getProcessor(imp.getStackIndex(cB, z, f));
+				int n = a.getWidth() * a.getHeight();
+				for(int i = 0; i < n; i++){
+					if(a.getf(i) != b.getf(i)){
+						return false;
+					}
+				}
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * The single non-zero value in a channel, or NaN if there are none or more than one.
+	 * Returns early on the second distinct value, for efficiency on a normal intensity channel.
+	 * New in v0.2.2
+	 */
+	double singleNonZeroValue(ImagePlus imp, int c){
+		double found = Double.NaN;
+		for(int z = 1; z <= imp.getNSlices(); z++){
+			for(int f = 1; f <= imp.getNFrames(); f++){
+				ImageProcessor ip = imp.getStack().getProcessor(imp.getStackIndex(c, z, f));
+				int n = ip.getWidth() * ip.getHeight();
+				for(int i = 0; i < n; i++){
+					double v = ip.getf(i);
+					if(v == 0.0){
+						continue;
+					}
+					if(Double.isNaN(found)){
+						found = v;
+					}else if(v != found){
+						return Double.NaN;
+					}
+				}
+			}
+		}
+		return found;
+	}
+
+	
+	/**
 	 * Import settings from existing "...CQ.txt" file
 	 */
 	private boolean importSettings() {
@@ -5314,11 +5502,11 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 		fd.setMultipleMode(false);
 		fd.setMode(FileDialog.LOAD);
 		fd.setVisible(true);
-		File settingsFile = fd.getFiles()[0];
 		
-		if(settingsFile.equals(null)) {
+		if(fd.getFiles() == null || fd.getFiles().length == 0) {
 			return false;
-		}	
+		}
+		File settingsFile = fd.getFiles()[0];
 		
 		//read preferences
 		boolean readPrefs = false;
@@ -5917,6 +6105,20 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 		// 3) Per-frame BB assignment BEFORE tracking so anchors can use BB centers
 		if(segmentedBB){
 			ArrayList<ArrayList<Uncalibrated3DPoint>> bbParticles = getBBObjectsTimelapse(imp, basalStainC, increaseRangeBB);
+			
+			/*
+			 * Similar to classic mode, we notify here in linear mode also when
+			 * no BB is found and empty BB columns are produced.
+			 */
+			int totalNrOfBBsLinear = 0;
+			for(int t = 0; t < bbParticles.size(); t++){
+				totalNrOfBBsLinear += bbParticles.get(t).size();
+			}
+			if(totalNrOfBBsLinear == 0){
+				progress.notifyMessage("No BBs found in image - no BBs added. File " + name
+						+ " (Dir: " + dir + ")", ProgressReporter.NOTIFICATION);
+			}
+			
 			for(int t = 0; t < imp.getNFrames() && t < bbParticles.size(); t++){
 				progress.updateBarText("Assigning BBs per frame (t " + (t+1) + "/" + imp.getNFrames() + ")");
 				
@@ -5925,7 +6127,7 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 				// turn unused BBs into BB-only Cilium objects and add them so they get tracked too (answer #3)
 				for(int bb = 0; bb < bbParticles.get(t).size(); bb++){
 					if(bbUsed[bb]) continue;
-					perFrameCilia.get(t).add(new Cilium(bbParticles.get(t).get(bb), imp,
+					perFrameCilia.get(t).add(new Cilium(bbParticles.get(t).get(bb), t, imp,
 							measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC,
 							channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize));
 				}
@@ -6012,6 +6214,9 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 		for(int tr = 0; tr < tracks.size(); tr++){
 			progress.updateBarText("Assembling tracked cilia (" + (tr+1) + "/" + tracks.size() + ")");
 			out.add(new TimelapseCilium(tracks.get(tr), imp, measureC2local, measureC3local, skeletonize, progress));
+			
+			// compute the basal body parameters
+			out.get(out.size() - 1).computeBBParameters();
 		}
 		
 		// Track-level BB-cilia filtering. Applied per whole track.
@@ -6118,13 +6323,13 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 					addStr += "	";
 					if(!Double.isNaN(curvatures[p])) addStr += dformat6.format(curvatures [p]);	//Curvature
 					addStr += "	";
-					if(measureC2) addStr += dformat6.format(cilia.get(cil).profileC2[p]);	//Intensity A
+					if(measureC2) addStr += fmt6(cilia.get(cil).profileC2[p]);	//Intensity A
 					addStr += "	";
-					if(measureC3) addStr += dformat6.format(cilia.get(cil).profileC3[p]);	//Intensity B
+					if(measureC3) addStr += fmt6(cilia.get(cil).profileC3[p]);	//Intensity B
 					addStr += "	";
-					if(measureC2) addStr += dformat6.format(cilia.get(cil).profileC2norm[p]);	//Intensity A Norm
+					if(measureC2) addStr += fmt6(cilia.get(cil).profileC2norm[p]);	//Intensity A Norm
 					addStr += "	";
-					if(measureC3) addStr += dformat6.format(cilia.get(cil).profileC3norm[p]);	//Intensity B Norm
+					if(measureC3) addStr += fmt6(cilia.get(cil).profileC3norm[p]);	//Intensity B Norm
 					tp.append(addStr);
 				}
 			}
@@ -6219,13 +6424,13 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 						addStr += "	";
 						if(!Double.isNaN(curvatures[p])) addStr += dformat6.format(curvatures [p]);	//Curvature
 						addStr += "	";
-						if(measureC2) addStr += dformat6.format(cilia.get(cil).profileC2[p]);	//Intensity A
+						if(measureC2) addStr += fmt6(cilia.get(cil).profileC2[p]);	//Intensity A
 						addStr += "	";
-						if(measureC3) addStr += dformat6.format(cilia.get(cil).profileC3[p]);	//Intensity B
+						if(measureC3) addStr += fmt6(cilia.get(cil).profileC3[p]);	//Intensity B
 						addStr += "	";
-						if(measureC2) addStr += dformat6.format(cilia.get(cil).profileC2norm[p]);	//Intensity A Norm
+						if(measureC2) addStr += fmt6(cilia.get(cil).profileC2norm[p]);	//Intensity A Norm
 						addStr += "	";
-						if(measureC3) addStr += dformat6.format(cilia.get(cil).profileC3norm[p]);	//Intensity B Norm
+						if(measureC3) addStr += fmt6(cilia.get(cil).profileC3norm[p]);	//Intensity B Norm
 						tp.append(addStr);
 						
 					}
@@ -6362,20 +6567,6 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 	private String fmt6(double value){
 		return Double.isFinite(value) ? dformat6.format(value) : "";
 	}
-
-	// Check whether image is 12 bit
-	static boolean is12Bit(ImagePlus imp) {
-		for(int z = 0; z < imp.getStackSize(); z++){
-			for(int x = 0; x < imp.getWidth(); x++){
-				for(int y = 0; y < imp.getHeight(); y++){
-					if(imp.getStack().getVoxel(x, y, z)>4096.0) {
-						return false;
-					}
-				}
-			}
-		}
-		return true;
-	}
 	
 	/**
 	 * Add helpers for macro string reading
@@ -6386,85 +6577,98 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 	 *  can introduce, so the returned index always aligns with the original string. 
 	 *  Added in version v0.2.2
 	 *  */
-	private static int indexOfIgnoreCase(String haystack, String needle){
-	    int n = needle.length(), max = haystack.length() - n;
-	    for(int i = 0; i <= max; i++){
-	        if(haystack.regionMatches(true, i, needle, 0, n))	return i;
-	    }
-	    return -1;
+	private static int indexOfIgnoreCase(String haystack, String needle) {
+		int n = needle.length(), max = haystack.length() - n;
+		for (int i = 0; i <= max; i++) {
+			if (haystack.regionMatches(true, i, needle, 0, n))
+				return i;
+		}
+		return -1;
 	}
 
-	/** Value of `key=`, or null when absent. Replaces ij.Macro.getValue, which lowercases the key
-	 *  and so never finds one containing an uppercase letter -- `channel-A=1` was unreadable.
-	 *  The KEY matches case-insensitively (channel-A, channel-a, CHANNEL-A all work); the VALUE is
-	 *  returned verbatim, so [each BB to closest cilium] keeps its capitals. Requiring a preceding
-	 *  space also stops a key matching inside a longer one -- Macro.getValue accepts a match
-	 *  preceded by '-', so getValue(o,"channel") returned 3 from "reconstruction-channel=3". 
-	 *  Added in version v0.2.2
-	 *  */
-	private String macroValue(String options, String key){
-	    if(options == null || key == null)	return null;
-	    String hay = " " + options;
-	    String needle = " " + key + "=";
-	    int i = indexOfIgnoreCase(hay, needle);
-	    if(i < 0)	return null;
-	    String rest = hay.substring(i + needle.length());
-	    if(rest.startsWith("[")){
-	        int end = rest.indexOf(']');
-	        return end < 0 ? rest.substring(1) : rest.substring(1, end);
-	    }
-	    int sp = rest.indexOf(' ');
-	    return sp < 0 ? rest : rest.substring(0, sp);
-	}
-	
-	/** String macro option that returns fallback when absent or empty.
-	 * Added in version v0.2.2
-	 * */
-	private String macroString(String options, String key, String fallback){
-	    String raw = macroValue(options, key);
-	    return (raw == null || raw.isEmpty()) ? fallback : raw;
-	}
-
-	
-	/** Numeric macro option. Returns fallback and warns if absent or unparseable.
-	 * Added in version v0.2.2 
+	/**
+	 * Value of `key=`, or null when absent. Replaces ij.Macro.getValue, which
+	 * lowercases the key and so never finds one containing an uppercase letter --
+	 * `channel-A=1` was unreadable. The KEY matches case-insensitively (channel-A,
+	 * channel-a, CHANNEL-A all work); the VALUE is returned verbatim, so [each BB
+	 * to closest cilium] keeps its capitals. Requiring a preceding space also stops
+	 * a key matching inside a longer one -- Macro.getValue accepts a match preceded
+	 * by '-', so getValue(o,"channel") returned 3 from "reconstruction-channel=3".
+	 * 
+	 * New in V0.2.2
 	 */
-	private double macroDouble(String options, String key, double fallback, boolean logDetection){
+	private String macroValue(String options, String key) {
+		if (options == null || key == null)
+			return null;
+		String hay = " " + options;
+		String needle = " " + key + "=";
+		int i = indexOfIgnoreCase(hay, needle);
+		if (i < 0)
+			return null;
+		String rest = hay.substring(i + needle.length());
+		if (rest.startsWith("[")) {
+			int end = rest.indexOf(']');
+			return end < 0 ? rest.substring(1) : rest.substring(1, end);
+		}
+		int sp = rest.indexOf(' ');
+		return sp < 0 ? rest : rest.substring(0, sp);
+	}
+	
+	/**
+	 * String macro option that returns fallback when absent or empty. Added in
+	 * version v0.2.2
+	 */
+	private String macroString(String options, String key, String fallback) {
 		String raw = macroValue(options, key);
-		if(raw == null || raw.isEmpty()){
-			if(logDetection)	IJ.log("macro option '" + key + "' absent; using " + fallback);
+		return (raw == null || raw.isEmpty()) ? fallback : raw;
+	}
+
+	/**
+	 * Numeric macro option. Returns fallback and warns if absent or unparseable.
+	 * Added in version v0.2.2
+	 */
+	private double macroDouble(String options, String key, double fallback, boolean logDetection) {
+		String raw = macroValue(options, key);
+		if (raw == null || raw.isEmpty()) {
+			if (logDetection)
+				IJ.log("macro option '" + key + "' absent; using " + fallback);
 			return fallback;
 		}
-		try{
+		try {
 			return Double.parseDouble(raw.replace(",", "."));
-		}catch(NumberFormatException e){
-			IJ.log("CiliaQ WARNING: macro option '" + key + "' is not a number ('" + raw
-				+ "'); using " + fallback + ".");
+		} catch (NumberFormatException e) {
+			IJ.log("CiliaQ WARNING: macro option '" + key + "' is not a number ('" + raw + "'); using " + fallback
+					+ ".");
 			return fallback;
 		}
 	}
 
-	/** Choice macro option, matched exactly against the allowed values.
-	 * Added in version v0.2.2 
-	 * */
-	private String macroChoice(String options, String key, String [] choices, String fallback){
+	/**
+	 * Choice macro option, matched exactly against the allowed values. Added in
+	 * version v0.2.2
+	 */
+	private String macroChoice(String options, String key, String[] choices, String fallback) {
 		String raw = macroValue(options, key);
-		if(raw == null || raw.isEmpty())	return fallback;
-		for(int i = 0; i < choices.length; i++){
-			if(choices[i].equals(raw))	return choices[i];
+		if (raw == null || raw.isEmpty())
+			return fallback;
+		for (int i = 0; i < choices.length; i++) {
+			if (choices[i].equals(raw))
+				return choices[i];
 		}
 		String valid = "";
-		for(int i = 0; i < choices.length; i++)	valid += "\n" + choices[i];
-		IJ.error("CiliaQ: macro option '" + key + "' value '" + raw
-			+ "' is not valid. Valid values are:" + valid);
+		for (int i = 0; i < choices.length; i++)
+			valid += "\n" + choices[i];
+		IJ.error("CiliaQ: macro option '" + key + "' value '" + raw + "' is not valid. Valid values are:" + valid);
 		return fallback;
 	}
 
-	/** Boolean flag: present means true, absent means false. Matches whole tokens only.
-	 * Added in version v0.2.2 
-	 * */
-	private boolean macroFlag(String options, String key){
-	    if(options == null)	return false;
-	    return indexOfIgnoreCase(" " + options + " ", " " + key + " ") >= 0;
+	/**
+	 * Boolean flag: present means true, absent means false. Matches whole tokens
+	 * only. Added in version v0.2.2
+	 */
+	private boolean macroFlag(String options, String key) {
+		if (options == null)
+			return false;
+		return indexOfIgnoreCase(" " + options + " ", " " + key + " ") >= 0;
 	}
 }//end main class

@@ -18,6 +18,13 @@ public class ConsoleProgress implements ProgressReporter {
 	private int task = 1;
 	private String lastText = "";
 
+	/*
+	 *	Time-based throttle for the progress log.
+	 *	The first and last update of every stage are always emitted.
+	 */
+	private static final long MIN_INTERVAL_MS = 1000L;
+	private long lastEmitMs = 0L;
+
 	public ConsoleProgress(String [] taskList, int tasks) {
 		this.taskList = taskList == null ? new String [0] : taskList.clone();
 		this.tasks = tasks;
@@ -27,6 +34,20 @@ public class ConsoleProgress implements ProgressReporter {
 	public void updateBarText(String text) {
 		// Suppress repeats: the bar text is updated inside per-cilium and per-slice loops.
 		if (text == null || text.equals(lastText)) return;
+		long now = System.currentTimeMillis();
+		if (lastEmitMs != 0L && now - lastEmitMs < MIN_INTERVAL_MS) {
+			lastText = text;		// remember it, so the NEXT emit is not suppressed as a repeat
+			return;
+		}
+		lastEmitMs = now;
+		lastText = text;
+		IJ.log("  [" + task + "/" + tasks + "] " + text);
+	}
+
+	/** Emit unconditionally, ignoring the throttle. For the last update of a stage. */
+	public void flushBarText(String text) {
+		if (text == null) return;
+		lastEmitMs = System.currentTimeMillis();
 		lastText = text;
 		IJ.log("  [" + task + "/" + tasks + "] " + text);
 	}

@@ -30,9 +30,11 @@ import java.util.Arrays;
 
 import ij.IJ;
 import ij.ImagePlus;
+import ij.process.ImageProcessor;
 import ij.gui.Plot;
 import ij.gui.PlotWindow;
 import ij.gui.WaitForUserDialog;
+import ij.measure.Calibration;
 
 public class tools{
 	/**
@@ -562,52 +564,169 @@ public class tools{
 	}
 	
 	public static double [] projectPointToLine2D (double px, double py, double lx1, double ly1, double lx2, double ly2){
-			if(ly2-ly1 == 0.0){
-				return new double [] {px, ly1};
-			}
-			
-			if(lx2-lx1 == 0.0){
-				return new double [] {lx1, py};
-			}
-			
-			//calculate slope of line
-			double m = (ly2-ly1)/(lx2-lx1);
-					
-			//calculate slope of normal line
-			double mNormal = -1.0 / m;
-	//		if(Double.isNaN(mNormal)){
-	//			IJ.log("mNormal NAN" + "m = " + m);
-	//			return new double [] {lx1 + (lx2-lx1)/2.0, py};
-	//		}
-			
-			//find dislocation of normal line (m*x+b=y)
-			double bNormal = py - (mNormal * px);
-			
-			//calculate new x
-			double x = ((ly1 - (m * lx1))-bNormal)/(mNormal-m);
-			
-			return new double [] {x,mNormal * x + bNormal};
-			
-			//CALCULATION IN STEPS
-			//calculate slope of line
-	//		double m = (ly2-ly1)/(lx2-lx1);
-	//		//find dislocation of line (m*x+b=y)
-	//		double b = ly1 - (m * lx1);
-	//				
-	//		//calculate slope of normal line
-	//		double mNormal = 1.0/m;
-	//		//find dislocation of normal line (m*x+b=y)
-	//		double bNormal = py - (mNormal * px);
-	//		
-	//		//calculate new x
-	//		double x = (b-bNormal)/(mNormal-m);
-	//		double y = mNormal * x + bNormal;
+		if(ly2-ly1 == 0.0){
+			return new double [] {px, ly1};
 		}
+		
+		if(lx2-lx1 == 0.0){
+			return new double [] {lx1, py};
+		}
+		
+		//calculate slope of line
+		double m = (ly2-ly1)/(lx2-lx1);
+				
+		//calculate slope of normal line
+		double mNormal = -1.0 / m;
+//		if(Double.isNaN(mNormal)){
+//			IJ.log("mNormal NAN" + "m = " + m);
+//			return new double [] {lx1 + (lx2-lx1)/2.0, py};
+//		}
+		
+		//find dislocation of normal line (m*x+b=y)
+		double bNormal = py - (mNormal * px);
+		
+		//calculate new x
+		double x = ((ly1 - (m * lx1))-bNormal)/(mNormal-m);
+		
+		return new double [] {x,mNormal * x + bNormal};
+		
+		//CALCULATION IN STEPS
+		//calculate slope of line
+//		double m = (ly2-ly1)/(lx2-lx1);
+//		//find dislocation of line (m*x+b=y)
+//		double b = ly1 - (m * lx1);
+//				
+//		//calculate slope of normal line
+//		double mNormal = 1.0/m;
+//		//find dislocation of normal line (m*x+b=y)
+//		double bNormal = py - (mNormal * px);
+//		
+//		//calculate new x
+//		double x = (b-bNormal)/(mNormal-m);
+//		double y = mNormal * x + bNormal;
+	}
 
 	public static double getInterpolatedValue1D (double x, double x1, double x2, double i1, double i2){
-			return i1 + (((i2-i1)/(x2-x1)) * (x-x1));
-			//STEPWISE CALCULATION
-	//		double m = (i2-i1)/(x2-x1);
-	//		return i1 + (m * (x-x1));
+		return i1 + (((i2-i1)/(x2-x1)) * (x-x1));
+		//STEPWISE CALCULATION
+//		double m = (i2-i1)/(x2-x1);
+//		return i1 + (m * (x-x1));
+	}
+	
+	/**
+	* Set each channel's DISPLAY range to [0, p-th percentile of the non-zero voxels].
+	*
+	* Replaces `imp.setDisplayRange(0, 4095)`, which was hardcoded at 12 sites. 4095 is the 12-bit
+	* maximum: on 16-bit data everything above it displays saturated (test_A reaches 38848) and on
+	* 8-bit data the image looks almost black. Pixel values were never affected -- this is only what
+	* a user sees when opening the saved images -- but it is what they see.
+	*
+	* Percentile rather than bit-depth detection, because 16-bit data rarely fills its range, so
+	* detection would still be guessing. Percentile rather than resetDisplayRange() (pure min/max),
+	* because a single hot pixel then darkens the whole image.
+	*
+	* NON-ZERO voxels only. These images are background-free and mostly zero, so including zeros
+	* would put the 99th percentile at or near 0 for a sparse object and blow the display out.
+	*
+	* Display metadata only: no pixel is written, so this cannot move a measured number.
+	*
+	* @param imp: image to adjust, in place
+	* @param percentile: fraction in (0,1], e.g. 0.99
+	* 
+	* New in v0.2.2
+	*/
+	public static void autoscaleDisplayRange(ImagePlus imp, double percentile){
+		if(imp.getBitDepth() == 24){
+			return;					// RGB: display range is not meaningful
 		}
+		
+		boolean is32 = imp.getBitDepth() == 32;
+		int nBins = imp.getBitDepth() == 8 ? 256 : 65536;
+		
+		for(int c = 1; c <= imp.getNChannels(); c++){
+			long [] hist = is32 ? null : new long [nBins];
+			long nonZero = 0;
+			double max32 = 0.0;
+			for(int z = 1; z <= imp.getNSlices(); z++){
+				for(int f = 1; f <= imp.getNFrames(); f++){
+					ImageProcessor ip = imp.getStack().getProcessor(imp.getStackIndex(c, z, f));
+					int n = ip.getWidth() * ip.getHeight();
+					for(int i = 0; i < n; i++){
+						double v = ip.getf(i);
+						if(v <= 0.0){
+							continue;
+						}
+						nonZero++;
+						if(is32){
+							if(v > max32){
+								max32 = v;
+							}
+						}else{
+							int idx = (int) v;
+							if(idx >= 0 && idx < nBins){
+								hist [idx]++;
+							}
+						}
+					}
+				}
+			}
+		
+			double upper;
+			if(nonZero == 0){
+				upper = 1.0;		// nothing to show; any positive range beats [0,0]
+			}else if(is32){
+				upper = max32;
+			}else{
+				long target = (long) Math.ceil(percentile * (double) nonZero);
+				long seen = 0;
+				int at = nBins - 1;
+				for(int i = 0; i < nBins; i++){
+					seen += hist [i];
+					if(seen >= target){
+						at = i;
+						break;
+					}
+				}
+				upper = Math.max(1.0, (double) at);
+			}
+			imp.setC(c);
+			imp.setDisplayRange(0.0, upper);
+		}
+		imp.setC(1);
+	}
+	
+	/**
+	*	Helper to convert length in MICRONS into the unit the image is calibrated in.
+	*
+	*	- micron / um / µm  -> 1.0        the normal case, behaviour unchanged
+	*	- nm                -> 1000.0
+	*	- mm                -> 0.001
+	*	- pixel / unknown   -> 1.0        physical size unknowable; caller warns
+	*
+	*	New in v0.2.2
+	*/
+	public static double micronToImageUnit(Calibration cal, double microns){
+		if(cal == null || !cal.scaled()){
+			return microns;			// uncalibrated: treat the value as pixels
+		}
+		String u = cal.getUnit();
+		if(u == null){
+			return microns;
+		}
+		u = u.trim().toLowerCase();
+		if(u.equals("nm") || u.startsWith("nanom")){
+			return microns * 1000.0;
+		}
+		if(u.equals("mm") || u.startsWith("millim")){
+			return microns * 0.001;
+		}
+		if(u.equals("cm") || u.startsWith("centim")){
+			return microns * 0.0001;
+		}
+		if(u.equals("m") || u.startsWith("meter") || u.startsWith("metre")){
+			return microns * 0.000001;
+		}
+		// micron, um, µm, and anything unrecognised: use the value as given.
+		return microns;
+	}
 }

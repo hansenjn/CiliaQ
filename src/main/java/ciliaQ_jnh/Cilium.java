@@ -1,10 +1,10 @@
 package ciliaQ_jnh;
 /** ===============================================================================
- * CiliaQ, a plugin for imagej - Version 0.2.0
+ * CiliaQ, a plugin for imagej - Version 0.2.2
  * 
- * Copyright (C) 2017-2023 Jan Niklas Hansen
+ * Copyright (C) 2017-2026 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: October 1, 2023
+ * This Version: November 11, 2026
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -30,7 +30,6 @@ import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.Locale;
 
 import ciliaQ_skeleton_analysis.AnalyzeSkeleton_;
@@ -42,6 +41,7 @@ import ij.ImagePlus;
 import ij.WindowManager;
 import ij.gui.WaitForUserDialog;
 import ij.measure.Calibration;
+
 class Cilium{
 	boolean excluded = false;
 	boolean ciliumAvailable = false; // Was necessary from version v0.2.0 on where bbs can be kept without cilia
@@ -268,6 +268,7 @@ class Cilium{
 	 * Create a Cilium object that has only a basal body and no cilium
 	 * Implemented from Version v0.2.0 on
 	 * @param basalBodyWithoutCilium: The basal body to be added without cilium
+	 * @param frameIndex: 0-based index of the frame this basal body was detected in.
 	 * @param imp: ImagePlus of the image analyzed
 	 * @param measureC2: inherit setting in CiliaQMain
 	 * @param channel2: inherit setting in CiliaQMain
@@ -282,28 +283,29 @@ class Cilium{
 	 * @param progress: the ProgressReporter open to print log / warning /error messages
 	 * @param skeletonize: set true if skeletonization and, in turn, length measurement should be done
 	 */
-	public Cilium(Uncalibrated3DPoint basalBodyWithoutCilium, ImagePlus imp, 
+	public Cilium(Uncalibrated3DPoint basalBodyWithoutCilium, int frameIndex, ImagePlus imp,
 			boolean measureC2, int channel2, boolean measureC3, int channel3, boolean measureBasalBody, int channelBasalBody,
 			int channelReconstruction, double gXY, double gZ, double intensityThresholds [], ProgressReporter progress,
 			boolean skeletonize){
-		
-		bitDepth = imp.getBitDepth();
-		cal = imp.getCalibration().copy();
-		
-		calibration = cal.pixelWidth; 
-		voxelDepth = cal.pixelDepth;
+
+		this.bitDepth = imp.getBitDepth();
+		this.cal = imp.getCalibration().copy();
+
+		this.calibration = cal.pixelWidth;
+		this.voxelDepth = cal.pixelDepth;
+		this.t = frameIndex;
 				
-		xMin = 0;
-		yMin = 0;
-		zMin = 0;
+		this.xMin = 0;
+		this.yMin = 0;
+		this.zMin = 0;
 			
-		minCiliumIntensity = 0.0;
-		minC2Intensity = 0.0;
-		minC3Intensity = 0.0;
+		this.minCiliumIntensity = 0.0;
+		this.minC2Intensity = 0.0;
+		this.minC3Intensity = 0.0;
 		
-		orientationVector = new double[]{0.0,0.0,0.0};
+		this.orientationVector = new double[]{0.0,0.0,0.0};
 		
-		ciliumAvailable = false;
+		this.ciliumAvailable = false;
 		
 		addBasalBody(basalBodyWithoutCilium, imp, measureC2, channel2, measureC3, channel3, channelReconstruction, progress);		
 	}
@@ -568,31 +570,60 @@ class Cilium{
 			int channelReconstruction,
 			ProgressReporter progress) {
 		
+		/*
+		 * Bug fix in V0.2.2:
+		 * 
+		 * The measurement radii were the literals 1.0 and 2.0, interpreted in WHATEVER UNIT the
+		 * image carries, while the column header interpolates that unit. So a nanometre-calibrated
+		 * image was measured with a 1 nm sphere -- smaller than one voxel -- under a header reading
+		 * "A intensity within 1 nanometer to basal body".
+		 *
+		 * Cilia are a fixed physical scale (~1-20 micron), so the radius is defined in MICRONS and
+		 * converted into the image's unit. Micron-calibrated data -- every published analysis --
+		 * converts by 1.0 and reproduces byte-identically.
+		 */
+		final double rInner = tools.micronToImageUnit(cal, 1.0);
+		final double rOuter = tools.micronToImageUnit(cal, 2.0);
+		if(rInner < 2.0 * Math.min(calibration, voxelDepth)){
+			/*
+			 * The radius spans fewer than ~2 voxels on the finest axis, so the sphere holds almost
+			 * nothing and the reported intensities are noise. Fires on nanometre data, and on
+			 * uncalibrated images where the physical size is unknowable.
+			 */
+			progress.notifyMessage("Basal body measurement radius (" + rInner + " "
+					+ cal.getUnit() + ") spans fewer than 2 voxels - the reported basal body "
+					+ "intensities are unreliable. Check the image calibration.",
+					ProgressReporter.NOTIFICATION);
+		}
+
+		
 		if(measureC2) {
+			//Note: Fixed a bug in V0.2.2 - before pointBB.z was multiplied with the x,y calibration value not voxelDepth
 			this.bbCenterIntensityC2 = getInterpolatedIntensity2D(imp,
-					new SklPoint (pointBB.x*calibration, pointBB.y*calibration, pointBB.z*calibration),
+					new SklPoint (pointBB.x*calibration, pointBB.y*calibration, pointBB.z*voxelDepth),
 					channelC2);
 			this.bbIntensityRadius1C2 = this.getIntensityWithinRadius(imp,
 					channelC2, 
-					pointBB.x*calibration, pointBB.y*calibration, pointBB.z*calibration,
-					1.0);			
+					pointBB.x*calibration, pointBB.y*calibration, pointBB.z*voxelDepth,
+					rInner);
 			this.bbIntensityRadius2C2 = this.getIntensityInRing(imp,
 					channelC2, 
-					pointBB.x*calibration, pointBB.y*calibration, pointBB.z*calibration,
-					1.0, 2.0);
+					pointBB.x*calibration, pointBB.y*calibration, pointBB.z*voxelDepth,
+					rInner, rOuter);
 		}
 		if(measureC3) {
+			//Note: Fixed a bug in V0.2.2 - before pointBB.z was multiplied with the x,y calibration value not voxelDepth
 			this.bbCenterIntensityC3 = getInterpolatedIntensity2D(imp,
-					new SklPoint (pointBB.x*calibration, pointBB.y*calibration, pointBB.z*calibration),
+					new SklPoint (pointBB.x*calibration, pointBB.y*calibration, pointBB.z*voxelDepth),
 					channelC3);
 			this.bbIntensityRadius1C3 = this.getIntensityWithinRadius(imp,
 					channelC3, 
-					pointBB.x*calibration, pointBB.y*calibration, pointBB.z*calibration,
-					1.0);
+					pointBB.x*calibration, pointBB.y*calibration, pointBB.z*voxelDepth,
+					rInner);
 			this.bbIntensityRadius2C3 = this.getIntensityInRing(imp,
 					channelC3, 
-					pointBB.x*calibration, pointBB.y*calibration, pointBB.z*calibration,
-					1.0, 2.0);
+					pointBB.x*calibration, pointBB.y*calibration, pointBB.z*voxelDepth,
+					rInner, rOuter);
 		}	
 		
 		return true;
@@ -967,7 +998,7 @@ class Cilium{
 	 * */
 	private ArrayList<SklPoint> getSortedList(ArrayList<Point>[] shortestPath, SkeletonResult sklRes, boolean measureBasalBody, int basalBodyC, ImagePlus imp,
 			ProgressReporter progress, ImagePlus sklImp, double gXY, double gZ){
-		if(shortestPath.equals(null) || shortestPath.length == 0){
+		if(shortestPath == null || shortestPath.length == 0){
 			return null;
 		}
 		
@@ -989,7 +1020,7 @@ class Cilium{
 				Math.round(sklRes.getSpStartPosition()[chosenShortestPath][1] / calibration * 3.0),
 				Math.round(sklRes.getSpStartPosition()[chosenShortestPath][2] / voxelDepth * 3.0));
 //		progress.notifyMessage("start " + startEnd.x + " " + startEnd.y + " " + startEnd.z, ProgressReporter.LOG);
-		if(nPoints == 0 || startEnd.equals(null)){
+		if(nPoints == 0){
 			return null;
 		}
 		
@@ -1110,13 +1141,49 @@ class Cilium{
 		SklPoint pLast = new SklPoint(list.get(list.size()-1));
 				
 		if(measureBasalBody){
-			//get statistics for first point - method changed in v0.2.0 from 3 to 1 micron distance
+			/*
+			 * Fix in V0.2.2: Self-scaling radius for the base-end decision.
+			 *
+			 * This is NOT a measurement -- it compares basal-stain intensity near each skeleton end
+			 * to decide which end is the base, i.e. the orientation of the reported intensity
+			 * profile. It stays internal rather than becoming a setting.
+			 *
+			 * With a fixed 1 micron radius, a cilium shorter than ~2 micron has the two spheres OVERLAP,
+			 * so the comparison is noise and the base end is chosen effectively at random.
+			 * On nanometre-calibrated data a 1 nm sphere at both ends measures nothing,
+			 * with the same result. Either way the intensity profile can be reported BACKWARDS,
+			 * with the transition zone at the wrong end.
+			 *
+			 * endDistance/4 guarantees separation: two spheres of radius d/4 centred at the ends
+			 * leave d/2 between them. It only ever SHRINKS the radius -- the min caps it at the
+			 * 1 micron base, so a 30 micron cilium still uses 1 micron, not 7.5.
+			 *
+			 * The floor is one xy pixel, deliberately `calibration` and not `voxelDepth`: spanning
+			 * a pixel or two in xy is enough, whereas a voxelDepth-based floor would force 1 micron
+			 * on anisotropic data with 1 micron slices.
+			 */
+			double baseRadius = tools.micronToImageUnit(cal, 1.0);
+			double endDistance = Math.sqrt((pFirst.x - pLast.x) * (pFirst.x - pLast.x)
+					+ (pFirst.y - pLast.y) * (pFirst.y - pLast.y)
+					+ (pFirst.z - pLast.z) * (pFirst.z - pLast.z));
+			double endRadius = Math.max(calibration, Math.min(baseRadius, endDistance / 4.0));
+
+			
+			/*
+			 * get statistics for first point
+			 * - method changed in v0.2.0 from 3.0 to 1.0 units (e.g., micron) distance
+			 * - radius self-scaling up to 1.0 micron since v0.2.2
+			 */
 			double intensitySumStart = this.getIntensityWithinRadius(imp, basalBodyC, 
-					pFirst.x, pFirst.y, pFirst.z, 1.0);
-												
-			//get statistics for last point
+					pFirst.x, pFirst.y, pFirst.z, endRadius);
+																
+			/*
+			 * get statistics for last point
+			 * - method changed in v0.2.0 from 3.0 to 1.0 units (e.g., micron) distance
+			 * - radius self-scaling up to 1.0 micron since v0.2.2
+			 */
 			double intensitySumEnd =  this.getIntensityWithinRadius(imp, basalBodyC, 
-					pLast.x, pLast.y, pLast.z, 1.0);
+					pLast.x, pLast.y, pLast.z, endRadius);
 			
 			//if first point is actually last point reverse list
 			if(intensitySumStart < intensitySumEnd){
@@ -1302,7 +1369,7 @@ class Cilium{
 		}
 		imp.setC(1);	
 		IJ.run(imp, "Cyan", "");
-		imp.setDisplayRange(0, 4095);
+		tools.autoscaleDisplayRange(imp, 0.99);
 		
 		//draw skeleton
 		if(foundSkl != 0 && sklPointList != null){
@@ -1315,7 +1382,7 @@ class Cilium{
 			}
 			imp.setC(2);	
 			IJ.run(imp, "Grays", "");
-			imp.setDisplayRange(0, 4095);
+			tools.autoscaleDisplayRange(imp, 0.99);
 		}
 		
 		int cIndex = 3;
@@ -1329,7 +1396,7 @@ class Cilium{
 			}
 			imp.setC(cIndex);	
 			IJ.run(imp, "Green", "");
-			imp.setDisplayRange(0, 4095);
+			tools.autoscaleDisplayRange(imp, 0.99);
 		}
 		
 		cIndex = 4;
@@ -1342,7 +1409,7 @@ class Cilium{
 			}
 			imp.setC(cIndex);	
 			IJ.run(imp, "Red", "");
-			imp.setDisplayRange(0, 4095);
+			tools.autoscaleDisplayRange(imp, 0.99);
 			cIndex++;
 		}		
 		
@@ -1363,10 +1430,22 @@ class Cilium{
 		return imp;
 	}
 	
-	private static double getMaxTenPercent(double [] list){			
+	private static double getMaxTenPercent(double [] list){
+		if(list.length == 0){
+			// New in V0.2.2: no voxels = genuinely undefined, fmt6 emits an empty cell
+			return Double.NaN;
+		}
+		
 		double [] array = Arrays.copyOf(list, list.length);
 		Arrays.sort(array);
-		double maxTenPercent = getAverageOfRange(array,list.length-(int)Math.round(list.length/10.0), list.length-1);
+		/*	New in V0.2.2:
+		 *	For a 1-voxel object length/10 rounds to 0, so startIndex was length-0 = 1 and endIndex
+		 *	was 0. getAverageOfRange then loops `for(x = 1; x <= 0)` -- never executing -- and returns
+		 *	0.0 / (0 - 1 + 1) = 0.0/0.0 = NaN. Java 8's DecimalFormat renders that as U+FFFD, which is
+		 *	invisible on a modern JDK and unparseable as a number.
+		 */
+		int count = Math.max(1, (int)Math.round(list.length/10.0));
+		double maxTenPercent = getAverageOfRange(array, list.length-count, list.length-1);
 		array = null;
 		return maxTenPercent;
 	}
@@ -1427,7 +1506,7 @@ class Cilium{
 		}
 		imp.setC(1);	
 		IJ.run(imp, "Cyan", "");
-		imp.setDisplayRange(0, 4095);
+		tools.autoscaleDisplayRange(imp, 0.99);
 		
 		//draw skeleton
 		if(foundSkl != 0 && sklPointList != null){
@@ -1452,7 +1531,7 @@ class Cilium{
 			}
 			imp.setC(cIndex);	
 			IJ.run(imp, "Green", "");
-			imp.setDisplayRange(0, 4095);
+			tools.autoscaleDisplayRange(imp, 0.99);
 		}
 		
 		cIndex = 4;			
@@ -1473,7 +1552,7 @@ class Cilium{
 //			IJ.run(imp, "Magenta", "");
 //			IJ.run(imp, "Yellow", "");
 //			IJ.run(imp, "Grays", "");
-			imp.setDisplayRange(0, 4095);
+			tools.autoscaleDisplayRange(imp, 0.99);
 		}								
 									
 		String active = "11";

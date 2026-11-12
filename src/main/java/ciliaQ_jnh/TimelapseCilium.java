@@ -142,8 +142,6 @@ class TimelapseCilium{
 			kineticList.clear();
 			kineticList = null;
 		}
-		
-		ciliumAvailable = true;
 	}
 	
 	/**
@@ -173,8 +171,6 @@ class TimelapseCilium{
 		cilia = perFrameCilia;
 		
 		accumulateAveragesFromCilia(skeletonize);
-		
-		ciliumAvailable = true;
 	}
 	
 	/**
@@ -193,7 +189,22 @@ class TimelapseCilium{
 			if(cilia.get(cil).yMin<yMin)	yMin = cilia.get(cil).yMin;
 			if(cilia.get(cil).zMax>zMax)	zMax = cilia.get(cil).zMax;
 			if(cilia.get(cil).zMin<zMin)	zMin = cilia.get(cil).zMin;
-			
+
+			/*
+			 * Skip frames that hold no cilium.
+			 *
+			 * In linear-assignment mode a track can contain -- or consist entirely of -- BB-only
+			 * Cilium objects, whose maximumSpan is the sentinel -1.0 and whose volume is 0. Without
+			 * this guard those sentinels are averaged into the cilium statistics.
+			 *
+			 * `counter++` sits at the end of the loop, so it is incremented only for frames
+			 * that actually have a cilium to make the averages below correct.
+			 * The sklAvailableInAllFrames update is likewise now inside the guard.
+			 */
+			if(!cilia.get(cil).ciliumAvailable){
+				continue;
+			}
+
 			surfaceVoxelsAvg += (double) cilia.get(cil).surfaceVoxels;
 			voxelsAvg += (double) cilia.get(cil).voxels;
 			volumeAvg += cilia.get(cil).volume;
@@ -251,6 +262,16 @@ class TimelapseCilium{
 			counter++;
 		}	
 
+
+		/*
+		 * Return before dividing, leaving ciliumAvailable false so the row is not written as a cilium.
+		 */
+		if(counter == 0){
+			return;
+		}
+
+		ciliumAvailable = true;
+		
 		surfaceVoxelsAvg /= (double) counter;
 		voxelsAvg /= (double) counter;
 		volumeAvg /= (double) counter;
@@ -461,19 +482,19 @@ class TimelapseCilium{
 		
 		imp.setC(1);	
 		IJ.run(imp, "Cyan", "");
-		imp.setDisplayRange(0, 4095);
+		tools.autoscaleDisplayRange(imp, 0.99);
 				
 		imp.setC(2);	
 		IJ.run(imp, "Grays", "");
-		imp.setDisplayRange(0, 4095);
+		tools.autoscaleDisplayRange(imp, 0.99);
 			
 		imp.setC(3);	
 		IJ.run(imp, "Green", "");
-		imp.setDisplayRange(0, 4095);
+		tools.autoscaleDisplayRange(imp, 0.99);
 	
 		imp.setC(4);	
 		IJ.run(imp, "Red", "");
-		imp.setDisplayRange(0, 4095);		
+		tools.autoscaleDisplayRange(imp, 0.99);		
 		
 		return imp;
 	}
