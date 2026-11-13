@@ -5,7 +5,8 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>17.1.1</version>
+<!--	<version>17.1.1</version>--> <!-- Version used until V0.2.1-->
+		<version>43.0.0</version> <!-- Updated in V0.2.2-->
 		<relativePath />
 	</parent> 
  
@@ -91,6 +92,15 @@
 		<license.projectName>CiliaQ plugin for ImageJ.</license.projectName>
 	</properties>
  	
+ 	<!--	New in v0.2.2: net.imagej:ij is hosted on the SciJava repository,
+ 			which newer pom-scijava versions no longer declare	-->
+ 	<repositories>
+    	<repository>
+        	<id>scijava.public</id>
+        	<url>https://maven.scijava.org/content/groups/public</url>
+    	</repository>
+    </repositories>
+ 	
     <dependencies>
         <!-- ImageJ dependencies -->
         <dependency>
@@ -106,24 +116,59 @@
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-javadoc-plugin</artifactId>
 				<configuration>
-					<additionalparam>-Xdoclint:none</additionalparam>
+					<doclint>none</doclint>
 				</configuration>
 			</plugin>
 			
 			<plugin>
 				<artifactId>maven-jar-plugin</artifactId>
 				<configuration>
-					<projectName>CiliaQ plugin for ImageJ.</projectName>
-					<organizationName>Jan Niklas Hansen</organizationName>
-					<descriptorRefs>
-            			<descriptorRef>jar-with-dependencies</descriptorRef>
-          			</descriptorRefs>
 					<archive>
 						<manifest>
 							<mainClass>${main-class}</mainClass>
 						</manifest>
 					</archive>
 				</configuration>
+			</plugin>
+			
+			<!-- New in v0.2.2 (as in CiliaQ Preparator): turn off the parent's populate-app, which copies the WHOLE dependency
+				 tree into Fiji and upgrades shared libraries such as slf4j. Since only the CiliaQ jar is copied (below), Fiji is
+				 tested as users install it from the update site. -->
+			<plugin>
+				<groupId>org.scijava</groupId>
+				<artifactId>scijava-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>populate-app</id>
+						<phase>none</phase>
+					</execution>
+				</executions>
+			</plugin>
+			
+			<!-- New in v0.2.2: copy the CiliaQ jar into the local Fiji (scijava.app.directory) on every build -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-antrun-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>copy-jar-to-fiji</id>
+						<phase>package</phase>
+						<goals><goal>run</goal></goals>
+						<configuration>
+							<target>
+								<!-- delete first: Windows allows deleting a loaded jar (the handle stays open), then a fresh file is
+									 written, which avoids the overwrite-in-use lock. This also removes a CiliaQ jar installed from the
+									 update site, since two CiliaQ jars in plugins would conflict. -->
+								<delete>
+									<fileset dir="${scijava.app.directory}/plugins"
+											 includes="${project.artifactId}-*.jar"/>
+								</delete>
+								<copy file="${project.build.directory}/${project.artifactId}-${project.version}.jar"
+									  todir="${scijava.app.directory}/plugins"/>
+							</target>
+						</configuration>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>  
