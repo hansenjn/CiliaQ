@@ -2175,14 +2175,14 @@ private void labelSplitNotes(ArrayList<ArrayList<CellPoint>> particles, ArrayLis
 		// measure differently (the part of a line between skeleton end points outside the upscaled object), so a pair
 		// within about one voxel beyond the gap can still be bridged: hence "may"
 		progress.notifyMessageWithTaskNr("'" + timelapseTrackingOptions[2] + "': " + nSplit + " label(s) lie in several"
-				+ " pieces in a frame, farther apart than 'join pieces closer than' (now " + joinGap + "). Each label is"
+				+ " pieces in a frame, farther apart than 'Join pieces closer than' (now " + joinGap + "). Each label is"
 				+ " pooled into one cilium, but pieces beyond the join gap are not bridged in its skeleton, so these cilia"
 				+ " may get no length or profiles in those frames. Raise the join gap to bridge them.", ProgressReporter.NOTIFICATION);
 	}else{
 		// joining off: each piece becomes its own cilium (single frame, linear assignment); the join gap would join them
 		progress.notifyMessageWithTaskNr(nSplit + " label(s) lie in several pieces and are analysed as separate cilia"
 				+ " (e.g. CiliaQ Preparator's ridge detection splits a filament where another passes over it). To join"
-				+ " them, set 'join pieces closer than' (e.g. 20 in a micron-calibrated image).", ProgressReporter.NOTIFICATION);
+				+ " them, set 'Join pieces closer than' (e.g. 20 in a micron-calibrated image).", ProgressReporter.NOTIFICATION);
 	}
 }
 
@@ -3735,8 +3735,8 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		cilia.ensureCapacity(ciliaParticles.size());
 		for(int i = 0; i < ciliaParticles.size(); i++){
 			progress.updateBarText("Quantifying cilia objects (" + i + "/" + ciliaParticles.size() + " done)");
-			cilia.add(new Cilium(ciliaParticles.get(i), imp, measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC, 
-					channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize));
+			cilia.add(new Cilium(ciliaParticles.get(i), imp, measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC,
+					channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, joinGap));
 			if(cilia.size()!=i+1) {
 				progress.notifyMessage("Error while measuring cilium " + (i+1), ProgressReporter.NOTIFICATION);
 			}
@@ -3904,7 +3904,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				progress.notifyMessage("Label image without label mode? Most cilia hold one constant value each, and the"
 						+ " values differ between cilia - the pattern of a label image (one value per object) analysed without"
 						+ " label mode: touching cilia merge and label values are reported as intensities. If this is a label"
-						+ " image, re-run with 'Reconstruction channel contains labels' (macro: label-mode-cilia)."
+						+ " image, re-run with 'Contains labels' checked under Cilia (macro: label-mode-cilia)."
 						+ " (File " + name + ", Dir: " + dir + ")", ProgressReporter.NOTIFICATION);
 			}
 		}
@@ -4443,8 +4443,8 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		timelapseCilia.ensureCapacity(ciliaParticles.size());
 		for(int i = 0; i < ciliaParticles.size(); i++){
 			progress.updateBarText("Quantifying cilia (" + i + "/" + ciliaParticles.size() + " done)");
-			timelapseCilia.add(new TimelapseCilium(ciliaParticles.get(i), imp, measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC, 
-					channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, segmentedBB));
+			timelapseCilia.add(new TimelapseCilium(ciliaParticles.get(i), imp, measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC,
+					channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, segmentedBB, joinGap));
 			if(timelapseCilia.size()!=i+1) {
 				progress.notifyMessage("Error while measuring cilium " + (i+1)
 						+ " for file " + name + " (Dir: " + dir + ").", ProgressReporter.NOTIFICATION);
@@ -6247,7 +6247,7 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 		if(!labelModeBB && cBasalStain > 0 && isMarkedLabelChannel(imp, cBasalStain)){
 			progress.notifyMessage("Channel " + cBasalStain + " is marked as a label image by CiliaQ Preparator (one value per"
 					+ " object), but label mode is off for the basal bodies: touching basal bodies merge into one. If that is"
-					+ " not intended, turn on 'Basal body channel contains labels' (macro: label-mode-basal-body)." + where,
+					+ " not intended, turn on 'BB channel contains labels' (macro: label-mode-basal-body)." + where,
 					ProgressReporter.NOTIFICATION);
 		}
 		if(labelModeCilia && isMarkedSegmentedChannel(imp, cReconstruction) && !isMarkedLabelChannel(imp, cReconstruction)){	// New in v0.2.2
@@ -7083,7 +7083,7 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 				progress.updateBarText("Detecting cilia per frame (t " + (t+1) + "/" + imp.getNFrames() + ")");
 				perFrameCilia.get(t).add(new Cilium(perFrameParticles.get(t).get(i), imp,
 						measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC,
-						channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize));
+						channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, joinGap));
 			}
 		}
 		perFrameParticles.clear();

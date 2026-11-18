@@ -48,6 +48,8 @@ class Cilium{
 	
 	Calibration cal;
 	double calibration, voxelDepth;
+	double skeletonBridgeGap = 0.0;	// Bridge skeleton pieces within this gap (calibrated unit); 0 = no bridges
+	int skeletonBridges = 0;		// The number of bridges drawn into this cilium's skeleton
 	int bitDepth;
 		
 	double xC = 0.0, yC = 0.0, zC = 0.0; // will be calibrated, not in Px
@@ -120,10 +122,23 @@ class Cilium{
 	double orientationVector [];
 	double bendingIndex = Double.NaN;
 	
-	public Cilium(ArrayList<CellPoint> ciliaPoints, ImagePlus imp, 
+	public Cilium(ArrayList<CellPoint> ciliaPoints, ImagePlus imp,
 			boolean measureC2, int channel2, boolean measureC3, int channel3, boolean measureBasalBody, int channelBasalBody,
 			int channelReconstruction, double gXY, double gZ, double intensityThresholds [], ProgressReporter progress,
 			boolean skeletonize){
+		this(ciliaPoints, imp, measureC2, channel2, measureC3, channel3, measureBasalBody, channelBasalBody,
+				channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, 0.0);
+	}
+
+	/**
+	 * New in v0.2.2: as above; skeletonBridgeGap above 0 bridges the pieces of the skeleton across gaps of the object
+	 * up to that gap (calibrated unit), see bridgeSkeletonPieces.
+	 */
+	public Cilium(ArrayList<CellPoint> ciliaPoints, ImagePlus imp,
+			boolean measureC2, int channel2, boolean measureC3, int channel3, boolean measureBasalBody, int channelBasalBody,
+			int channelReconstruction, double gXY, double gZ, double intensityThresholds [], ProgressReporter progress,
+			boolean skeletonize, double skeletonBridgeGap){
+		this.skeletonBridgeGap = skeletonBridgeGap;
 		ciliumAvailable = true;
 		
 		bitDepth = imp.getBitDepth();
@@ -311,9 +326,154 @@ class Cilium{
 	}
 		
 	/**
+	 * Bridge the trees of a skeleton across gaps of the object up to the join gap, so that the length and
+	 * the profiles run across a gap that joining (CiliaQMain.joinParticles) bridged in the object. A bridge is a
+	 * straight line between end points of different trees whose part outside the object is at most the gap (the
+	 * skeleton's ends lie inside the object, so the line is longer than the gap); the shortest lines first. The bridges
+	 * go into the skeleton image only. An end point takes one bridge (a single-vertex tree two), so no branch forms at
+	 * a bridge, and a bridge never connects trees that are already connected, so no loop forms.
+	 *
+	 * @param skl		the skeleton image (8-bit, skeleton voxels 255; its calibration in the image's unit)
+	 * @param graphs	the trees of skl, from the skeleton analysis (AnalyzeSkeleton_.getGraphs)
+	 * @param obj		the object, voxel for voxel as skl (above 0 = object), see upscaledObjectImage
+	 * @param gap		in the image's calibrated unit, above 0
+	 * @return			the number of bridges drawn
+	 * 
+	 * New in v0.2.2
+	 */
+	private int bridgeSkeletonPieces(ImagePlus skl, ciliaQ_skeleton_analysis.Graph [] graphs, ImagePlus obj, double gap){
+		if(graphs == null || graphs.length < 2 || !(gap > 0.0)) {
+			return 0;
+		}
+		
+		Calibration sc = skl.getCalibration();
+		// the calibration of the upscaled skeleton image (the scaler divides it by the scale); 1 where it is missing
+		double pw = sc.pixelWidth > 0 ? sc.pixelWidth : 1.0, ph = sc.pixelHeight > 0 ? sc.pixelHeight : 1.0,
+				pd = sc.pixelDepth > 0 ? sc.pixelDepth : 1.0;
+
+		// the end points of every tree {x, y, z, tree, bridges left}
+		ArrayList<int[]> ends = new ArrayList<int[]>();
+		for (int g = 0; g < graphs.length; g++) {
+			if (graphs[g] == null)
+				continue;
+			ArrayList<ciliaQ_skeleton_analysis.Vertex> vs = graphs[g].getVertices();
+			for (int v = 0; v < vs.size(); v++) {
+				int nb = vs.get(v).getBranches().size();
+				if (nb > 1 || vs.get(v).getPoints().isEmpty()) {
+					continue; // a junction, or no point
+				}
+				ciliaQ_skeleton_analysis.Point p = vs.get(v).getPoints().get(0);
+				ends.add(new int[] { p.x, p.y, p.z, g, nb == 0 ? 2 : 1 });
+			}
+		}
+
+		// candidate bridges: end points of different trees whose line runs at most the gap outside the object
+		ArrayList<double[]> candidates = new ArrayList<double[]>(); // {length, end a, end b}
+		for (int a = 0; a < ends.size(); a++) {
+			for (int b = a + 1; b < ends.size(); b++) {
+				int[] ea = ends.get(a), eb = ends.get(b);
+				if (ea[3] == eb[3]) continue;
+				double ex = (ea[0] - eb[0]) * pw,
+						ey = (ea[1] - eb[1]) * ph,
+						ez = (ea[2] - eb[2]) * pd;
+				double d = Math.sqrt(ex * ex + ey * ey + ez * ez);
+				if (lengthOutsideObject(obj, ea, eb, d) <= gap)
+					candidates.add(new double[] { d, a, b });
+			}
+		}
+		Collections.sort(candidates, (u, v) -> Double.compare(u[0], v[0]));
+
+		int[] parent = new int[graphs.length]; // union-find over the trees
+		for (int g = 0; g < parent.length; g++)
+			parent[g] = g;
+		int bridges = 0;
+		for (double[] c : candidates) {
+			int[] ea = ends.get((int) c[1]), eb = ends.get((int) c[2]);
+			if (ea[4] == 0 || eb[4] == 0)
+				continue; // an end point already bridged: a second bridge would make a branch
+			int ra = treeRoot(parent, ea[3]), rb = treeRoot(parent, eb[3]);
+			if (ra == rb)
+				continue; // already connected: a bridge would make a loop
+			parent[ra] = rb;
+			ea[4]--;
+			eb[4]--;
+			drawSkeletonLine(skl.getStack(), ea[0], ea[1], ea[2], eb[0], eb[1], eb[2]);
+			bridges++;
+		}
+		return bridges;
+	}
+
+	/** 
+	 * union-find root of a skeleton tree.
+	 * 
+	 * New in v0.2.2: 
+	 **/
+	private int treeRoot(int [] parent, int g){
+		while(parent [g] != g){
+			parent [g] = parent [parent [g]];
+			g = parent [g];
+		}
+		return g;
+	}
+
+	/** The length of the straight line between two end points {x, y, z, ...} that runs outside the
+	 *  object (obj voxel 0), from the line's samples: each sample outside counts one step (length / steps). 
+	 *  
+	 *  New in v0.2.2: 
+	 **/
+	private double lengthOutsideObject(ImagePlus obj, int [] a, int [] b, double length){
+		int n = Math.max(Math.abs(b [0] - a [0]), Math.max(Math.abs(b [1] - a [1]), Math.abs(b [2] - a [2])));
+		if(n == 0)	return 0.0;
+		int outside = 0;
+		for(int s = 1; s < n; s++){
+			double f = (double) s / (double) n;
+			int x = (int) Math.round(a [0] + f * (b [0] - a [0])), y = (int) Math.round(a [1] + f * (b [1] - a [1])),
+					z = (int) Math.round(a [2] + f * (b [2] - a [2]));
+			if(obj.getStack().getVoxel(x, y, z) <= 0.0)	outside++;
+		}
+		return length * outside / (double) n;
+	}
+
+	/** 
+	 * a straight line of skeleton voxels (255) from (x0, y0, z0) to (x1, y1, z1), 26-connected.
+	 * 
+	 * New in v0.2.2*/
+	private void drawSkeletonLine(ij.ImageStack st, int x0, int y0, int z0, int x1, int y1, int z1){
+		int n = Math.max(Math.abs(x1 - x0), Math.max(Math.abs(y1 - y0), Math.abs(z1 - z0)));
+		for(int s = 0; s <= n; s++){
+			double f = n == 0 ? 0.0 : (double) s / (double) n;
+			st.setVoxel((int) Math.round(x0 + f * (x1 - x0)), (int) Math.round(y0 + f * (y1 - y0)),
+					(int) Math.round(z0 + f * (z1 - z0)), 255.0);
+		}
+	}
+
+	/**
+	 * The object as reconstructSkeleton builds the skeleton image (the same size, offsets and
+	 * upscaling), before the blur: the reference for a bridge's part outside the object. Built only when a skeleton
+	 * has more than one tree and bridging is on, so the usual cilium costs nothing.
+	 * 
+	 * New in v0.2.2
+	 */
+	private ImagePlus upscaledObjectImage(double gXY, double gZ){
+		int width = xMax - xMin + 1 + 4 + (int) Math.round(gXY*5.0),
+			height = yMax - yMin + 1 + 4 + (int) Math.round(gXY*5.0),
+			slices = zMax - zMin + 1 + 2 + (int) Math.round(gZ*5.0);
+		boolean flat = zMax - zMin == 0;
+		ImagePlus o = IJ.createImage("Object image", "8-bit", width, height, 1, flat ? 1 : slices, 1);
+		o.setCalibration(cal);
+		for(int i = 0; i < voxels; i++){
+			o.getStack().setVoxel((int)Math.round(points [i][0] / calibration) - xMin + 2 + (int) Math.round(gXY*2.5),
+					(int)Math.round(points [i][1] / calibration) - yMin + 2 + (int) Math.round(gXY*2.5),
+					flat ? 0 : (int)Math.round(points [i][2] / voxelDepth) - zMin + 1 + (int) Math.round(gZ*2.5),
+					255.0);
+		}
+		return new ScalerJNH().getScaled(o, 3.0, 3.0, flat ? 1.0 : 3.0);
+	}
+
+	/**
 	 * Determines skeleton data (3D)
 	 * */
-	private void reconstructSkeleton(double gXY, double gZ, boolean measureBasalBody, int basalBodyC, ImagePlus imp, 
+	private void reconstructSkeleton(double gXY, double gZ, boolean measureBasalBody, int basalBodyC, ImagePlus imp,
 			boolean measureC2, int channel2, boolean measureC3, int channel3, int channelReconstruction,
 			ProgressReporter progress){
 		int width = xMax - xMin + 1 + 4 + (int) Math.round(gXY*5.0),
@@ -421,6 +581,35 @@ class Cilium{
 		//Hints for programming: run(int pruneIndex, boolean pruneEnds, boolean shortPath, ImagePlus origIP, boolean silent, boolean verbose)
 		SkeletonResult sklRes = skel.run(AnalyzeSkeleton_.NONE, false, true, null, true, false);
 		foundSkl = sklRes.getNumOfTrees();
+		
+		/*
+		 * New in v0.2.2: Bridge the trees within the join gap
+		 * 
+		 * What is done:
+		 * The upscaled object image is built. After bridging, the skeleton is thinned once
+		 * more (where a bridge meets its tree at an angle it can touch two voxels, and
+		 * thinning removes that corner, keeping the connections) and analysed again, so
+		 * the length and the profiles run across the bridges.
+		 */
+		if(foundSkl > 1 && skeletonBridgeGap > 0.0){
+			ImagePlus objectImp = upscaledObjectImage(gXY, gZ);
+			skeletonBridges = bridgeSkeletonPieces(particleImp, skel.getGraphs(), objectImp, skeletonBridgeGap);
+			objectImp.changes = false;
+			objectImp.close();
+			if(skeletonBridges > 0){
+				progress.notifyMessage("Skeleton: " + skeletonBridges + " bridge(s) drawn across joined gaps (join gap "
+						+ skeletonBridgeGap + ")", ProgressReporter.LOG);	// so a length across a bridge can be traced
+				skelProc = new Skeletonize3D_();
+				skelProc.setup("", particleImp);
+				skelProc.run(particleImp.getProcessor());
+				skel = new AnalyzeSkeleton_();
+				skel.calculateShortestPath = true;
+				skel.setup("", particleImp);
+				sklRes = skel.run(AnalyzeSkeleton_.NONE, false, true, null, true, false);
+				foundSkl = sklRes.getNumOfTrees();
+			}
+		}
+
 		if(foundSkl == 1){
 			ArrayList<ciliaQ_skeleton_analysis.Point>[] shortestPath = skel.getShortestPathPoints();	//Skl Points are integers
 			

@@ -101,10 +101,23 @@ class TimelapseCilium{
 	
 	public boolean sklAvailableInAllFrames = true;		
 
-	public TimelapseCilium(ArrayList<CellPoint> ciliaPoints, ImagePlus imp, 
+	/**	New in v0.2.2: the gap for the skeleton bridges of the per-frame cilia (Cilium.bridgeSkeletonPieces). */
+	double skeletonBridgeGap = 0.0;
+	
+	public TimelapseCilium(ArrayList<CellPoint> ciliaPoints, ImagePlus imp,
 			boolean measureC2, int channel2, boolean measureC3, int channel3, boolean measureBasalBody, int channelBasalBody,
-			int channelReconstruction, double gXY, double gZ, double intensityThresholds [], ProgressReporter progress, 
+			int channelReconstruction, double gXY, double gZ, double intensityThresholds [], ProgressReporter progress,
 			boolean skeletonize, boolean segmentedBB){
+		this(ciliaPoints, imp, measureC2, channel2, measureC3, channel3, measureBasalBody, channelBasalBody,
+				channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, segmentedBB, 0.0);
+	}
+
+	/**	New in v0.2.2: as above, with the gap for skeleton bridges (calibrated unit; 0 = none). */
+	public TimelapseCilium(ArrayList<CellPoint> ciliaPoints, ImagePlus imp,
+			boolean measureC2, int channel2, boolean measureC3, int channel3, boolean measureBasalBody, int channelBasalBody,
+			int channelReconstruction, double gXY, double gZ, double intensityThresholds [], ProgressReporter progress,
+			boolean skeletonize, boolean segmentedBB, double skeletonBridgeGap){
+		this.skeletonBridgeGap = skeletonBridgeGap;
 		
 		bitDepth = imp.getBitDepth();
 		cal = imp.getCalibration().copy();
@@ -134,7 +147,7 @@ class TimelapseCilium{
 				}
 				
 				cilia.add(new Cilium(kineticList.get(t), imp, measureC2, channel2, measureC3, channel3, measureBasalBody, channelBasalBody,
-						channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize));
+						channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize, skeletonBridgeGap));
 			}
 			
 			accumulateAveragesFromCilia(skeletonize);	// NEW (all accumulation + division moved here)
