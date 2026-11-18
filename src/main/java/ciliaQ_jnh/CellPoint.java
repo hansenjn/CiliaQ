@@ -78,6 +78,34 @@ class CellPoint{
 		}
 	}
 	
+	/**
+	 * New in v0.2.2: count the surface again for a label image: a face counts when the neighbour holds another value
+	 * than this voxel (0 or another label), so a face to a touching cilium is surface, as for the cilium alone. The
+	 * constructor counts the faces to 0 only. Faces at the image border do not count, as there.
+	 */
+	void recountSurfaceForLabels(ImagePlus imp, int channel) {
+		xySurface = 0;
+		xzyzSurface = 0;
+		if (z > 0
+				&& imp.getStack().getVoxel(x, y, imp.getStackIndex(channel, (z - 1) + 1, t + 1) - 1) != intensity)
+			xySurface++;
+		if (z < imp.getNSlices() - 1
+				&& imp.getStack().getVoxel(x, y, imp.getStackIndex(channel, (z + 1) + 1, t + 1) - 1) != intensity)
+			xySurface++;
+		if (x > 0
+				&& imp.getStack().getVoxel(x - 1, y, imp.getStackIndex(channel, z + 1, t + 1) - 1) != intensity)
+			xzyzSurface++;
+		if (x < imp.getWidth() - 1
+				&& imp.getStack().getVoxel(x + 1, y, imp.getStackIndex(channel, z + 1, t + 1) - 1) != intensity)
+			xzyzSurface++;
+		if (y > 0
+				&& imp.getStack().getVoxel(x, y - 1, imp.getStackIndex(channel, z + 1, t + 1) - 1) != intensity)
+			xzyzSurface++;
+		if (y < imp.getHeight() - 1
+				&& imp.getStack().getVoxel(x, y + 1, imp.getStackIndex(channel, z + 1, t + 1) - 1) != intensity)
+			xzyzSurface++;
+	}
+	
 	double getSurface(double cal, double zcal){
 		return (cal*cal*(double)xySurface + cal*zcal*(double)xzyzSurface); 
 	}

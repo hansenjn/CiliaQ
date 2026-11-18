@@ -17,6 +17,12 @@ public class ConsoleProgress implements ProgressReporter {
 	private final int tasks;
 	private int task = 1;
 	private String lastText = "";
+	
+	// "ERROR/WARNING<tab>message"
+	private final java.util.ArrayList<String> notes = new java.util.ArrayList<String>();
+	
+	// the task of each note
+	private final java.util.ArrayList<Integer> noteTasks = new java.util.ArrayList<Integer>();
 
 	/*
 	 *	Time-based throttle for the progress log.
@@ -66,7 +72,8 @@ public class ConsoleProgress implements ProgressReporter {
 		this.task = Math.min(task + 2, tasks);
 	}
 
-	public void notifyMessage(String message, int type) {
+	public synchronized void notifyMessage(String message, int type) {
+		// synchronized, see getNotes
 		if (type == ERROR) {
 			errorsAvailable = true;
 			IJ.log("ERROR: " + message);
@@ -76,6 +83,19 @@ public class ConsoleProgress implements ProgressReporter {
 		} else {
 			IJ.log(message);
 		}
+		if (type != LOG) {	// kept for the image's log file, see getNotes
+			notes.add((type == ERROR ? "ERROR" : "WARNING") + "	" + message);
+			noteTasks.add(task);
+		}
+	}
+
+	/** See ProgressReporter.getNotes. */
+	public synchronized java.util.List<String> getNotes(int task) {
+		java.util.ArrayList<String> out = new java.util.ArrayList<String>();
+		for (int i = 0; i < notes.size(); i++) {
+			if (noteTasks.get(i) == task) out.add(notes.get(i));
+		}
+		return out;
 	}
 
 	public void notifyMessageWithTaskNr(String message, int type) {

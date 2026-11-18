@@ -114,17 +114,26 @@ public class CiliaQMain implements PlugIn, Measurements {
 	 *	Off: any non-zero voxel belongs to an object, as before.
 	 **/
 	boolean labelModeCilia = false, labelModeBB = false;
-	
-	/**	New in v0.2.2: fuse cilia that share a label value within a gap tolerance in MICRON (labels from ridge
-	 *	detection may be spatially disconnected); 0 or less = unlimited, see fuseSameLabelParticles. */
-	boolean fuseSameLabels = true;	// on by default in the dialog: a Preparator label split into pieces stays one object; in a macro the flag is needed, as for every checkbox
-	double fuseGapMicron = 20.0;	// represents the size of a gap in a label that can be bridged; default has a big gap, lower it if labels repeat frequently;
-	
-	/**	New in v0.2.2: leave the reconstruction-channel intensity columns empty (label IDs, or no intensity). */
-	boolean suppressReconstructionIntensity = false;
-	
-	/**	New in v0.2.2: images that look like label images read without label mode, for one hint at the end of the run. */
-	ArrayList<String> labelHintImages = new ArrayList<String>();
+
+	/**	New in v0.2.2: join pieces of one cilium that lie closer than this gap,
+	 *	in the image's calibrated unit (joinParticles): every piece of a mask,
+	 *	in label mode only pieces with the same label. 0 = off (the default).
+	 *	A gappy stain splits a cilium; ridge detection splits a label where another
+	 *	filament passes over it. */
+	double joinGap = 0.0;
+
+
+	/**	New in v0.2.2: the macro had no max-frame-gap= (written before v0.2.2),
+	 *	so the frame gap is 0, as then. */
+	boolean frameGapKeyMissing = false;
+
+	/**	New in v0.2.2: the unit of a loaded settings file's distances (its calibration line),
+	 *	null otherwise; each image compares it with its own unit (no conversion). */
+	String settingsFileUnit = null;
+
+	/**	New in v0.2.2: the task (image) being analysed, 1 = the first;
+	 * its notifications are progress.getNotes(currentTask). */
+	int currentTask = 1;
 	
 	String excludeSelection = excludeOptions [2];
 	boolean measureC2 = true,
@@ -145,12 +154,12 @@ public class CiliaQMain implements PlugIn, Measurements {
 	
 	//Basal body segmentation based
 	double maxDistanceBBCiliumEnd = 2.0;
-	
-	//Timelapse tracking TODO implement into generic dialog (enterSettings()), readSettingsFromMacroString(), createRecordString(), and addSettingsBlockToPanel())
-	static final String[] timelapseTrackingOptions = {"classic pixel-based frame connection", "linear assignment (frame-to-frame)"};
+	static final String[] timelapseTrackingOptions = {"classic pixel-based frame connection",
+			"linear assignment (frame-to-frame)",
+			"by label ID (the same label in every frame)"};	// New in v0.2.2: the third connection needs label mode and unique labels
 	String timelapseTrackingSelection = timelapseTrackingOptions[0];
 	double maxTrackingDistance = 5.0;	// calibrated units
-	int maxFrameGap = 1;				// frames a cilium may vanish and rejoin
+	int maxFrameGap = 0;				// frames a cilium may vanish and rejoin (classic and linear assignment); 0 = as before v0.2.2
 	
 	//Saving
 	boolean saveDate = false;	
@@ -491,8 +500,12 @@ public void run(String arg) {
 //------------------------------CELL MEASUREMENT------------------------------
 //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 	for(int task = 0; task < tasks; task++){
+	currentTask = task + 1;	// New in v0.2.2: this image's notes are those of its task (getNotes)
+	String logPrefix = null;	// New in v0.2.2: <dir><name>_CQ[_<date>], as filePrefix below
 	running: while(continueProcessing){
 		Date startDate = new Date();
+		logPrefix = dir[task] + (name[task].contains(".") ? name[task].substring(0, name[task].lastIndexOf(".")) : name[task])
+				+ "_CQ" + (saveDate ? "_" + NameDateFormatter.format(startDate) : "");	// New in v0.2.2
 		progress.updateBarText("in progress...");
 				
 		//Check for problems
@@ -583,8 +596,14 @@ public void run(String arg) {
 				imp.getCalibration().fps = fps;
 				timeUnit = calTimeUnit;
 			}
-			
-		//check for correctness
+
+			//check for correctness
+			if(settingsFileUnit != null && !sameUnit(settingsFileUnit, calibrationDimension)){
+				// New in v0.2.2
+				progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": the settings file's distances are in [" + settingsFileUnit
+						+ "], this image is in [" + calibrationDimension + "]: they are used as numbers, not converted (join gap,"
+						+ " max tracking distance, reference distance).", ProgressReporter.NOTIFICATION);
+			}
 			if(channelReconstruction>imp.getNChannels()){
 				progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": reconstruction channel does not exist - analysis cancelled!", ProgressReporter.ERROR);
 				progress.moveTask(task);				
@@ -679,18 +698,11 @@ public void run(String arg) {
 	processingDone = true;
 	break running;
 	}	
+	writeImageLog(logPrefix, name[task]);	// New in v0.2.2: also after an error
 	System.gc();
 	progress.updateBarText("finished!");
 	progress.setBar(1.0);
 	progress.moveTask(task);		
-}
-if(!labelHintImages.isEmpty()){	// New in v0.2.2
-	progress.notifyMessage("Label image without label mode? In " + labelHintImages.size() + " image(s) most cilia hold one"
-			+ " constant value each, and the values differ between cilia - the pattern of a label image (one value per"
-			+ " object) analysed without label mode: touching cilia merge and label values are reported as intensities."
-			+ " If these are label images, re-run with 'Reconstruction channel contains labels' (macro: label-mode-cilia)."
-			+ " Images: " + String.join(", ", labelHintImages), ProgressReporter.NOTIFICATION);
-	labelHintImages.clear();
 }
 }
 
@@ -815,10 +827,10 @@ private void readSettingsFromMacroString(String macroOptions, boolean logDetecti
 	increaseRangeCilia = macroFlag(o, "increase-range-cilia");
 	if(logDetection) IJ.log("detected increase-range-cilia: " + increaseRangeCilia);
 	
-	labelModeCilia = macroFlag(o, "label-mode-cilia");	// New in v0.2.2
-	fuseSameLabels = macroFlag(o, "fuse-same-labels");	// New in v0.2.2
-	if(fuseSameLabels)	fuseGapMicron = macroDouble(o, "fuse-gap", 20.0, logDetection);
-	if(logDetection) IJ.log("detected label-mode-cilia: " + labelModeCilia + ", fuse-same-labels: " + fuseSameLabels + ", fuse-gap: " + fuseGapMicron);
+	labelModeCilia = macroFlag(o, "label-mode-cilia");
+	joinGap = macroDouble(o, "join-gap", 0.0, logDetection);
+	joinGap = checkedJoinGap(joinGap, "macro");
+	if(logDetection) IJ.log("detected label-mode-cilia: " + labelModeCilia + ", join-gap: " + joinGap);
 
 	excludeSelection = macroChoice(o, "exclude", excludeOptions, excludeOptions[2]);
 	if(logDetection) IJ.log("detected exclude selection: " + excludeSelection);
@@ -848,8 +860,9 @@ private void readSettingsFromMacroString(String macroOptions, boolean logDetecti
 	maxTrackingDistance = macroDouble(o, "max-tracking-distance", 5.0, logDetection);
 	if(logDetection) IJ.log("detected max-tracking-distance: " + maxTrackingDistance);
 
-	maxFrameGap = (int) macroDouble(o, "max-frame-gap", 1, logDetection);
-	if(logDetection) IJ.log("detected max-frame-gap: " + maxFrameGap);
+	frameGapKeyMissing = macroValue(o, "max-frame-gap") == null;
+	maxFrameGap = frameGapKeyMissing ? 0 : (int) macroDouble(o, "max-frame-gap", 0, logDetection);	// New in v0.2.2: missing = 0 (macros before v0.2.2)
+	if(logDetection) IJ.log("detected max-frame-gap: " + maxFrameGap + (frameGapKeyMissing ? " (key missing: 0, as before v0.2.2)" : ""));
 
 	showGUIs = macroFlag(o, "showgui");
 	if(logDetection) IJ.log("detected show GUIs: " + showGUIs);
@@ -922,11 +935,11 @@ private String createRecordString() {
 	if (increaseRangeCilia) {
 		recordString += "increase-range-cilia ";
 	}
-	if (labelModeCilia) {	// New in v0.2.2 (A7, A7b)
+	if (labelModeCilia) {
 		recordString += "label-mode-cilia ";
-		if (fuseSameLabels) {
-			recordString += "fuse-same-labels fuse-gap=" + fuseGapMicron + " ";
-		}
+	}
+	if (joinGap > 0.0) {
+		recordString += "join-gap=" + joinGap + " ";
 	}
 
 	recordString += "exclude=[" + excludeSelection + "] ";
@@ -1012,13 +1025,15 @@ private void addSettingsBlockToPanel(OutputTextFile tp, Date currentDate, Date s
 		//New in V0.2.0 - BB detection requires more settings here.
 		tp.append("	Minimum cilium size	" + dformat0.format(minSize) + "	Increase range for connecting cilia	" + increaseRangeCilia
 				+ "	Minimum basal body size	" + dformat0.format(minBBSize) + "	Increase range for connecting basal bodies	" + increaseRangeBB);
-		tp.append("	Label images (one value per object)	cilia	" + labelModeCilia + "	fuse same labels	" + fuseSameLabels + "	gap [micron]	" + dformat6.format(fuseGapMicron)
-				+ "	basal bodies	" + labelModeBB);	// New in v0.2.2
+		tp.append("	Label images (one value per object)	cilia	" + labelModeCilia 
+				+ "	join pieces closer than [" + calibrationDimension + "]	" + dformat6.format(joinGap)
+				+ "	basal bodies	" + labelModeBB);
 		tp.append("	Additional filtering	" + excludeSelection + " excluded	# excluded:	" + excludedCilia + "	of total #:	" + totalCilia
 			+ "	" + bbCiliaFilterSelection + " excluded	#BBs excluded:	" + excludedBBs + "	of total #BB:	" + totalBBs);
 	}else{
 		tp.append("	Minimum cilium size	" + dformat0.format(minSize) + "	Increase range for connecting cilia	" + increaseRangeCilia);
-		tp.append("	Label images (one value per object)	cilia	" + labelModeCilia + "	fuse same labels	" + fuseSameLabels + "	gap [micron]	" + dformat6.format(fuseGapMicron));	// New in v0.2.2
+		tp.append("	Label images (one value per object)	cilia	" + labelModeCilia 
+					+ "	join pieces closer than [" + calibrationDimension + "]	" + dformat6.format(joinGap));
 		tp.append("	Additional filtering	" + excludeSelection + " excluded	# excluded:	" + excludedCilia + "	of total #:	" + totalCilia);
 	}
 	tp.append("	Minimum size of particles in A or B	" + dformat0.format(minRestSize) 
@@ -1742,77 +1757,433 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjects (ImagePlus imp, int c){
 }//end getCiliaObjects
 
 /**
- *	Fuse cilia that share a LABEL VALUE and lie within a gap tolerance.
+ *	Join pieces of one cilium that a gap splits, within one frame: two pieces join when their closest voxels lie within
+ *	the gap (in the image's calibrated unit). In label mode only pieces with the same label join, otherwise any two.
+ *	Pieces join in clusters (A joins C when both are close to B), and every piece can start a cluster, so pieces far
+ *	from the first piece of a label still join each other (label values that repeat in an image).
  *
- *	The label-aware flood fill (sameObject) is still a connectivity fill, so an object that carries one label but is
- *	spatially disconnected comes out in pieces - as ridge detection (CiliaQ Preparator V0.2.1) produces where one line
- *	passes under another and both halves keep the same label. This merges such pieces again.
- *
- *	The tolerance is a safety bound: label values may repeat in a large image (CiliaQ Preparator's 32-bit labels wrap
- *	at 2^24), and with an unlimited tolerance two unrelated cilia with the same value would be merged.
+ *	The label-aware flood fill is a connectivity fill, so one label can come out in pieces, e.g. where ridge detection
+ *	(CiliaQ Preparator V0.2.1) lets one filament pass under another and both halves keep their label. A gappy stain
+ *	splits a cilium of a mask the same way.
  *	
- *	New in V0.2.2
+ *	New in v0.2.2
  *
- *	@param particles	object list, MODIFIED IN PLACE: fused objects merged, emptied entries removed
- *	@param labels		one label value per particle, kept in step with particles
- *	@param gapMicron	tolerance in micron; 0 or less fuses every piece of a label, whatever the distance
- *	@param cal			calibration to convert the tolerance into voxels
+ *	@param particles	single-frame pieces, MODIFIED IN PLACE: joined pieces merged into the first piece of their cluster
+ *	@param labels		one label value per piece, kept in step with particles
+ *	@param byLabel		join only pieces with the same label (label mode)
+ *	@param gap			the gap in the calibrated unit, above 0
+ *	@param cal			the calibration, to convert distances in voxels into the gap's unit (1 per voxel where it is missing)
  *	@return				the number of pieces merged into another
  */
-private int fuseSameLabelParticles(ArrayList<ArrayList<CellPoint>> particles, ArrayList<Double> labels, double gapMicron,
-		ij.measure.Calibration cal){
-	if (particles == null || labels == null || particles.size() != labels.size())
+private int joinParticles(ArrayList<ArrayList<CellPoint>> particles, ArrayList<Double> labels,
+		boolean byLabel, double gap, Calibration cal){
+	if(particles == null || labels == null || particles.size() != labels.size() || !(gap > 0.0)) {
+		// nothing to join (or the lists out of step, which the fill never produces)
 		return 0;
-	
-	// group by label first, so the distance test only runs between pieces that may belong together
-	HashMap<Double, ArrayList<Integer>> byLabel = new HashMap<Double, ArrayList<Integer>>();
-	for (int i = 0; i < particles.size(); i++) {
-		if (particles.get(i) == null || particles.get(i).isEmpty())
-			continue;
-		if (!byLabel.containsKey(labels.get(i)))
-			byLabel.put(labels.get(i), new ArrayList<Integer>());
-		byLabel.get(labels.get(i)).add(Integer.valueOf(i));
 	}
+	
+	// Check for no calibration: 1 unit per pixel
 	double pw = (cal == null || cal.pixelWidth <= 0) ? 1.0 : cal.pixelWidth;
 	double ph = (cal == null || cal.pixelHeight <= 0) ? 1.0 : cal.pixelHeight;
 	double pd = (cal == null || cal.pixelDepth <= 0) ? 1.0 : cal.pixelDepth;
+
+	// Group by frame (and label): only pieces of one group are compared, e.g. key "0|17" = label 17 in the first frame.
+	// Since pieces of different groups never meet, joining never crosses frames, and in label mode two cilia with
+	// different labels never join, however close.
+	HashMap<String, ArrayList<Integer>> groups = new HashMap<String, ArrayList<Integer>>();
+	for(int i = 0; i < particles.size(); i++){
+		// get(0) is safe: the fill keeps no empty piece; each piece lies in one frame, so its first voxel gives the frame
+		String key = particles.get(i).get(0).t + (byLabel ? "|" + labels.get(i) : "");
+		if(!groups.containsKey(key)) {
+			groups.put(key, new ArrayList<Integer>());
+		}
+		groups.get(key).add(Integer.valueOf(i));
+	}
 	
-	boolean unlimited = gapMicron <= 0.0;
-	double gap2 = gapMicron * gapMicron;
-	int fusions = 0;
-	for (ArrayList<Integer> group : byLabel.values()) {
-		if (group.size() < 2)
-			continue;
-		// absorb repeatedly into the growing object: A may be far from C while both are close to B
-		int target = group.get(0).intValue();
-		boolean[] used = new boolean[group.size()];
-		used[0] = true;
-		boolean grew = true;
-		while (grew) {
-			grew = false;
-			for (int g = 1; g < group.size(); g++) {
-				if (used[g])
+	// Each piece's bounding box once, in voxels: {xMin, xMax, yMin, yMax, zMin, zMax}, for the two quick tests below
+	// (final: the sort reads it in a lambda)
+	final int [][] box = new int [particles.size()][];
+	for(int i = 0; i < particles.size(); i++) {
+		box [i] = boundingBox(particles.get(i));
+	}
+	
+	// Union-find: each piece starts as its own cluster. findRoot gives a cluster's representative; unionRoots joins two
+	// clusters and keeps the smaller index as root, so a joined cilium keeps the place (and the ID) of its first piece.
+	int [] parent = new int [particles.size()];
+	for(int i = 0; i < parent.length; i++) {
+		parent [i] = i;
+	}	
+	double gap2 = gap * gap;	// distances are compared squared: no square root needed
+	
+	// Per group, every pair passes the tests from cheap to expensive:
+	//	- sorted by xMin, the comparison of a piece stops at the first piece that starts beyond the gap in x (break);
+	//	- the gap between the two bounding boxes (continue);
+	//	- the closest voxel pair (withinGap), only for pairs not yet in one cluster.
+	// Since the first two tests only exclude pairs that cannot lie within the gap, the result is the same as comparing
+	// every voxel pair, only faster.
+	for(ArrayList<Integer> g : groups.values()){
+		// sorts the indices only: particles keeps its order, so the IDs do not change
+		Collections.sort(g, (u, v) -> Integer.compare(box [u.intValue()][0], box [v.intValue()][0]));
+		
+		for(int a = 0; a < g.size(); a++){
+			int i = g.get(a).intValue();
+			for(int b = a + 1; b < g.size(); b++){
+				// pieces before a were compared with i when they were i
+				int j = g.get(b).intValue();
+				
+				// j starts (xMin) beyond the gap from i's right edge (xMax);
+				// since g is sorted by xMin, so does every later piece
+				if((box [j][0] - box [i][1]) * pw > gap) {
+					// this and every later piece start beyond the gap in x
+					break;
+				}
+				
+				// the gap between the boxes per axis (0 where they overlap), in the calibrated unit; since no voxel lies
+				// outside its box, the closest voxels are at least this far apart
+				double dx = axisGap(box [i][0], box [i][1], box [j][0], box [j][1]) * pw;
+				double dy = axisGap(box [i][2], box [i][3], box [j][2], box [j][3]) * ph;
+				double dz = axisGap(box [i][4], box [i][5], box [j][4], box [j][5]) * pd;
+				
+				if(dx*dx + dy*dy + dz*dz > gap2) {
+					// the boxes are already too far apart
 					continue;
-				int other = group.get(g).intValue();
-				if (unlimited || withinGap(particles.get(target), particles.get(other), gap2, pw, ph, pd)) {
-					particles.get(target).addAll(particles.get(other));
-					particles.get(other).clear();
-					used[g] = true;
-					fusions++;
-					grew = true;
+				}
+				
+				// already in one cluster (e.g. both joined to a third piece): no need to compare voxels. Otherwise the
+				// closest voxel pair decides; joining is transitive, so A and C join when both lie close to B.
+				if(findRoot(parent, i) != findRoot(parent, j)
+						&& withinGap(particles.get(i), particles.get(j), gap2, pw, ph, pd)){
+					unionRoots(parent, i, j);
 				}
 			}
 		}
 	}
-	// drop the entries emptied by fusion, back to front so the indices stay valid
-	for (int i = particles.size() - 1; i >= 0; i--) {
-		if (particles.get(i) == null || particles.get(i).isEmpty()) {
+	
+	// merge each cluster into its root (its first piece in scan order) and drop the emptied entries
+	return mergeByRoots(particles, labels, parent);
+}
+
+/**
+ *	Link single-frame pieces across time by overlap (the classic connection, with the frame gap): a piece of frame t
+ *	joins an earlier piece that covered one of its voxel positions (x, y, z) at most maxGap missing frames back, i.e. in
+ *	frame t-1 ... t-1-maxGap. With gap 0 this is the classic fill across time (on the test time-lapse, _CQ.txt identical
+ *	to the version before); with a gap, a cilium that vanishes for up to maxGap frames stays one object (the test cilium
+ *	missing in one frame: 6 objects with gap 0, 5 with gap 1).
+ *
+ *	Overlap is checked at the same position only: a cilium that moves by more than its own width while it is missing
+ *	is not linked, whatever the gap. Labels play no part, so labels numbered per frame (CiliaQ Preparator) need not
+ *	match between frames.
+ *
+ *	New in v0.2.2
+ *
+ *	@param particles	single-frame pieces, MODIFIED IN PLACE: linked pieces merged into the first piece of their cilium
+ *	@param labels		one label value per piece, only kept in step with particles
+ *	@param maxGap		the number of frames a cilium may be missing and still be linked; 0 = neighbouring frames only
+ *	@param imp			the image, for the size of one frame
+ *	@return				the number of pieces merged into another
+ */
+private int linkFramesByOverlap(ArrayList<ArrayList<CellPoint>> particles, ArrayList<Double> labels,
+		int maxGap, ImagePlus imp){
+	int W = imp.getWidth(), H = imp.getHeight(), nFrames = imp.getNFrames();
+	
+	// The frame of each piece, and the pieces of each frame, so the frames can be handled in order.
+	// get(0) gives the frame, since each piece lies in one frame (the fill runs per frame when linking follows)
+	int [] frameOf = new int [particles.size()];
+	ArrayList<ArrayList<Integer>> perFrame = new ArrayList<ArrayList<Integer>>(nFrames);
+	for(int t = 0; t < nFrames; t++) {
+		perFrame.add(new ArrayList<Integer>());
+	}
+	for(int i = 0; i < particles.size(); i++){
+		frameOf [i] = particles.get(i).get(0).t;
+		perFrame.get(frameOf [i]).add(Integer.valueOf(i));
+	}
+	
+	// Per voxel position of one frame (x, y, z, without time): 1 + the piece that covered it last, 0 = never covered
+	// (+1 since piece 0 is a valid index).The last piece is enough: since it was itself linked to every earlier piece
+	// that position within the window, linking to it reaches them too; and if it lies outside the window, every earlier
+	// one does as well.
+	int [] lastPiece = new int [W * H * imp.getNSlices()];
+	
+	// Union-find, as in joinParticles: the smaller index stays the root, so a cilium keeps the ID of its first piece
+	int [] parent = new int [particles.size()];
+	for(int i = 0; i < parent.length; i++) {
+		parent [i] = i;
+	}
+	
+	for(int t = 0; t < nFrames; t++){
+		// 1) Link: each voxel looks up the piece that covered its position last. Since the map still holds earlier
+		//    frames only (this frame is marked in step 2), a piece never links to a piece of its own frame.
+		for(Integer ii : perFrame.get(t)){
+			int i = ii.intValue();
+			for(CellPoint p : particles.get(i)){
+				int last = lastPiece [(p.z * H + p.y) * W + p.x] - 1;	// -1: back to the piece index, -1 = none
+				
+				// within the window: gap 0 = the previous frame only; gap 1 = also two frames back (one frame missing)
+				if(last >= 0 && t - frameOf [last] <= maxGap + 1) {
+					unionRoots(parent, i, last);
+				}
+			}
+		}
+		
+		// 2) Mark: this frame's pieces become the last piece at their positions, for the frames that follow.
+		//    Positions this frame does not cover keep their older piece, so a cilium missing in this frame
+		//    can still be found by a later frame (within the gap).
+		for(Integer ii : perFrame.get(t)){
+			int i = ii.intValue();
+			for(CellPoint p : particles.get(i)) {
+				lastPiece [(p.z * H + p.y) * W + p.x] = i + 1;
+			}
+		}
+	}
+	
+	// merge each cilium into its root (its first piece in scan order) and drop the emptied entries
+	return mergeByRoots(particles, labels, parent);
+}
+
+/**
+ *	Link pieces by their label value ("by label ID"): all pieces with the same label are one cilium, in every frame
+ *	and whatever the distance. For label images whose IDs stay the same over time (e.g. from a tracking tool).
+ *
+ *	Since only the label counts:
+ *		- the frame gap does not apply: a label missing for some frames and back later is still one cilium;
+ *		- pieces of one label in the same frame are pooled into its cilium too (labelSplitNotes
+ *		  notifies when they lie beyond the join gap, since their skeleton is then not bridged);
+ *		- two different cilia with the same label value are merged, however far apart. Labels numbered per frame, as
+ *		  CiliaQ Preparator writes them (every frame starts at 1), therefore need classic or linear assignment.
+ *
+ *	Called in label mode only (getCiliaObjectsTimelapse); without it the labels hold no IDs, and the frames are linked
+ *	by overlap instead.
+ *
+ *	New in v0.2.2
+ *
+ *	@param particles	single-frame pieces, MODIFIED IN PLACE: pieces with the same label merged into the first of them
+ *	@param labels		one label value per piece: decides which pieces are linked; kept in step with particles
+ *	@return				the number of pieces merged into another
+ */
+private int linkFramesByLabel(ArrayList<ArrayList<CellPoint>> particles, ArrayList<Double> labels){
+	// Per label value, the first piece that carries it. Since particles is in scan order, frame by frame, this is the
+	// piece that appears earliest; the cilium keeps its place, so the IDs follow the first appearance of each label.
+	HashMap<Double, Integer> first = new HashMap<Double, Integer>();
+	
+	// Union-find, as in joinParticles. Every piece joins the first piece of its label directly, so each cluster is one
+	// step deep; the union-find is used to share mergeByRoots with the other two methods.
+	int [] parent = new int [particles.size()];
+	for(int i = 0; i < parent.length; i++){
+		parent [i] = i;
+		Integer f = first.get(labels.get(i));
+		if(f == null) {
+			// a new label: this piece is its first
+			first.put(labels.get(i), Integer.valueOf(i));
+		}else{
+			// a known label: join its first piece; since f < i, f stays the root
+			unionRoots(parent, i, f.intValue());
+		}
+	}
+	// merge each label into its first piece and drop the emptied entries
+	return mergeByRoots(particles, labels, parent);
+}
+
+/**
+ *	Union-find: the root of i, i.e. the representative of the cluster (cilium) that piece i belongs to.
+ *	With path halving: on the way up, each visited piece is pointed to its grandparent. Since this only shortcuts to a
+ *	piece higher up in the same cluster, the root stays the same, but the chains get shorter with every call, so even
+ *	hundreds of specks joined into one object stay fast.
+ *
+ *	New in v0.2.2
+ */
+private int findRoot(int [] parent, int i){
+	while(parent [i] != i){				// a root points to itself
+		parent [i] = parent [parent [i]];	// shortcut: point i to its grandparent
+		i = parent [i];					// and continue from there
+	}
+	return i;
+}
+
+/**
+ *	Union-find: join the clusters of i and j. The smaller root becomes the root of both, so:
+ *		- the root is always the smallest index of its cluster, i.e. its first piece in scan order;
+ *		- a joined object keeps the place, and so the ID, of its first piece (on the test time-lapse with frame gap 0,
+ *		  _CQ.txt identical to the version before, IDs included);
+ *		- every pointer points to a smaller or equal index.
+ *	If i and j are already in one cluster, nothing changes.
+ *
+ *	New in v0.2.2
+ */
+private void unionRoots(int [] parent, int i, int j){
+	int ri = findRoot(parent, i), rj = findRoot(parent, j);
+	if(ri < rj) {
+		parent [rj] = ri;		// the larger root points to the smaller one
+	}else if(rj < ri) {
+		parent [ri] = rj;
+	}
+	// ri == rj: already one cluster
+}
+
+/**
+ *	Merge every piece into the root of its cluster, then drop the emptied entries. The root is the smallest index of its
+ *	cluster, so it comes first and is never emptied; the surviving cilia keep the scan order, and so their IDs. A merged
+ *	cilium keeps the label of its first piece.
+ *
+ *	New in v0.2.2
+ *
+ *	@param particles	the pieces, MODIFIED IN PLACE: merged into their roots, emptied entries removed
+ *	@param labels		one label value per piece, kept in step with particles
+ *	@param parent		the union-find of the pieces (findRoot, unionRoots)
+ *	@return				the number of pieces merged into another
+ */
+private int mergeByRoots(ArrayList<ArrayList<CellPoint>> particles, ArrayList<Double> labels, int [] parent){
+	int merged = 0;
+	for(int i = 0; i < particles.size(); i++){
+		int r = findRoot(parent, i);
+		if(r != i){	// not a root: its voxels go to the root (a root's findRoot is itself, so a root is never emptied)
+			particles.get(r).addAll(particles.get(i));
+			particles.get(i).clear();
+			merged++;
+		}
+	}
+	// drop the emptied entries back to front: removing entry i shifts only the entries after it, which were already
+	// checked. Only merged pieces are empty, since the fill keeps no empty piece.
+	for(int i = particles.size() - 1; i >= 0; i--){
+		if(particles.get(i).isEmpty()){
 			particles.remove(i);
 			labels.remove(i);
 		}
 	}
 	particles.trimToSize();
-	return fusions;
+	return merged;
+}
+
+
+/**
+ *	The size rule of the cilia, as in the fill: an object is removed when one of the frames where it is present holds
+ *	fewer than minSize voxels. Frames where it is absent do not count. In a single-frame image: an object below the
+ *	minimum size is removed.
+ *
+ *	Applied after joining and linking, so a cilium is judged by all its pieces together: a cilium that a gappy stain
+ *	splits into pieces each below the minimum size is kept when the joined cilium is large enough.
+ *
+ *	The rule removes the whole object, also when only one frame is too small: e.g. a speck that links to a cilium where
+ *	the cilium is missing (within the frame gap) removes that cilium from the results.
+ *
+ *	New in v0.2.2
+ *
+ *	@param particles	the objects, MODIFIED IN PLACE: objects below the minimum size in a frame removed
+ *	@param labels		one label value per object, kept in step with particles
+ *	@param frameCounter	an array of length (number of frames), reused for the counts; its content is overwritten
+ *	@return				the number of objects removed
+ */
+private int applySizeRule(ArrayList<ArrayList<CellPoint>> particles, ArrayList<Double> labels, int [] frameCounter){
+	int nDropped = 0;
+	// back to front: removing object i shifts only the objects after it, which were already checked
+	for(int i = particles.size() - 1; i >= 0; i--){
+		// the voxels of this object per frame
+		Arrays.fill(frameCounter, 0);
+		for(int p = 0; p < particles.get(i).size(); p++) {
+			frameCounter [particles.get(i).get(p).t]++;
+		}
+		
+		for(int t = 0; t < frameCounter.length; t++){
+			// too small in a frame where it is present (0 = absent there, which does not count): remove the whole object
+			if(frameCounter [t] < minSize && frameCounter [t] != 0){
+				particles.remove(i);
+				labels.remove(i);
+				nDropped++;
+				break;	// removed: no need to check its other frames
+			}
+		}
+	}
+	particles.trimToSize();
+	return nDropped;
+}
+
+/**
+ *	Notification when label mode is on for the cilia but the reconstruction channel likely holds intensities. Label mode
+ *	joins only neighbouring voxels with the same value; since neighbouring voxels of an intensity image almost always
+ *	differ, the fill stops after one or a few voxels, and most pieces are below the minimum size. A label image gives
+ *	one piece of normal size per cilium. Without this note the user gets almost no cilia and no error: the size rule
+ *	removes the single voxels silently.
+ *
+ *	A label image whose objects are mostly tiny (e.g. a thresholded and labelled image with noise, one label per speck)
+ *	also triggers the note; it says "may", and the user can ignore it then.
+ *
+ *	Works on counts only, so the fill need not keep the pieces: an intensity stack of 256 x 256 x 10 in label mode
+ *	(about 260,000 single-voxel pieces) gave the note at a peak of 389 MB, where keeping every piece needed 404 MB.
+ *
+ *	New in v0.2.2
+ *
+ *	@param nPieces	all pieces of the fill, counted during the fill (before joining and the size rule)
+ *	@param nSmall	those of them below the minimum cilium size
+ *	@return			true when it notified; the caller then skips labelSplitNotes, since in an intensity image every grey
+ *					value acts as a label and occurs in many places, so "labels in several pieces" would be wrong advice
+ */
+private boolean labelPieceNotes(int nPieces, int nSmall){
+	// at least 10 pieces: with very few, the share says little (e.g. three cilia and two small fragments are 40 % small).
+	// More than half small: 2 * nSmall > nPieces, written without division.
+	if(nPieces >= 10 && 2 * nSmall > nPieces){
+		progress.notifyMessageWithTaskNr("Label mode is on for the cilia, but " + nSmall + " of the " + nPieces
+				+ " pieces are smaller than the minimum cilium size: the reconstruction channel may hold intensities, not"
+				+ " labels. Label mode joins only voxels of the same value, so it splits an intensity image into single"
+				+ " voxels. Turn label mode off unless the channel in fact holds labels.",
+		ProgressReporter.NOTIFICATION);
+		return true;
+	}
+	return false;
+}
+
+/**
+ *	Notification when a label lies in several pieces in one frame, since such a cilium is measured differently than
+ *	the user may expect:
+ *		- "by label ID": the pieces of a label are pooled into its cilium, but pieces beyond the join
+ *		  gap get no skeleton bridges, so the cilium may get no length or profiles in that frame (test: a label cut in two,
+ *		  pieces 2 um apart, join gap 1.0: no length in frame 1 and this note; join gap 3.0: joined, length, no note);
+ *		- otherwise, with joining off: the pieces are analysed as separate cilia, and the note suggests the join gap
+ *		  (test: a label in two pieces 50 um apart, single frame: "1 label(s) lie in several pieces ...").
+ *	With joining on and without "by label ID", nothing is notified: the pieces still apart lie beyond the gap the user
+ *	chose, so they stay separate on purpose (e.g. one label value on two cilia far apart).
+ *
+ *	The count is per label and frame: a label split in three frames counts three times. Label values that repeat on
+ *	different cilia (e.g. CiliaQ Preparator's 32-bit labels wrap at 2^24) count too; following the advice is still safe,
+ *	since the join gap joins only pieces within the gap.
+ *
+ *	New in v0.2.2
+ *
+ *	@param particles	the pieces after joining, each in one frame (both calls run before linking)
+ *	@param labels		one label value per piece, in step with particles
+ *	@param byLabelLinks	the frames are linked by label ID ("by label ID" in label mode)
+ */
+private void labelSplitNotes(ArrayList<ArrayList<CellPoint>> particles, ArrayList<Double> labels, boolean byLabelLinks){
+	// joining on, not by label ID: pieces of a label still apart lie beyond the chosen gap, so they stay apart on purpose
+	if(!byLabelLinks && joinGap > 0.0) {
+		return;
+	}
+	
+	// pieces per label and frame, e.g. key "1|5.0" = label 5 in frame 1. get(0) gives the frame, since every piece lies
+	// in one frame here (called before linking)
+	HashMap<String, Integer> piecesPerLabel = new HashMap<String, Integer>();
+	for(int i = 0; i < particles.size(); i++){
+		String key = particles.get(i).get(0).t + "|" + labels.get(i);
+		Integer n = piecesPerLabel.get(key);
+		piecesPerLabel.put(key, n == null ? 1 : n.intValue() + 1);
+	}
+	
+	// the labels in several pieces, counted per frame
+	int nSplit = 0;
+	for(Integer n : piecesPerLabel.values())	if(n.intValue() > 1)	nSplit++;
+	if(nSplit == 0)	return;
+	if(byLabelLinks){
+		// counted after joining, so the pieces still apart lie beyond the join gap. The skeleton bridges
+		// measure differently (the part of a line between skeleton end points outside the upscaled object), so a pair
+		// within about one voxel beyond the gap can still be bridged: hence "may"
+		progress.notifyMessageWithTaskNr("'" + timelapseTrackingOptions[2] + "': " + nSplit + " label(s) lie in several"
+				+ " pieces in a frame, farther apart than 'join pieces closer than' (now " + joinGap + "). Each label is"
+				+ " pooled into one cilium, but pieces beyond the join gap are not bridged in its skeleton, so these cilia"
+				+ " may get no length or profiles in those frames. Raise the join gap to bridge them.", ProgressReporter.NOTIFICATION);
+	}else{
+		// joining off: each piece becomes its own cilium (single frame, linear assignment); the join gap would join them
+		progress.notifyMessageWithTaskNr(nSplit + " label(s) lie in several pieces and are analysed as separate cilia"
+				+ " (e.g. CiliaQ Preparator's ridge detection splits a filament where another passes over it). To join"
+				+ " them, set 'join pieces closer than' (e.g. 20 in a micron-calibrated image).", ProgressReporter.NOTIFICATION);
+	}
 }
 
 /**
@@ -1870,6 +2241,148 @@ private int axisGap(int aMin, int aMax, int bMin, int bMax){
 }
 
 /**
+ *	New in v0.2.2: one line in _CQ.txt when the image had notifications or errors, naming its log file, e.g.
+ *	"Notifications for this image:	at least 2	see	sep5_CQ_log.txt". Since a user who opens only _CQ.txt would
+ *	otherwise not know that the image has notes, this line points to them.
+ *
+ *	The line comes after the results table and a blank line: since the R scripts read the table up to the first blank
+ *	line, they are not affected.
+ *
+ *	"At least": since _CQ.txt is saved before the other output files, a note that comes later (e.g. an IO error on
+ *	saving another file) is in the log file only.
+ *
+ *	@param tp			the _CQ.txt being written
+ *	@param filePrefix	<dir><name>_CQ[_<date>]; the log file is filePrefix + "_log.txt"
+ */
+private void appendNotesLine(OutputTextFile tp, String filePrefix){
+	int n = progress.getNotes(currentTask).size();
+	if(n == 0)	return;
+	tp.append("");
+	tp.append("Notifications for this image:	at least " + n + "	see	" + new File(filePrefix + "_log.txt").getName());
+}
+
+/**
+ *	New in v0.2.2: the notifications and errors of this image in <name>_CQ_log.txt, next to its _CQ.txt, with the text
+ *	as the progress window and the console show it. Written only when there is at least one, so an image without
+ *	notes gets no extra file (tested).
+ *
+ *	The file holds:
+ *		- a header line with the image name;
+ *		- one line per note, oldest first: "ERROR<tab>message" or "WARNING<tab>message", as in CiliaQ Preparator;
+ *		- the usual footer.
+ *
+ *	@param filePrefix	<dir><name>_CQ[_<date>] (logPrefix, S8); the file is filePrefix + "_log.txt"
+ *	@param imageName	the image's file name, for the header line
+ */
+private void writeImageLog(String filePrefix, String imageName){
+	java.util.List<String> notes = progress.getNotes(currentTask);
+	
+	if(filePrefix == null || notes.isEmpty()) {
+		// no notes to write
+		return;
+	}
+	
+	OutputTextFile tl = new OutputTextFile("");
+	
+	tl.append("Notifications and errors for image:	" + imageName);
+	
+	for(String n : notes) {
+		tl.append(n);
+	}
+	
+	addFooter(tl, new Date());
+	
+	if(!tl.saveAndFinish(filePrefix + "_log.txt")){
+		progress.notifyMessage("IO ERROR when saving file " + filePrefix + "_log.txt", ProgressReporter.ERROR);
+	}
+}
+
+/**
+ *	New in v0.2.2: the join gap must be a finite number of 0 or more; anything else (NaN, infinite, negative) switches
+ *	joining off, with a log line naming the source and the value. Since a typo in a macro then does not stop a batch
+ *	run, the other images are still analysed; the settings line in _CQ.txt shows join gap 0, so the run stays
+ *	traceable (tested: join-gap=NaN and join-gap=-3 in a macro: off, with the log line).
+ *
+ *	@param gap		the value as read
+ *	@param source	where it came from, for the log line: "dialog", "macro" or "settings file"
+ *	@return			gap, or 0 (off)
+ */
+private double checkedJoinGap(double gap, String source){
+	if(gap >= 0.0 && !Double.isInfinite(gap)) {
+		return gap;
+	}
+	IJ.log(PLUGINNAME + ": the join gap from the " + source + " (" + gap + ") is not a number of 0 or more - joining is off.");
+	return 0.0;
+}
+
+/**
+ *	New in v0.2.2: the join gap from its cell in a settings file. A decimal comma is read as a point, so a file written
+ *	on a system with a decimal comma still loads (e.g. "1,5" = 1.5). A cell that is not a valid gap switches joining
+ *	off, with a log line, instead of stopping the import (tested: "20.000000" and "1,5" read; empty, "abc" and "NaN":
+ *	off, with the log line).
+ *
+ *	@param cell	the cell as read
+ *	@return		the gap, or 0 (off)
+ */
+private double parseJoinGap(String cell){
+	try{
+		return checkedJoinGap(Double.parseDouble(cell.trim().replace(",", ".")),
+				"settings file");
+	}catch(NumberFormatException e){
+		IJ.log(PLUGINNAME + ": the join gap in the settings file ('" + cell + "') is not a number - joining is off.");
+		return 0.0;
+	}
+}
+
+/**
+ *	New in v0.2.2: read the settings line "Label images (one value per object)" of a settings file: label mode of the
+ *	cilia and the basal bodies, and the join gap. The line holds tab-separated pairs of a key and its value, e.g.
+ *	"Label images (one value per object)	cilia	true	join pieces closer than [micron]	20.000000	basal bodies	false".
+ *		- The join gap's key carries the file's unit, so it is matched by its start. The number is used as it is,
+ *		  without conversion; a different unit is notified per image, from the file's calibration line.
+ *		- A key missing from the line keeps its default: a file written without a basal-body channel has no
+ *		  "basal bodies". Files before v0.2.2 have no such line at all, so label mode and joining stay off, as then.
+ *
+ *	@param line	the whole line as read from the file
+ */
+void readLabelLine(String line){
+	String [] lv = line.split("	");
+	for(int li = 0; li + 1 < lv.length; li++){
+		if(lv [li].equals("cilia"))	labelModeCilia = lv [li+1].contains("true");
+		if(lv [li].startsWith("join pieces closer than"))	joinGap = parseJoinGap(lv [li+1]);
+		if(lv [li].equals("basal bodies"))	labelModeBB = lv [li+1].contains("true");
+	}
+	IJ.log("Label mode cilia = " + labelModeCilia + ", join gap = " + joinGap + ", basal bodies = " + labelModeBB);
+}
+
+/**
+ *	New in v0.2.2: the same length unit, whatever the spelling. Since ImageJ and microscope files spell micron in
+ *	several ways, a settings file from an image calibrated in micro sign + m applied to images in "micron" would
+ *	otherwise notify a different unit on every image of the batch, although the distances fit.
+ *		- The same: micron, microns, um, and "m" after the micro sign (U+00B5) or the Greek mu (U+03BC), in any case.
+ *		- Different: any other unit, e.g. nm.
+ *	Tested: micron = micro sign + m = um = microns; micron and nm differ.
+ *
+ *	@return	true if both name the same unit
+ */
+static boolean sameUnit(String a, String b){
+	if(a == null || b == null) {
+		return a == b;
+	}
+	return normalUnit(a).equals(normalUnit(b));
+}
+
+/**	New in v0.2.2: the unit in lower case, with every spelling of micron as "micron" (see sameUnit). */
+private static String normalUnit(String u){
+	String s = u.trim().toLowerCase(Locale.ROOT);
+	String micro = String.valueOf((char) 0x00B5) + "m", mu = String.valueOf((char) 0x03BC) + "m";	// by code point: the source stays ASCII
+	if(s.equals("micron") || s.equals("microns") || s.equals(micro) || s.equals(mu) || s.equals("um")) {
+		return "micron";
+	}
+	return s;
+}
+
+/**
  * used since 23.04.2019
  * @return a container that contains lists, which each contain the points belonging to an individual plaque object
  * @param imp: Hyperstack image where one channel represents the recording of cilia
@@ -1881,6 +2394,16 @@ private int axisGap(int aMin, int aMax, int bMin, int bMax){
 ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, boolean increaseRange, boolean connectAcrossT){
 	double seedValue = 0.0;	// New in v0.2.2: label value of the object being filled
 	boolean labelsHere = labelModeCilia;	// New in v0.2.2: one value per object in this channel?
+	
+	/*	New in v0.2.2: a time-lapse connected across time is filled frame by frame and linked afterwards
+	 *	(linkFramesByOverlap, linkFramesByLabel) when labels, a frame gap, joining or "by label ID" are used; otherwise
+	 *	the classic fill across time, as before. The size rule waits until after joining and linking. */
+	boolean byLabelId = timelapseTrackingSelection.equals(timelapseTrackingOptions[2]);
+	boolean linkLater = connectAcrossT && imp.getNFrames() > 1
+			&& (labelModeCilia || maxFrameGap > 0 || joinGap > 0.0 || byLabelId);
+	boolean fillAcrossT = connectAcrossT && !linkLater;
+	boolean deferSizeRule = linkLater || joinGap > 0.0;
+	int labelPieces = 0, labelSmallPieces = 0;	// New in v0.2.2: counted during the fill for the label notes (labelPieceNotes)
 
 	ImagePlus refImp = imp.duplicate();
 	int nrOfPoints = 0;
@@ -2070,7 +2593,7 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 								floodNodes[index][2] = floodNodeZ+1;
 								floodNodes[index][3] = floodNodeT;
 							}
-							if(connectAcrossT){
+							if(fillAcrossT){	// New in v0.2.2: otherwise the frames are linked after the fill
 								if ((floodNodeT > 0) 
 										&& sameObject(imp.getStack().getVoxel(floodNodeX, floodNodeY, imp.getStackIndex(c, floodNodeZ+1, (floodNodeT-1)+1)-1), seedValue, labelsHere)){
 									
@@ -2438,8 +2961,12 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 								break;
 							}
 						}
+						if(labelsHere){	// New in v0.2.2: counted for the label notes; the pieces themselves need not be kept
+							labelPieces++;
+							if(preliminaryParticle.size() < minSize)	labelSmallPieces++;
+						}
 						if(keep
-								|| (labelModeCilia && fuseSameLabels)){	// New in v0.2.2: while fusing, the size rule is applied after the fusion
+								|| deferSizeRule){	// New in v0.2.2: the size rule waits until after joining and linking
 							particles.add(preliminaryParticle);
 							particleLabels.add(Double.valueOf(seedValue));	// New in v0.2.2
 							
@@ -2462,52 +2989,62 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 		}	
 	}
 				
+	if(labelsHere){
+		// New in v0.2.2: the surface counts faces to touching cilia with another label too
+		for(int j = 0; j < particles.size(); j++)
+			for(int i = 0; i < particles.get(j).size(); i++)
+				particles.get(j).get(i).recountSurfaceForLabels(refImp, c);
+	}
+	
 	refImp.changes = false;
 	refImp.close();
-	
+
 	progress.updateBarText("Reconstruction of ciliary structures complete: " + dformat3.format(((double)(floodFilledPc)/(double)(nrOfPoints))*100) + "%");
 	progress.addToBar(0.2*((double)(floodFilledPc-floodFilledPcOld)/(double)(nrOfPoints)));
 	particles.trimToSize();
-	
-	// New in v0.2.2: fuse the pieces of one label, then the per-frame size rule
-	if(labelModeCilia && fuseSameLabels){
-		progress.updateBarText("Fusing objects with the same label ...");
-		int nFused = fuseSameLabelParticles(particles, particleLabels, fuseGapMicron, imp.getCalibration());
-		int nDropped = 0;
-		for (int i = particles.size() - 1; i >= 0; i--) {
-			Arrays.fill(frameCounter, 0);
-			for (int p = 0; p < particles.get(i).size(); p++)
-				frameCounter[particles.get(i).get(p).t]++;
-			for (int ti = 0; ti < frameCounter.length; ti++) {
-				if (frameCounter[ti] < minSize && frameCounter[ti] != 0) {
-					particles.remove(i);
-					particleLabels.remove(i);
-					nDropped++;
-					break;
-				}
+
+	// New in v0.2.2: join the pieces within the gap (per frame), link the frames, then the size rule
+	boolean byLabelLinks = linkLater && byLabelId && labelModeCilia;
+	boolean intensityLike = labelModeCilia && labelPieceNotes(labelPieces, labelSmallPieces);
+	if(labelModeCilia && !intensityLike && !deferSizeRule) {
+		labelSplitNotes(particles, particleLabels, false);	// nothing joins or links
+	}	
+	if(deferSizeRule){
+		int nJoined = 0, nLinked = 0;
+		if(joinGap > 0.0){
+			progress.updateBarText("Joining pieces closer than " + joinGap + " " + imp.getCalibration().getUnit() + " ...");
+			nJoined = joinParticles(particles, particleLabels, labelModeCilia, joinGap, imp.getCalibration());
+		}		
+		if(labelModeCilia && !intensityLike) {
+			labelSplitNotes(particles, particleLabels, byLabelLinks);
+		}		
+		if(linkLater){
+			progress.updateBarText("Connecting cilia across time ...");
+			if(byLabelId && !labelModeCilia){
+				progress.notifyMessageWithTaskNr("'" + timelapseTrackingOptions[2] + "' needs label mode for the cilia;"
+						+ " the cilia were connected across time by overlap instead.", ProgressReporter.NOTIFICATION);
 			}
+			nLinked = byLabelLinks ? linkFramesByLabel(particles, particleLabels)
+					: linkFramesByOverlap(particles, particleLabels, maxFrameGap, imp);
 		}
-		particles.trimToSize();
-		progress.notifyMessage(
-				"Label mode: fused " + nFused + " piece(s) of cilia sharing a label value (gap tolerance "
-						+ fuseGapMicron + " micron)"
-						+ (nDropped > 0 ? "; " + nDropped + " object(s) remained below the minimum size" : "") + ".",
-				ProgressReporter.LOG);
+		int nDropped = applySizeRule(particles, particleLabels, frameCounter);
+		progress.notifyMessage("Cilia: " + nJoined + " piece(s) joined within the gap, " + nLinked + " linked across time, "
+				+ nDropped + " object(s) below the minimum size removed.", ProgressReporter.LOG);
 	}
 	
 	//write back to image
-		{
-			for(int j = 0; j < particles.size(); j++){
-				for(int i = 0; i < particles.get(j).size(); i++){
-					imp.getStack().setVoxel(particles.get(j).get(i).x,
-						particles.get(j).get(i).y, 
-						imp.getStackIndex(c, particles.get(j).get(i).z+1, 
-						particles.get(j).get(i).t+1)-1, 
-						particles.get(j).get(i).intensity);
-				}
+	{
+		for(int j = 0; j < particles.size(); j++){
+			for(int i = 0; i < particles.get(j).size(); i++){
+				imp.getStack().setVoxel(particles.get(j).get(i).x,
+					particles.get(j).get(i).y, 
+					imp.getStackIndex(c, particles.get(j).get(i).z+1, 
+					particles.get(j).get(i).t+1)-1, 
+					particles.get(j).get(i).intensity);
 			}
 		}
-	//write back to image
+	}
+
 	return particles;
 }//end getCiliaObjects
 
@@ -3362,9 +3899,13 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 					constValues.add(Double.valueOf(cilia.get(i).minCiliumIntensity));
 				}
 			}
-			setReconstructionIntensityFlag(nObj, nSingle, " (File " + name + ", Dir: " + dir + ")", progress);
-			if (!labelModeCilia && nConst >= 3 && 2 * nConst >= nCiliaMin2 && constValues.size() >= 2) {
-				labelHintImages.add(name);
+			noteSingleValuedObjects(nObj, nSingle, " (File " + name + ", Dir: " + dir + ")", progress);	// New in v0.2.2
+			if (!labelModeCilia && nConst >= 3 && 2 * nConst >= nCiliaMin2 && constValues.size() >= 2) {	// New in v0.2.2: per image
+				progress.notifyMessage("Label image without label mode? Most cilia hold one constant value each, and the"
+						+ " values differ between cilia - the pattern of a label image (one value per object) analysed without"
+						+ " label mode: touching cilia merge and label values are reported as intensities. If this is a label"
+						+ " image, re-run with 'Reconstruction channel contains labels' (macro: label-mode-cilia)."
+						+ " (File " + name + ", Dir: " + dir + ")", ProgressReporter.NOTIFICATION);
 			}
 		}
 		
@@ -3660,11 +4201,11 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).colocalizedCompToBGVolumeC3);}
 		appendTxt += "	"; if(measureC3local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(100.0*cilia.get(i).colocalizedCompToBGFractionC3);}
 		
-		appendTxt += "	"; if(cilia.get(i).ciliumAvailable && !suppressReconstructionIntensity){appendTxt += dformat6.format(cilia.get(i).minCiliumIntensity);}
-		appendTxt += "	"; if(cilia.get(i).ciliumAvailable && !suppressReconstructionIntensity){appendTxt += dformat6.format(cilia.get(i).maxCiliumIntensity);}
-		appendTxt += "	"; if(cilia.get(i).ciliumAvailable && !suppressReconstructionIntensity){appendTxt += dformat6.format(cilia.get(i).maxTenPercentCiliumIntensity);}
-		appendTxt += "	"; if(cilia.get(i).ciliumAvailable && !suppressReconstructionIntensity){appendTxt += dformat6.format(cilia.get(i).averageCiliumIntensity);}
-		appendTxt += "	"; if(cilia.get(i).ciliumAvailable && !suppressReconstructionIntensity){appendTxt += fmt6(cilia.get(i).SDCiliumIntensity);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).minCiliumIntensity);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).maxCiliumIntensity);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).maxTenPercentCiliumIntensity);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).averageCiliumIntensity);}
+		appendTxt += "	"; if(cilia.get(i).ciliumAvailable){appendTxt += fmt6(cilia.get(i).SDCiliumIntensity);}
 		
 		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).minC2Intensity);}
 		appendTxt += "	"; if(measureC2local && cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilia.get(i).maxC2Intensity);}
@@ -3802,7 +4343,8 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		appendTxt += getOneRowFooter(currentDate);
 		tw2.append(""+appendTxt);
 	}
-	
+
+	appendNotesLine(tw1, filePrefix);
 	addFooter(tw1, currentDate);
 	if(!tw1.saveAndFinish(filePrefix + ".txt")) {
 		progress.notifyMessage("IO ERROR when saving file " + filePrefix + ".txt", ProgressReporter.ERROR);
@@ -3860,9 +4402,12 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
  * */
 private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2local, boolean measureC3local, boolean measureBasalLocal, 
 		String name, String dir, Date startDate, String filePrefix, String subfolderPrefix, String tempExcludeSelection){
-	
-	suppressReconstructionIntensity = labelModeCilia;	// New in v0.2.2: label IDs are no intensities
-	
+
+	if(frameGapKeyMissing){
+		progress.notifyMessage("Frame gap 0: the macro has no max-frame-gap= (written before v0.2.2, when the classic"
+				+ " connection had no frame gap; 0 reproduces it). (File " + name + ", Dir: " + dir + ")", ProgressReporter.NOTIFICATION);
+	}
+
 	ArrayList<TimelapseCilium> timelapseCilia = new ArrayList<TimelapseCilium>();
 	double intensityThresholds [] = new double[imp.getNChannels()]; //for each channel individual
 	
@@ -3874,8 +4419,9 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	int excludedBBs = 0;
 	int totalNrOfBBs = 0;
 	
-	if(timelapseTrackingSelection.equals(timelapseTrackingOptions[0])) {
-			//Classic tracking (connecting pixel by pixel over time)
+	if(timelapseTrackingSelection.equals(timelapseTrackingOptions[0])
+			|| timelapseTrackingSelection.equals(timelapseTrackingOptions[2])) { 
+		//Classic tracking (connecting pixel by pixel over time), same for labelID tracking
 		//Retrieving ciliary objects from the image
 		ArrayList<ArrayList<CellPoint>> ciliaParticles = getCiliaObjectsTimelapse(imp, channelReconstruction, increaseRangeCilia, true);	//Method changed on 23.04.2019
 		if(ciliaParticles.size() == 0) {
@@ -4310,11 +4856,11 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		appendTxt += "	"; if(measureC3local && timelapseCilia.get(i).ciliumAvailable){appendTxt += dformat6.format(timelapseCilia.get(i).colocalizedCompToBGVolumeC3Avg);}
 		appendTxt += "	"; if(measureC3local && timelapseCilia.get(i).ciliumAvailable){appendTxt += dformat6.format(100.0*timelapseCilia.get(i).colocalizedCompToBGFractionC3Avg);}
 		
-		appendTxt += "	"; if(timelapseCilia.get(i).ciliumAvailable && !suppressReconstructionIntensity) appendTxt += dformat6.format(timelapseCilia.get(i).minCiliumIntensityAvg);
-		appendTxt += "	"; if(timelapseCilia.get(i).ciliumAvailable && !suppressReconstructionIntensity) appendTxt += dformat6.format(timelapseCilia.get(i).maxCiliumIntensityAvg);
-		appendTxt += "	"; if(timelapseCilia.get(i).ciliumAvailable && !suppressReconstructionIntensity) appendTxt += dformat6.format(timelapseCilia.get(i).maxTenPercentCiliumIntensityAvg);
-		appendTxt += "	"; if(timelapseCilia.get(i).ciliumAvailable && !suppressReconstructionIntensity) appendTxt += dformat6.format(timelapseCilia.get(i).averageCiliumIntensityAvg);
-		appendTxt += "	"; if(timelapseCilia.get(i).ciliumAvailable && !suppressReconstructionIntensity) appendTxt += fmt6(timelapseCilia.get(i).SDCiliumIntensityAvg);
+		appendTxt += "	"; if(timelapseCilia.get(i).ciliumAvailable) appendTxt += dformat6.format(timelapseCilia.get(i).minCiliumIntensityAvg);
+		appendTxt += "	"; if(timelapseCilia.get(i).ciliumAvailable) appendTxt += dformat6.format(timelapseCilia.get(i).maxCiliumIntensityAvg);
+		appendTxt += "	"; if(timelapseCilia.get(i).ciliumAvailable) appendTxt += dformat6.format(timelapseCilia.get(i).maxTenPercentCiliumIntensityAvg);
+		appendTxt += "	"; if(timelapseCilia.get(i).ciliumAvailable) appendTxt += dformat6.format(timelapseCilia.get(i).averageCiliumIntensityAvg);
+		appendTxt += "	"; if(timelapseCilia.get(i).ciliumAvailable) appendTxt += fmt6(timelapseCilia.get(i).SDCiliumIntensityAvg);
 		
 		appendTxt += "	"; if(measureC2local && timelapseCilia.get(i).ciliumAvailable){appendTxt += dformat6.format(timelapseCilia.get(i).minC2IntensityAvg);}
 		appendTxt += "	"; if(measureC2local && timelapseCilia.get(i).ciliumAvailable){appendTxt += dformat6.format(timelapseCilia.get(i).maxC2IntensityAvg);}
@@ -4367,7 +4913,8 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				filePrefix + "_C" + dformat0.format(i+1), subfolderPrefix + "_C" + dformat0.format(i+1), 
 				intensityThresholds, excludedCilia, timelapseCilia.size(), excludedBBs, totalNrOfBBs);
 	}
-	
+
+	appendNotesLine(tw1, filePrefix);	// New in v0.2.2
 	addFooter(tw1, currentDate);				
 	if(!tw1.saveAndFinish(filePrefix + ".txt")) {
 		progress.notifyMessage("IO ERROR when saving file " + filePrefix + ".txt", ProgressReporter.ERROR);
@@ -4616,11 +5163,11 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 		appendTxt += "	"; if(measureC3local && cilium.cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).colocalizedCompToBGVolumeC3);}
 		appendTxt += "	"; if(measureC3local && cilium.cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(100.0*cilium.cilia.get(i).colocalizedCompToBGFractionC3);}
 		
-		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable && !suppressReconstructionIntensity) appendTxt += dformat6.format(cilium.cilia.get(i).minCiliumIntensity);
-		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable && !suppressReconstructionIntensity) appendTxt += dformat6.format(cilium.cilia.get(i).maxCiliumIntensity);
-		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable && !suppressReconstructionIntensity) appendTxt += dformat6.format(cilium.cilia.get(i).maxTenPercentCiliumIntensity);
-		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable && !suppressReconstructionIntensity) appendTxt += dformat6.format(cilium.cilia.get(i).averageCiliumIntensity);
-		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable && !suppressReconstructionIntensity) appendTxt += fmt6(cilium.cilia.get(i).SDCiliumIntensity);
+		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).minCiliumIntensity);
+		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).maxCiliumIntensity);
+		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).maxTenPercentCiliumIntensity);
+		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).averageCiliumIntensity);
+		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable) appendTxt += fmt6(cilium.cilia.get(i).SDCiliumIntensity);
 		
 		appendTxt += "	"; if(measureC2local && cilium.cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).minC2Intensity);}
 		appendTxt += "	"; if(measureC2local && cilium.cilia.get(i).ciliumAvailable){appendTxt += dformat6.format(cilium.cilia.get(i).maxC2Intensity);}
@@ -5481,95 +6028,113 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 
 	/**
 	 * Shows a Generic Dialog allowing to enter the detection settings.
-	 * @returns true if settings were successfully entered and false if the user has canceled the dialog.
+	 * 
 	 * Modified in v0.2.0 to provide also a dialog for detecting and assigning basal bodies.
+	 * Restructured in v0.2.2 to simplify (grouped dialog into sections).
+	 * 
+	 * @returns true if settings were successfully entered and false if the user has canceled the dialog.
 	 * */
 	private boolean enterSettings() {
 		//&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 		//-------------------------GenericDialog--------------------------------------
 		//&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-		{
-		
+		{			
 			GenericDialog gd = new GenericDialog(PLUGINNAME + " on " + System.getProperty("os.name") + " - detection preferences");
 			gd.addHelp("https://github.com/hansenjn/CiliaQ#user-guide--manual");
 			
 			//show Dialog-----------------------------------------------------------------
 			//.setInsets(top, left, bottom)
-			gd.setInsets(0,0,0);	gd.addMessage("Detection", SubHeadingFont);
-			gd.setInsets(5,0,0);	gd.addCheckbox("measure intensity A: ", measureC2);
-			gd.setInsets(5,0,0);	gd.addCheckbox("measure intensity B: ", measureC3);
+			gd.setInsets(0,0,0);	gd.addMessage("Cilia (mask, reconstruction channel)", SubHeadingFont);
+			gd.setInsets(0,0,0);	gd.addNumericField("Channel: ", channelReconstruction, 0);
+			gd.setInsets(0,0,0);	gd.addCheckbox("Contains labels (intensity value = cilium ID)", labelModeCilia);
+			gd.setInsets(0,0,0);	gd.addNumericField("Minimum cilium size [voxel]: ", minSize, 0);
+			gd.setInsets(0,0,0);	gd.addCheckbox("Increase range for connecting", increaseRangeCilia);
+			gd.setInsets(0,0,0);	gd.addNumericField("Join pieces closer than [calibrated unit] (0 = off): ", joinGap, 2);
+			gd.setInsets(0,0,0);	gd.addMessage("(with labels: only pieces of the same label are joined if close enough)", InstructionsFont);
+			gd.setInsets(0,0,0);	gd.addChoice("Additionally exclude...", excludeOptions, excludeSelection);
 			
-			gd.setInsets(0,0,0);	gd.addChoice("channel with basal (body) stain ...", bbCOptions, bbCSelection);
+			gd.setInsets(10,0,0);	gd.addMessage("Intensity measurements", SubHeadingFont);
+			gd.setInsets(0,0,0);	gd.addCheckboxGroup(1, 2,
+					new String[]{"Measure A", "Measure B"},
+					new boolean[]{measureC2, measureC3});
+			gd.setInsets(0,0,0);	gd.addNumericField("Channels A | B: ", channelC2, 0);
+			gd.setInsets(-23,55,0);	gd.addNumericField("", channelC3, 0);
+			gd.setInsets(0,0,0);	gd.addNumericField("Minimum size [voxel] (relevant if segmented, 1 = off): ", minRestSize, 0);
+			gd.setInsets(0, 0, 0); gd.addCheckbox("Increase range for connecting (relevant if segmented)", increaseRangeRegions);
 			
-			gd.setInsets(0,0,0);	gd.addNumericField("channels (Reconstruction / (opt. intensity A) / (opt. intensity B) / (basal stain)): ", channelReconstruction, 0);
-			gd.setInsets(-23,55,0);	gd.addNumericField("", channelC2, 0);
-			gd.setInsets(-23,110,0);	gd.addNumericField("", channelC3, 0);
-			gd.setInsets(-23,165,0);gd.addNumericField("", basalStainC, 0);	
-			gd.setInsets(5,0,0);	gd.addNumericField("minimum cilium size [voxel]: ", minSize, 0);
-			gd.setInsets(0,0,0);	gd.addCheckbox("Increase range for connecting cilia", increaseRangeCilia);
-			gd.setInsets(0,0,0);	gd.addCheckbox("Reconstruction channel contains labels (one value per object)", labelModeCilia);	// New in v0.2.2
-			gd.setInsets(0,0,0);	gd.addCheckbox("   -> fuse cilia that share a label value", fuseSameLabels);	// New in v0.2.2(A7b)
-			gd.setInsets(0,0,0);	gd.addNumericField("       -> gap tolerance for fusing [micron]: ", fuseGapMicron, 2);
-			gd.setInsets(0,0,0);	gd.addMessage("20 micron likely joins all pieces of a label (CiliaQ Preparator: one label per object)."
-					+ "\nLower it for label images whose IDs repeat, e.g. numbered per slice. Needs a calibrated image.", InstructionsFont);
-			gd.setInsets(0,0,0);	gd.addChoice("additionally exclude...", excludeOptions, excludeSelection);
-			gd.setInsets(0,0,0);	gd.addNumericField("minimum size of intensity regions (for A and B) [voxel]: ", minRestSize, 0);
-			gd.setInsets(0,0,0);	gd.addCheckbox("Increase range for connecting intensity regions", increaseRangeRegions);	
-					
-			gd.setInsets(10,0,0);	gd.addCheckbox("Determine skeleton-based results (e.g. length)", skeletonize);
-			gd.setInsets(0,0,0);	gd.addNumericField("before skeletonization: gauss filter XY and Z sigma: ", gXY, 2);
+			gd.setInsets(10,0,0);	gd.addMessage("Basal bodies (BBs)", SubHeadingFont);
+			gd.setInsets(0,0,0);	gd.addChoice("BB stain", bbCOptions, bbCSelection);
+			gd.setInsets(0,0,0);	gd.addNumericField("Channel: ", basalStainC, 0);
+			
+			gd.setInsets(10,0,0);	gd.addMessage("Skeleton-based results (e.g. length, intensity profiles)", SubHeadingFont);
+			gd.setInsets(0,0,0);	gd.addCheckbox("Determine skeleton-based results", skeletonize);
+			gd.setInsets(0,0,0);	gd.addNumericField("Gauss sigma before skeletonization XY | Z (0 = off): ", gXY, 2);
 			gd.setInsets(-23,55,0);	gd.addNumericField("", gZ, 2);
-			gd.setInsets(0,0,0);	gd.addNumericField("Reference distance for tangents and curvature [calibration unit (e.g. µm)]: ", refDistance, 2);
+			gd.setInsets(0,0,0);	gd.addNumericField("Reference distance (for curvature) [calibrated unit]: ", refDistance, 2);
 			
-			gd.setInsets(10,0,0);	gd.addChoice("Time-lapse cilia connection (only relevant for time-lapse): ", timelapseTrackingOptions, timelapseTrackingSelection);
-			gd.setInsets(0,0,0);	gd.addMessage("If linear assignment selected set the following (otherwise leave at default):", InstructionsFont);
-			gd.setInsets(0,0,0);	gd.addNumericField("    -> max tracking distance [calibrated unit]: ", maxTrackingDistance, 2);
-			gd.setInsets(0,0,0);	gd.addNumericField("    -> max frame gap [frames] (linear assignment only): ", maxFrameGap, 0);
+			gd.setInsets(10,0,0);	gd.addMessage("Time-lapse (leave at default for non-timelapse images)", SubHeadingFont);
+			gd.setInsets(0,0,0);	gd.addChoice("Link cilia across time by", timelapseTrackingOptions, timelapseTrackingSelection);
+			gd.setInsets(0,0,0);	gd.addMessage("Classic: set max frame gap; "
+					+ "By linear assignment: set max tracking distance + max frame gap; "
+					+ "By label ID: ignore settings below.", InstructionsFont);
+			gd.setInsets(0,0,0);	gd.addNumericField("-> Max tracking distance [calibrated unit]: ", maxTrackingDistance, 2);
+			gd.setInsets(0,0,0);	gd.addNumericField("-> Max frame gap [frames]: ", maxFrameGap, 0);
 			
 			gd.showDialog();
 			//show Dialog-----------------------------------------------------------------
-	
+
+			if (gd.wasCanceled()) return false;
+			
 			//read and process variables--------------------------------------------------
-			measureC2 = gd.getNextBoolean();
-			measureC3 = gd.getNextBoolean();
-			
-			bbCSelection = gd.getNextChoice();
-			if(bbCSelection == bbCOptions[0]) {
-				measureBasal = false;
-				segmentedBB = false;
-			}else if(bbCSelection == bbCOptions[1]) {
-				measureBasal = true;
-				segmentedBB = false;
-			}else if(bbCSelection == bbCOptions[2]) {
-				measureBasal = true;
-				segmentedBB = true;			
-			}
-			
+			// Cilia
 			channelReconstruction = (int) gd.getNextNumber();
-			channelC2 = (int) gd.getNextNumber();
-			channelC3 = (int) gd.getNextNumber();
-			basalStainC = (int) gd.getNextNumber();
-			
+			labelModeCilia = gd.getNextBoolean();
 			minSize = (int) gd.getNextNumber();
 			increaseRangeCilia = gd.getNextBoolean();
-			labelModeCilia = gd.getNextBoolean();	// New in v0.2.2
-			fuseSameLabels = gd.getNextBoolean();	// New in v0.2.2
-			fuseGapMicron = gd.getNextNumber();	// New in v0.2.2
+			joinGap = checkedJoinGap(gd.getNextNumber(), "dialog");
 			excludeSelection = gd.getNextChoice();
+			
+			// Intensity measurements
+			measureC2 = gd.getNextBoolean();
+			measureC3 = gd.getNextBoolean();
+			channelC2 = (int) gd.getNextNumber();
+			channelC3 = (int) gd.getNextNumber();
 			minRestSize = (int) gd.getNextNumber();
 			increaseRangeRegions = gd.getNextBoolean();
 			
+			// Basal bodies
+			bbCSelection = gd.getNextChoice();
+			if(bbCSelection.equals(bbCOptions[0])) {
+				measureBasal = false;
+				segmentedBB = false;
+			}else if(bbCSelection.equals(bbCOptions[1])) {
+				measureBasal = true;
+				segmentedBB = false;
+			}else if(bbCSelection.equals(bbCOptions[2])) {
+				measureBasal = true;
+				segmentedBB = true;
+			}
+			basalStainC = (int) gd.getNextNumber();
+			
+			// Skeleton
 			skeletonize = gd.getNextBoolean();
 			gXY = (double) gd.getNextNumber();
 			gZ = (double) gd.getNextNumber();
 			refDistance = (double) gd.getNextNumber();
-				
+			
+			// Time-lapse
 			timelapseTrackingSelection = gd.getNextChoice();
 			maxTrackingDistance = (double) gd.getNextNumber();
 			maxFrameGap = (int) gd.getNextNumber();
 			
+			// Label ID tracking without label mode would treat the binary mask value as one single ID,
+			// so all cilia of a frame would be linked to each other
+			if(timelapseTrackingSelection.equals(timelapseTrackingOptions[2]) && !labelModeCilia) {
+				IJ.error(PLUGINNAME, "'By label ID' requires 'Contains labels' to be checked.");
+				return false;
+			}
+			
 			//read and process variables--------------------------------------------------
-			if (gd.wasCanceled()) return false;
 			
 		}
 		if(bbCSelection == bbCOptions[2]) {			
@@ -5580,24 +6145,21 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 //			maxDistanceBBCiliumEnd = Prefs.getDouble("ciliaQ.maxDistanceBBCiliumEnd", maxDistanceBBCiliumEnd);
 //			bbCiliaFilterSelection = Prefs.getString("ciliaQ.bbCiliaFilterSelection", bbCiliaFilterSelection);
 			
-			GenericDialog gdB = new GenericDialog(PLUGINNAME + " on " + System.getProperty("os.name") + " - basal body detection preferences");
+			GenericDialog gdB = new GenericDialog(PLUGINNAME + " on " + System.getProperty("os.name") + " - BB detection");
 	
 			gdB.addHelp("https://github.com/hansenjn/CiliaQ#user-guide--manual");
 			
-			gdB.setInsets(0,0,0);	gdB.addMessage("You selected to detect basal bodies from channel " + basalStainC +".", InstructionsFont);
-			gdB.setInsets(0,0,0);	gdB.addMessage("This requires that this channel is segmented and labels basal bodies.", InstructionsFont);
-			gdB.setInsets(0,0,0);	gdB.addMessage("Please determine how basal bodies shall be detected from the segmented channel,", InstructionsFont);
-			gdB.setInsets(0,0,0);	gdB.addMessage("how they shall be assigned to cilia, and whether BBs and cilia matching shall be", InstructionsFont);
-			gdB.setInsets(0,0,0);	gdB.addMessage("used to remove cilia.", InstructionsFont);
+			gdB.addMessage("Basal Body (BB) detection preferences",HeadingFont);
 			
-
-			gdB.setInsets(5,0,0);	gdB.addMessage("IMPORTANT: Basal body tracking is not yet implemented for time lapse images!", InstructionsFont, Color.red);
-			gdB.setInsets(0,0,0);	gdB.addMessage("If you use this method for timelapse images analysis will not be pursued.", InstructionsFont, Color.red);
-			//TODO remove warning when implemented
-	
-			gdB.setInsets(5,0,0);	gdB.addNumericField("minimum basal body object size [voxel]: ", minBBSize, 0);
-			gdB.setInsets(0,0,0);	gdB.addCheckbox("Increase range for connecting pixels to form a basal body object", increaseRangeBB);
-			gdB.setInsets(0,0,0);	gdB.addCheckbox("Basal body channel contains labels (one value per object)", labelModeBB);	// New in v0.2.2
+			gdB.setInsets(0,0,0);	gdB.addMessage("You selected to detect basal bodies from channel " + basalStainC +"."
+					+ "\nThis requires that this channel is segmented and labels basal bodies."
+					+ "\nPlease determine how basal bodies shall be detected from the segmented channel,"
+					+ "\nhow they shall be assigned to cilia, and whether BBs and cilia matching shall be"
+					+ "\nused to remove cilia.", InstructionsFont);
+				
+			gdB.setInsets(5,0,0);	gdB.addNumericField("minimum BB object size [voxel]: ", minBBSize, 0);
+			gdB.setInsets(0,0,0);	gdB.addCheckbox("Increase range for connecting pixels to form a BB object", increaseRangeBB);
+			gdB.setInsets(0,0,0);	gdB.addCheckbox("BB channel contains labels (one value per object)", labelModeBB);
 	
 			gdB.setInsets(5,0,0);	gdB.addChoice("Assign", bbAssignmentOptions, bbAssignmentSelection);
 			gdB.setInsets(5,0,0);	gdB.addNumericField("Max allowed BB-center-to-cilium-skeleton-end distance (calibrated units): ", maxDistanceBBCiliumEnd, 2);
@@ -5688,7 +6250,17 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 					+ " not intended, turn on 'Basal body channel contains labels' (macro: label-mode-basal-body)." + where,
 					ProgressReporter.NOTIFICATION);
 		}
-		
+		if(labelModeCilia && isMarkedSegmentedChannel(imp, cReconstruction) && !isMarkedLabelChannel(imp, cReconstruction)){	// New in v0.2.2
+			progress.notifyMessage("Label mode is on for the cilia, but CiliaQ Preparator marked channel " + cReconstruction
+					+ " as a segmented intensity channel, not as labels: label mode joins only voxels of the same value, so it"
+					+ " splits the cilia. Turn label mode off unless the channel holds labels." + where, ProgressReporter.NOTIFICATION);
+		}
+		if(labelModeBB && cBasalStain > 0 && isMarkedSegmentedChannel(imp, cBasalStain) && !isMarkedLabelChannel(imp, cBasalStain)){	// New in v0.2.2
+			progress.notifyMessage("Label mode is on for the basal bodies, but CiliaQ Preparator marked channel " + cBasalStain
+					+ " as a segmented intensity channel, not as labels: label mode joins only voxels of the same value, so it"
+					+ " splits the basal bodies. Turn label mode off unless the channel holds labels." + where,
+					ProgressReporter.NOTIFICATION);
+		}		
 		if(!chosenIsSegm && segmChannel != -1){
 			progress.notifyMessage("Channel " + cReconstruction + " is not labeled as segmented channel"
 					+ " - did you mean channel " + segmChannel + "? The input image likely came from CiliaQ"
@@ -5810,41 +6382,91 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 	}
 
 	/**
-	 * Does the reconstruction channel carry intensity information? If EVERY object holds a single
-	 * value (min == max, exact), it does not: label IDs or a binary mask. Then the "... (in reconstruction channel)"
-	 * intensity columns are left empty instead of reporting a meaningless number. Every object, not one: a
-	 * one-voxel cilium legitimately holds one value. In label mode the columns are always left empty.
-	 * 
+	 * Did CiliaQ Preparator mark channel c (1-based) as segmented ("segm ..." in its slice labels, label channels
+	 * included: "segm labels ...")?
+	 *
 	 * New in v0.2.2
 	 */
-	void setReconstructionIntensityFlag(int nObjects, int nSingleValued, String where, ProgressReporter progress){
-		boolean allSingleValued = nObjects > 0 && nSingleValued == nObjects;
-		suppressReconstructionIntensity = labelModeCilia || allSingleValued;
-		if(allSingleValued && !labelModeCilia){
+	static boolean isMarkedSegmentedChannel(ImagePlus imp, int c){
+		if(c < 1 || c > imp.getNChannels()) {
+			return false;
+		}
+		String label = imp.getStack().getSliceLabel(imp.getStackIndex(c, 1, 1));
+		return label != null && label.startsWith("segm ");
+	}
+
+	/**
+	 * New in v0.2.2: a log line saying what the intensity columns of the reconstruction channel hold when they hold no
+	 * intensities. Since the columns are written in every case (the values can link the objects to other data),
+	 * a user reading them needs to know what the numbers are:
+	 *		- label mode: the label values; minimum = maximum = average = the label of the cilium (tested: the columns
+	 *		  hold the labels 1 and 2);
+	 *		- without label mode, when every object holds a single value (minimum = maximum, exact): label IDs or a
+	 *		  binary mask, so no intensity (e.g. 255 for every cilium of a mask).
+	 *
+	 * Every object, not one: since a one-voxel cilium in an intensity image holds one value too, a single such cilium
+	 * does not trigger the line.
+	 *
+	 * A log line, not a notification: since the start-up check already notifies about a binary mask, and the label
+	 * hint about a label image read without label mode, a notification would repeat them; in label mode the user chose
+	 * labels, so the line only confirms it. With it, a user can match a cilium in _CQ.txt to its label in the label image.
+	 *
+	 * @param nObjects		the cilia of the image
+	 * @param nSingleValued	those whose voxels all hold the same value in the reconstruction channel
+	 * @param where			" (File ..., Dir: ...)", appended to the line
+	 * @param progress		the progress reporter (as the field of the same name; the parameter is kept from A7)
+	 */
+	void noteSingleValuedObjects(int nObjects, int nSingleValued, String where, ProgressReporter progress){
+		if(labelModeCilia){
+			progress.notifyMessage("Label mode: the intensity columns of the reconstruction channel give the label values"
+					+ " (per frame: minimum = maximum = average = the label of the cilium; over time, labels that differ"
+					+ " between frames are averaged), not intensities." + where, ProgressReporter.LOG);
+		}else if(nObjects > 0 && nSingleValued == nObjects){
 			progress.notifyMessage("Each of the " + nObjects + " objects holds a single value in the reconstruction channel"
-					+ " (label IDs or a binary mask), so the intensity columns of the reconstruction channel are left empty"
-					+ " instead of reporting a meaningless number." + where, ProgressReporter.NOTIFICATION);
+					+ " (label IDs or a binary mask), so its intensity columns carry no intensity information." + where,
+					ProgressReporter.LOG);
 		}
 	}
 
 	/**
-	 * If the user selected an output IMAGE ("..._CQ.tif") instead of the matching settings file
-	 * (".txt"), load the .txt next to it when it exists; otherwise return the file unchanged. As in CiliaQ Preparator.
-	 * 
+	 * If the user selected an output IMAGE instead of a settings file, load CiliaQ's settings file of that image when
+	 * it exists: "X_CQP.tif" (CiliaQ Preparator's output) -> "X_CQP_CQ.txt"; a CiliaQ output "X_CQ_<part>.tif" (also
+	 * with a date) -> the "X_CQ.txt" (or "X_CQ_<date>.txt") it belongs to, cutting "_<part>" from the end of the file
+	 * name. "X_CQP.txt" is the Preparator's settings file, not CiliaQ's, so it is never loaded. Otherwise the file is
+	 * returned unchanged.
+	 *
 	 * New in V0.2.2
 	 */
 	private File redirectTifToTxt(File chosen){
-		if(chosen == null) return chosen;
-		String path = chosen.getPath();
-		String lower = path.toLowerCase();
-		if(lower.endsWith(".tif") || lower.endsWith(".tiff")){
-			File txt = new File(path.substring(0, path.lastIndexOf(".")) + ".txt");
-			if(txt.exists() && txt.canRead()){
+		if(chosen == null) {
+			return chosen;
+		}
+		String fileName = chosen.getName(), lower = fileName.toLowerCase();
+		if(!(lower.endsWith(".tif") || lower.endsWith(".tiff"))) {
+			return chosen;
+		}
+		String stem = fileName.substring(0, fileName.lastIndexOf("."));
+		if(stem.endsWith("_CQP"))	stem = stem + "_CQ";	// the Preparator's output: CiliaQ's settings file of it
+		int cq = stem.lastIndexOf("_CQ");
+		if(cq < 0 || stem.endsWith("_CQP")) {
+			cq = -1;
+		}
+		
+		// never cut below the run's own "_CQ" or "_CQ_<date>" (yyMMdd_HHmmss): that would be another run's settings file
+		java.util.regex.Matcher dated = java.util.regex.Pattern.compile("_CQ_\\d{6}_\\d{6}").matcher(stem);
+		int shortest = cq < 0 ? Integer.MAX_VALUE : (dated.find(cq) ? dated.end() : cq + 3);
+		while(stem.length() >= shortest){
+			File txt = new File(chosen.getParentFile(), stem + ".txt");
+			if(txt.canRead()){
 				IJ.log(PLUGINNAME + ": you selected an image (" + chosen.getName()
-					+ "); loading the matching settings file instead (" + txt.getName() + ").");
+					+ "); loading CiliaQ's settings file of it instead (" + txt.getName() + ").");
 				return txt;
 			}
+			int cut = stem.lastIndexOf("_");
+			if(cut < 0)	break;
+			stem = stem.substring(0, cut);
 		}
+		IJ.log(PLUGINNAME + ": you selected an image (" + chosen.getName() + "); no CiliaQ settings file ('..._CQ.txt') of it was found next to it.");
 		return chosen;
 	}
 
@@ -5889,6 +6511,10 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 				}
 				
 				if(readPrefs){
+					if(line.contains("	Calibration [") && line.contains("/px]")){
+						// New in v0.2.2: the unit of the file's distances
+						settingsFileUnit = line.substring(line.indexOf("Calibration [") + "Calibration [".length(), line.indexOf("/px]"));
+					}
 					if(line.contains("Measure intensity A")){
 						if(line.contains("true")) {
 							measureC2 = true;
@@ -6079,15 +6705,8 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 						}
 
 						line = br.readLine();
-						if(line.contains("Label images (one value per object)")){	// New in v0.2.2: files written before have no such line
-							String [] lv = line.split("	");
-							for(int li = 0; li + 1 < lv.length; li++){
-								if(lv [li].equals("cilia"))	labelModeCilia = lv [li+1].contains("true");
-								if(lv [li].equals("fuse same labels"))	fuseSameLabels = lv [li+1].contains("true");
-								if(lv [li].equals("gap [micron]"))	fuseGapMicron = Double.parseDouble(lv [li+1].replace(",", "."));
-								if(lv [li].equals("basal bodies"))	labelModeBB = lv [li+1].contains("true");
-							}
-							IJ.log("Label mode cilia = " + labelModeCilia + ", fuse = " + fuseSameLabels + " (" + fuseGapMicron + " micron), basal bodies = " + labelModeBB);
+						if(line.contains("Label images (one value per object)")){
+							readLabelLine(line);
 							line = br.readLine();
 						}
 						if(line.contains("Additional filtering")){
@@ -6308,18 +6927,20 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 				//show Dialog-----------------------------------------------------------------
 				//.setInsets(top, left, bottom)
 				gd.setInsets(0,0,0);	gd.addMessage("ATTENTION", SubHeadingFont);
-				gd.setInsets(0,0,0);	gd.addMessage("You loaded settings from a file created with a CiliaQ version before v0.2.2.", InstructionsFont);
-				gd.setInsets(0,0,0);	gd.addMessage("From v0.2.2 on, a new analysis parameter needs to be defined. Define it here.", InstructionsFont);
-				gd.setInsets(0,0,0);	gd.addMessage("Note: the parameters are just relevant for time-lapse tracking and set to the", InstructionsFont);
-				gd.setInsets(0,0,0);	gd.addMessage("default from before v0.2.2 (pixel-wise connection).", InstructionsFont);
-				gd.setInsets(0,0,0);	gd.addMessage("If you don't have time-lapse data just leave at default and confirm.", InstructionsFont);
+				gd.setInsets(0,0,0);	gd.addMessage("You loaded settings from a file created with a CiliaQ version before v0.2.2."
+						+ "\nFrom v0.2.2 on, a new analysis parameter needs to be defined. Define it here."
+						+ "\nNote: the parameters are just relevant for time-lapse tracking and set to the"
+						+ "\ndefault from before v0.2.2 (pixel-wise connection)."
+						+ "\nIf you don't have time-lapse data just leave at default and confirm.", InstructionsFont);
 				gd.setInsets(5,0,0);	gd.addMessage("More information: https://github.com/hansenjn/CiliaQ/releases/tag/v0.2.2", InstructionsFont);
 
 				gd.setInsets(20,0,0);	gd.addMessage("Define missing parameter:", SubHeadingFont);
 				gd.setInsets(0,0,0);	gd.addChoice("Time-lapse cilia connection: ", timelapseTrackingOptions, timelapseTrackingSelection);
-				gd.setInsets(0,0,0);	gd.addMessage("Set the following parameters if linear assignment selected (otherwise leave at default):", InstructionsFont);
+				gd.setInsets(0,0,0);	gd.addMessage("Max tracking distance: linear assignment only. "
+						+ "Max frame gap: classic and linear assignment; "
+						+ "0 = as before v0.2.2.", InstructionsFont);	// New in v0.2.2
 				gd.setInsets(0,0,0);	gd.addNumericField("    -> max tracking distance [calibrated unit]: ", maxTrackingDistance, 2);
-				gd.setInsets(0,0,0);	gd.addNumericField("    -> max frame gap [frames] (linear assignment only): ", maxFrameGap, 0);
+				gd.setInsets(0,0,0);	gd.addNumericField("    -> max frame gap [frames]: ", 0, 0);	// New in v0.2.2: 0 = the connection before v0.2.2
 								
 				gd.showDialog();
 				//show Dialog-----------------------------------------------------------------
