@@ -4,7 +4,7 @@ package ciliaQ_jnh;
  * 
  * Copyright (C) 2017-2023 Jan Niklas Hansen
  * First version: June 30, 2017  
- * This Version: November 12, 2026
+ * This Version: November 18, 2026
  * 
  * Parts of the code were inherited from MotiQ
  * (https://github.com/hansenjn/MotiQ).
@@ -49,6 +49,64 @@ public class CiliaQMain implements PlugIn, Measurements {
 	static final String PLUGINNAME = "CiliaQ";
 	static final String PLUGINVERSION = "0.2.2";
 	
+	/**
+	 * ImageJ pref that holds the last version whose "What's new" dialog was silenced.
+	 * And Texts and URLs for an opening information dialog 
+	 * */
+	static final String WHATS_NEW_PREF = "ciliaQ.whatsNewSeen";
+	static final String RELEASE_URL = "https://github.com/hansenjn/CiliaQ/releases/tag/v" + PLUGINVERSION;
+	static final String WHATS_NEW_TEXT =
+				"DETECTION:\n"
+			+	" - Handle label images (intensity = cilium/basal body ID)\n"
+			+	" - Join the pieces of a cilium closer than a gap (0 = off); the skeleton is bridged across gaps\n"
+			+	"TIME-LAPSE:\n"
+			+	" - Link cilia across time by linear assignment or by label ID, besides classic overlap\n"
+			+	" - Max frame gap: a cilium missing in some frames stays one object (0 = as before)\n"
+			+	" - Basal body linking and tracking in time-lapse images\n"
+			+	"MACROS AND HEADLESS:\n"
+			+	" - Improved reporting from macro and headless running mode\n"
+			+	" - Improved safety: missing macro keys are named and defaults are used\n"
+			+	"OUTPUT:\n"
+			+	" - The notifications of each image in <name>_CQ_log.txt\n"
+			+	" - Empty cells instead of NaN or Infinity\n"
+			+	"Fixed:\n"
+			+	" - Time-lapse 3D overview is saved as TIFF (bug fix)\n"
+			+	" - Basal bodies: z position with voxel depth, minimum size applied, columns shown in every mode\n"
+			+	" - Kinetics output: a hang, and a crash with objects that are basal bodies only\n"
+			+ "\n"
+			+ "As before: do not mix skeleton results (e.g. length) with versions before v0.1.7.";
+
+
+	/**	True if the dialog of this version has not been silenced: the pref holds another version, or none. */
+	static boolean whatsNewDue(String seenVersion){
+		return seenVersion == null || !seenVersion.equals(PLUGINVERSION);
+	}
+
+	/**	
+	 * Shows the "What's new" dialog once per version (dialog runs only, see run()).
+	 * New in v0.2.2: replaces the beta warning and the v0.2.0 notice.
+	 **/
+	private static void showWhatsNew(){
+		if(!whatsNewDue(Prefs.get(WHATS_NEW_PREF, null)))	return;
+		GenericDialog gd = new GenericDialog(PLUGINNAME + " v" + PLUGINVERSION + " - What's new");
+		gd.setInsets(0,0,0);	gd.addMessage("What's new in " + PLUGINNAME + " v" + PLUGINVERSION, HeadingFont);
+		gd.setInsets(5,0,0);	gd.addTextAreas(WHATS_NEW_TEXT, null, 20, 100);
+		gd.getTextArea1().setEditable(false);
+		gd.setInsets(5,0,0);	gd.addMessage("All detailed changes: release notes button below.", InstructionsFont);
+		gd.setInsets(5,0,0);	gd.addCheckbox("Do not show this again until the next update", false);
+		gd.addHelp(RELEASE_URL);
+		gd.setHelpLabel("Release notes");
+		gd.hideCancelButton();
+		gd.showDialog();
+		if(gd.getNextBoolean()){
+			Prefs.set(WHATS_NEW_PREF, PLUGINVERSION);
+			Prefs.savePreferences();
+		}
+	}
+	
+	/**	Dialogs for help links */
+	static final String BB_HELP_URL = "https://github.com/hansenjn/CiliaQ/wiki/Basal-body-detection-in-CiliaQ";
+	
 	//Fix fonts
 	static final Font SuperHeadingFont = new Font("Sansserif", Font.BOLD, 16);
 	static final Font HeadingFont = new Font("Sansserif", Font.BOLD, 14);
@@ -56,13 +114,15 @@ public class CiliaQMain implements PlugIn, Measurements {
 	static final Font TextFont = new Font("Sansserif", Font.PLAIN, 12);
 	static final Font InstructionsFont = new Font("Sansserif", 2, 12);
 	static final Font RoiFont = new Font("Sansserif", Font.PLAIN, 12);
-	
+
 	//Fix formats
 	DecimalFormat dformat6 = new DecimalFormat("#0.000000");
 	DecimalFormat dformat3 = new DecimalFormat("#0.000");
 	DecimalFormat dformat0 = new DecimalFormat("#0");
 	DecimalFormat dfDialog = new DecimalFormat("#0.000000");	
-		
+	
+	//Dialogs
+	
 	static final String[] nrFormats = {"US (0.00...)", "Germany (0,00...)"};
 	static final String[] excludeOptions = {"nothing", "cilia touching x or y borders", "cilia touching x or y or z borders",
 			"cilia touching x or y borders or whose thickest part is located at the z border"};
@@ -126,6 +186,10 @@ public class CiliaQMain implements PlugIn, Measurements {
 	/**	New in v0.2.2: the macro had no max-frame-gap= (written before v0.2.2),
 	 *	so the frame gap is 0, as then. */
 	boolean frameGapKeyMissing = false;
+	
+	/**	New in v0.2.2: the macro keys that were missing (or empty) and got their default, key -> default, in reading
+	 *	order (readSettingsFromMacroString; named for each image, see the task loop in run()). */
+	LinkedHashMap<String, String> macroDefaults = new LinkedHashMap<String, String>();
 
 	/**	New in v0.2.2: the unit of a loaded settings file's distances (its calibration line),
 	 *	null otherwise; each image compares it with its own unit (no conversion). */
@@ -195,91 +259,8 @@ public void run(String arg) {
 			Recorder.record = false;
 		}
 
-		/**
-		 * Display exceptional warning dialog
-		 */
-		GenericDialog gdW2 = new GenericDialog(
-				PLUGINNAME + " on " + System.getProperty("os.name") + " - Version Warning!");
-
-		gdW2.setInsets(0, 0, 0);
-		gdW2.addMessage("WARNING", HeadingFont, Color.MAGENTA);
-		gdW2.setInsets(0, 0, 0);
-		gdW2.addMessage("Hello CiliaQ-user! This is a beta version of CiliaQ: Version " + PLUGINVERSION + ".",
-				InstructionsFont);
-		gdW2.setInsets(10, 0, 0);
-		gdW2.addMessage("This version is still in extensive testing and might need further development.",
-				InstructionsFont);
-		gdW2.setInsets(0, 0, 0);
-		gdW2.addMessage("Do not use this version but instead install a previous version (e.g., v0.1.7) at:",
-				InstructionsFont);
-		gdW2.setInsets(0, 0, 0);
-		gdW2.addMessage("https://github.com/hansenjn/CiliaQ/releases/tag/v0.1.7", InstructionsFont);
-		gdW2.setInsets(10, 0, 0);
-		gdW2.addMessage("Follow this wiki post for installing a different CiliaQ version than this:", InstructionsFont);
-		gdW2.setInsets(0, 0, 0);
-		gdW2.addMessage("https://github.com/hansenjn/CiliaQ/wiki/Q&A:-How-to-install-a-specific-version-of-a-CiliaQ-plugin%3F",
-				InstructionsFont);
-
-		gdW2.addHelp("https://github.com/hansenjn/CiliaQ/releases/");
-
-		gdW2.showDialog();
-
-		if (gdW2.wasCanceled()) {
-			return;
-		}
-
-		/**
-		 * Display warning dialog
-		 */
-		if (Prefs.getBoolean("ciliaQ.v0.2.0.showVersionWarning", true)) {
-			GenericDialog gdW = new GenericDialog(
-					PLUGINNAME + " on " + System.getProperty("os.name") + " - Version Warning!");
-
-			gdW.setInsets(0, 0, 0);
-			gdW.addMessage("WARNING", HeadingFont, Color.MAGENTA);
-			gdW.setInsets(0, 0, 0);
-			gdW.addMessage("Hello CiliaQ-user! This is a new version of CiliaQ: Version v0.2.0.", InstructionsFont);
-			gdW.setInsets(10, 0, 0);
-			gdW.addMessage("Length measurements were improved in version v0.1.7!", InstructionsFont);
-			gdW.setInsets(0, 0, 0);
-			gdW.addMessage("Do not mix results from this version with results from versions prior to v0.1.7.",
-					InstructionsFont);
-			gdW.setInsets(0, 0, 0);
-			gdW.addMessage("Find out more about changes in length determination introduced in v0.1.7 at:",
-					InstructionsFont);
-			gdW.setInsets(0, 0, 0);
-			gdW.addMessage("https://github.com/hansenjn/CiliaQ/releases/tag/v0.1.7", InstructionsFont);
-			gdW.setInsets(10, 0, 0);
-			gdW.addMessage("This version (v0.2.0) additionally has new functions for tracking the basal body.",
-					InstructionsFont);
-			gdW.setInsets(0, 0, 0);
-			gdW.addMessage("Thus, some menu options have changed.", InstructionsFont);
-			gdW.setInsets(0, 0, 0);
-			gdW.addMessage("Find out more at the release notes for v0.2.0: https://github.com/hansenjn/CiliaQ/releases/tag/v0.2.0.",
-					InstructionsFont);
-			gdW.setInsets(10, 0, 0);
-			gdW.addMessage(
-					"If your FIJI automatically updated to this verison and you want to return to a previous version follow this wiki post:",
-					InstructionsFont);
-			gdW.setInsets(0, 0, 0);
-			gdW.addMessage("https://github.com/hansenjn/CiliaQ/wiki/Q&A:-How-to-install-a-specific-version-of-a-CiliaQ-plugin%3F",
-					InstructionsFont);
-
-			gdW.addCheckbox("Check this box if you never want to see this warning again", false);
-
-			gdW.addHelp("https://github.com/hansenjn/CiliaQ/releases/");
-
-			gdW.showDialog();
-
-			if (gdW.getNextBoolean()) {
-				Prefs.set("ciliaQ.v0.2.0.showVersionWarning", false);
-				Prefs.savePreferences();
-			}
-
-			if (gdW.wasCanceled()) {
-				return;
-			}
-		}
+		// New in v0.2.2: instead of the beta warning and the v0.2.0 notice
+		showWhatsNew();
 
 		// &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 		// -------------------------GenericDialog--------------------------------------
@@ -289,12 +270,11 @@ public void run(String arg) {
 		gd.addHelp("https://github.com/hansenjn/CiliaQ#user-guide--manual");
 		//show Dialog-----------------------------------------------------------------
 		//Note: .setInsets(top, left, bottom)
-		gd.setInsets(0,0,0);	gd.addMessage(PLUGINNAME + ", Version " + PLUGINVERSION + ", \u00a9 2017 - 2024 JN Hansen", SuperHeadingFont);
+		gd.setInsets(0,0,0);	gd.addMessage(PLUGINNAME + ", Version " + PLUGINVERSION + ", \u00a9 2017 - 2026 JN Hansen", SuperHeadingFont);
 		gd.setInsets(0,0,0);	gd.addMessage("More information at https://github.com/hansenjn/CiliaQ.", InstructionsFont);
 			
 		gd.setInsets(10,0,0);	gd.addChoice("process ", taskVariant, selectedTaskVariant);
 		
-//		gd.setInsets(10,0,0);	gd.addMessage("Calibration", HeadingFont);
 		gd.setInsets(10,0,0);	gd.addMessage("Calibration settings", SubHeadingFont);
 		gd.setInsets(5,0,0);	gd.addCheckbox("manually calibrate image", recalibrate);
 		gd.setInsets(0,0,0);	gd.addNumericField("    -> calibration [unit/px]: ", calibration, 4);
@@ -501,6 +481,18 @@ public void run(String arg) {
 //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 	for(int task = 0; task < tasks; task++){
 	currentTask = task + 1;	// New in v0.2.2: this image's notes are those of its task (getNotes)
+	
+	if(!macroDefaults.isEmpty()){
+		// New in v0.2.2: the macro keys that got their default, once per image
+		String used = "";
+		for(Map.Entry<String, String> e : macroDefaults.entrySet()){
+			used += (used.isEmpty() ? "" : ", ") + e.getKey() + "="
+					+ (e.getValue().contains(" ") ? "[" + e.getValue() + "]" : e.getValue());
+		}
+		progress.notifyMessage("The macro does not set these keys, so their defaults were used: " + used + "."
+				+ " (File " + name[task] + ", Dir: " + dir[task] + ")", ProgressReporter.NOTIFICATION);
+	}
+	
 	String logPrefix = null;	// New in v0.2.2: <dir><name>_CQ[_<date>], as filePrefix below
 	running: while(continueProcessing){
 		Date startDate = new Date();
@@ -725,9 +717,11 @@ private void readSettingsFromMacroString(String macroOptions, boolean logDetecti
 	recalibrate = macroFlag(o, "re-calibrate") || macroFlag(o, "recalibrate");
 	if(recalibrate) {
 		calibration = macroDouble(o, "length", macroDouble(o, "length-calibration", 0.21, logDetection), logDetection);
+		aliasDefault(o, "length", "length-calibration");
 		if(logDetection) IJ.log("detected calibration: " + calibration);
 
 		voxelDepth = macroDouble(o, "depth", macroDouble(o, "depth-calibration", 1.0, logDetection), logDetection);
+		aliasDefault(o, "depth", "depth-calibration");
 		if(logDetection) IJ.log("detected voxelDepth: " + voxelDepth);
 
 		calibrationDimension = macroString(o, "calibration-unit", "µm");
@@ -6147,7 +6141,7 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 			
 			GenericDialog gdB = new GenericDialog(PLUGINNAME + " on " + System.getProperty("os.name") + " - BB detection");
 	
-			gdB.addHelp("https://github.com/hansenjn/CiliaQ#user-guide--manual");
+			gdB.addHelp(BB_HELP_URL);
 			
 			gdB.addMessage("Basal Body (BB) detection preferences",HeadingFont);
 			
@@ -7607,7 +7601,11 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 	 */
 	private String macroString(String options, String key, String fallback) {
 		String raw = macroValue(options, key);
-		return (raw == null || raw.isEmpty()) ? fallback : raw;
+		if (raw == null || raw.isEmpty()) {
+			macroDefaults.put(key, fallback);
+			return fallback;
+		}
+		return raw;
 	}
 
 	/**
@@ -7619,6 +7617,7 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 		if (raw == null || raw.isEmpty()) {
 			if (logDetection)
 				IJ.log("macro option '" + key + "' absent; using " + fallback);
+			macroDefaults.put(key, plainNumber(fallback));
 			return fallback;
 		}
 		try {
@@ -7636,8 +7635,10 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 	 */
 	private String macroChoice(String options, String key, String[] choices, String fallback) {
 		String raw = macroValue(options, key);
-		if (raw == null || raw.isEmpty())
+		if (raw == null || raw.isEmpty()) {
+			macroDefaults.put(key, fallback);
 			return fallback;
+		}
 		for (int i = 0; i < choices.length; i++) {
 			if (choices[i].equals(raw))
 				return choices[i];
@@ -7651,11 +7652,35 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 
 	/**
 	 * Boolean flag: present means true, absent means false. Matches whole tokens
-	 * only. Added in version v0.2.2
+	 * only.
+	 * 
+	 * Added in version v0.2.2
 	 */
 	private boolean macroFlag(String options, String key) {
 		if (options == null)
 			return false;
 		return indexOfIgnoreCase(" " + options + " ", " " + key + " ") >= 0;
+	}
+	
+	/**
+	 * For a key read with an older name as its fallback: a default is noted only if neither is given, and
+	 * under the key.
+	 * 
+	 * Added in version v0.2.2
+	 */
+	private void aliasDefault(String options, String key, String alias) {
+		macroDefaults.remove(alias);
+		String k = macroValue(options, key), a = macroValue(options, alias);
+		if ((k != null && !k.isEmpty()) || (a != null && !a.isEmpty()))
+			macroDefaults.remove(key);
+	}
+
+	/**
+	 * A number as a macro value: whole numbers without decimals (10, not 10.0).
+	 * 
+	 * Added in version v0.2.2
+	 **/
+	private static String plainNumber(double v) {
+		return v == Math.rint(v) && Math.abs(v) < 1e15 ? String.valueOf((long) v) : String.valueOf(v);
 	}
 }//end main class
