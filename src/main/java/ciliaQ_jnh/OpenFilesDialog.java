@@ -47,7 +47,6 @@ public class OpenFilesDialog extends javax.swing.JFrame implements ActionListene
 
 	public OpenFilesDialog() {
 		super();
-		System.out.println("Here");
 		initGUI();
 	}
 	
@@ -243,6 +242,10 @@ public class OpenFilesDialog extends javax.swing.JFrame implements ActionListene
 		File[] fid; // Files in Dir
 		while (!q.isEmpty()) {
 			fid = q.pop().listFiles();
+			if (fid == null) {
+				// v0.2.2: a folder that cannot be read (no access) is skipped; it gave a crash
+				continue;
+			}
 			for (File f : fid) { // loop through files in dir
 				if (f.isDirectory() && !f.getName().matches(negDirPattern)) {
 					q.push(f); // add to queue if f is a dir and negDirPattern can't be matched
@@ -257,8 +260,10 @@ public class OpenFilesDialog extends javax.swing.JFrame implements ActionListene
 
 	static String transformStringToRegex(String pattern) {
 		String s = "";
-		if (pattern.length() != 0)
-			s = ".*" + pattern.replace(".", "\\.") + ".*";
+		if (pattern.length() != 0) {
+			// v0.2.2: every character literal (only "." was before; "(", "[", "+" gave a crash)
+			s = ".*" + java.util.regex.Pattern.quote(pattern) + ".*";			
+		}
 		return s;
 	}
 

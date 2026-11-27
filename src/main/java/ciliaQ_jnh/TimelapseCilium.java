@@ -372,6 +372,7 @@ class TimelapseCilium{
 	
 	public void computeBBParameters() {
 		int counter = 0, bbCounter = 0;
+		int ciliumFrames = 0;	// # of found skeletons is averaged over every frame that holds the cilium
 		sklAvailableInAllFrames = true;
 		
 		boolean skeletonize = false;
@@ -413,8 +414,13 @@ class TimelapseCilium{
 				skeletonize = true;
 			}
 			
-			if(cilia.get(cil).sklAvailable){
+			if(cilia.get(cil).ciliumAvailable){
+				// every frame of the cilium, also one whose skeleton falls into several trees: the quality parameter
+				// shows such frames (the other skeleton values come from the frames with one skeleton, below)
 				foundSklAvg += (double)cilia.get(cil).foundSkl;
+				ciliumFrames ++;
+			}
+			if(cilia.get(cil).sklAvailable){
 				branchesAvg += (double)cilia.get(cil).branches;
 				treeLengthAvg += cilia.get(cil).treeLength;
 				largestShortestPathOfLargestAvg += cilia.get(cil).largestShortestPathOfLargest;
@@ -438,8 +444,11 @@ class TimelapseCilium{
 			bbIntensityRadius2C3Avg /= (double) bbCounter;
 		}			
 
+		if(ciliumFrames > 0) {
+			// an object without a cilium frame keeps 0, as its other skeleton values
+			foundSklAvg /= (double) ciliumFrames;
+		}
 		if(skeletonize){
-			foundSklAvg /= (double) counter;
 			branchesAvg /= (double) counter;
 			treeLengthAvg /= (double) counter;
 			largestShortestPathOfLargestAvg /= (double) counter;
@@ -448,10 +457,9 @@ class TimelapseCilium{
 			orientationVectorAvg [2] /= (double) counter;
 			bendingIndexAvg  /= (double) counter;
 		}
-		
-		bbAvailable = true;
+		bbAvailable = bbCounter > 0;	// only true with a basal body in at least one frame
 	}
-	
+
 	/**
 	 * Create cilium image as stack
 	 * */

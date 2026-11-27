@@ -25,6 +25,11 @@ package ciliaQ_jnh;
 class Uncalibrated3DPoint{
 	double x = Double.NaN, y = Double.NaN, z = Double.NaN;
 	
+	
+	/** New in v0.2.2: for a basal body, its track: the basal bodies of a time-lapse with the same value are one basal
+	 * body over time (CiliaQMain.getBBObjectsTimelapse). */
+	int track = -1;
+
 	public Uncalibrated3DPoint(double px, double py, double pz){
 		x = px;
 		y = py;
@@ -39,6 +44,8 @@ class Uncalibrated3DPoint{
 		x = p.x;
 		y = p.y;
 		z = p.z;
+		track = p.track;
 	}
+
 }
 

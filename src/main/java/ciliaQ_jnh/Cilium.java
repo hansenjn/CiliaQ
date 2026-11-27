@@ -467,7 +467,9 @@ class Cilium{
 					flat ? 0 : (int)Math.round(points [i][2] / voxelDepth) - zMin + 1 + (int) Math.round(gZ*2.5),
 					255.0);
 		}
-		return new ScalerJNH().getScaled(o, 3.0, 3.0, flat ? 1.0 : 3.0);
+		ImagePlus up = new ScalerJNH().getScaled(o, 3.0, 3.0, flat ? 1.0 : 3.0);
+		setUpscaledCalibration(up, flat);	// New in v0.2.2: also for images without calibration (Addressing issue #15)
+		return up;
 	}
 
 	/**
@@ -505,6 +507,7 @@ class Cilium{
 				
 				ScalerJNH scaler = new ScalerJNH();
 				particleImp = scaler.getScaled(particleImp, 3.0, 3.0, 1.0);
+				setUpscaledCalibration(particleImp, true);	// New in v0.2.2: also for images without calibration (Issue #15)
 				
 //				particleImp.show();
 //				new WaitForUserDialog("Test").show();
@@ -544,6 +547,7 @@ class Cilium{
 				
 				ScalerJNH scaler = new ScalerJNH();
 				particleImp = scaler.getScaled(particleImp, 3.0, 3.0, 3.0);
+				setUpscaledCalibration(particleImp, false);	// New in v0.2.2: also for images without calibration (Issue #15)
 				
 //				particleImp.show();
 //				new WaitForUserDialog("Test").show();
@@ -773,18 +777,6 @@ class Cilium{
 		 */
 		final double rInner = tools.micronToImageUnit(cal, 1.0);
 		final double rOuter = tools.micronToImageUnit(cal, 2.0);
-		if(rInner < 2.0 * Math.min(calibration, voxelDepth)){
-			/*
-			 * The radius spans fewer than ~2 voxels on the finest axis, so the sphere holds almost
-			 * nothing and the reported intensities are noise. Fires on nanometre data, and on
-			 * uncalibrated images where the physical size is unknowable.
-			 */
-			progress.notifyMessage("Basal body measurement radius (" + rInner + " "
-					+ cal.getUnit() + ") spans fewer than 2 voxels - the reported basal body "
-					+ "intensities are unreliable. Check the image calibration.",
-					ProgressReporter.NOTIFICATION);
-		}
-
 		
 		if(measureC2) {
 			//Note: Fixed a bug in V0.2.2 - before pointBB.z was multiplied with the x,y calibration value not voxelDepth
@@ -841,16 +833,6 @@ class Cilium{
 						if(ix >= 0 && ix < imp.getWidth() && iy >= 0 && iy < imp.getHeight() 
 								&& imp.getStackIndex(channel, iz+1, t+1) >= 0 
 								&& imp.getStackIndex(channel, iz+1, t+1) < imp.getStackSize()){
-							
-							// TEMPORARY LOG FOR CHECKING - TODO REMOVE
-//							IJ.log("Measure around [" + pointX + "," + pointY + "," + pointZ 
-//									+ "]: Add coordinate [" + ix + "," + iy + "," + iz 
-//									+ "] = [" + ix*calibration + "," + iy*calibration + "," + iz*voxelDepth + "] with intensity " 
-//									+ imp.getStack().getVoxel(ix,iy,imp.getStackIndex(channel, iz+1, t+1)-1)
-//									+ " (Radius: " + radius 
-//									+ ", Dist: " 
-//									+ getDistance(new SklPoint(ix*calibration,iy*calibration,iz*voxelDepth), new SklPoint(pointX,pointY,pointZ)) + ")");
-							
 							intensity += imp.getStack().getVoxel(ix,iy,imp.getStackIndex(channel, iz+1, t+1)-1);
 							ct++;
 						}							
@@ -890,14 +872,6 @@ class Cilium{
 								if(ix >= 0 && ix < imp.getWidth() && iy >= 0 && iy < imp.getHeight() 
 										&& imp.getStackIndex(channel, iz+1, t+1) >= 0 
 										&& imp.getStackIndex(channel, iz+1, t+1) < imp.getStackSize()){
-								// TEMPORARY LOG FOR CHECKING - TODO REMOVE
-//								IJ.log("Measure in ring around [" + pointX + "," + pointY + "," + pointZ 
-//										+ "]: Add coordinate [" + ix + "," + iy + "," + iz 
-//										+ "] = [" + ix*calibration + "," + iy*calibration + "," + iz*voxelDepth + "] with intensity " 
-//										+ imp.getStack().getVoxel(ix,iy,imp.getStackIndex(channel, iz+1, t+1)-1)
-//										+" (Radii: " + innerRadius + ", " + outerRadius + ", dist: " 
-//										+ getDistance(new SklPoint(ix*calibration,iy*calibration,iz*voxelDepth), new SklPoint(pointX,pointY,pointZ)) + ")");
-								
 								intensity += imp.getStack().getVoxel(ix,iy,imp.getStackIndex(channel, iz+1, t+1)-1);
 								ct++;
 							}
@@ -1773,4 +1747,34 @@ class Cilium{
 //	private double getDistance(ciliaQ_skeleton_analysis.Point p, ciliaQ_skeleton_analysis.Point q) {
 //		return Math.sqrt(Math.pow(p.x-q.x,2.0)+Math.pow(p.y-q.y,2.0)+Math.pow(p.z-q.z,2.0));
 //	}	
+
+	/**
+	 * The calibration of the 3x upscaled image of an image without calibration: a third of the pixel size (and of the
+	 * voxel depth, unless flat). ScalerJNH, like ImageJ's Scaler, divides the pixel size only for a calibrated image, so
+	 * an image without calibration kept 1 per pixel: its skeleton lengths came out 3x too long and the first skeleton
+	 * point at three times its position (issue #15). A calibrated image is left as the scaler set it.
+	 *
+	 * New in v0.2.2
+	 */
+	private void setUpscaledCalibration(ImagePlus up, boolean flat){
+		if(up.getCalibration().scaled()) {
+			return;	// calibrated: the scaler divided the pixel size already
+		}
+		Calibration c = up.getCalibration().copy();
+		c.pixelWidth = calibration / 3.0;
+		c.pixelHeight = calibration / 3.0;
+		c.pixelDepth = flat ? voxelDepth : voxelDepth / 3.0;
+		up.setCalibration(c);
+	}
+
+	/**
+	 * Check: Does the basal-body measurement radius (1 micron in the image's unit) span fewer than 2 voxels on the finest axis?
+	 * Then the sphere holds almost nothing and the basal-body intensities are noise: on nanometre data, and on images
+	 * without calibration, where the physical size is unknown. It depends only on the calibration, so CiliaQMain
+	 * notifies it once per image.
+	 */
+	static boolean bbRadiusTooSmall(Calibration cal){
+		return tools.micronToImageUnit(cal, 1.0) < 2.0 * Math.min(cal.pixelWidth, cal.pixelDepth);
+	}
 }
+

@@ -355,7 +355,10 @@ public class ProgressDialog extends javax.swing.JFrame implements ActionListener
 		notificationTasks.addFirst(task);	// New in v0.2.2, enabling logging
 		notificationTypes.addFirst(type);	// New in v0.2.2, enabling logging
 		scheduleNotificationUpdate();
-		if(type == ProgressReporter.ERROR)	forceUIUpdate();      // never throttle errors
+		if(type != ProgressReporter.LOG) {
+			// never throttle errors and notifications
+			forceUIUpdate();
+		}
 	}
 	
 	/**
@@ -377,11 +380,7 @@ public class ProgressDialog extends javax.swing.JFrame implements ActionListener
 
 	
 	public void notifyMessageWithTaskNr(String message, int type){
-		if(dataRight == null){
-			notifyMessage("Task 1: " + message, type);
-		}else{
-			notifyMessage("Task " + dataRight.size() + ": " + message, type);
-		}
+		notifyMessage("Task " + task + ": " + message, type);
 	}
 	
 	public void addToBar(double addFractionOfTask){

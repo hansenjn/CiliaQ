@@ -69,10 +69,15 @@ public class CiliaQMain implements PlugIn, Measurements {
 			+	"OUTPUT:\n"
 			+	" - The notifications of each image in <name>_CQ_log.txt\n"
 			+	" - Empty cells instead of NaN or Infinity\n"
-			+	"Fixed:\n"
-			+	" - Time-lapse 3D overview is saved as TIFF (bug fix)\n"
+			+	"FIXED:\n"
+			+	" - Time-lapse 3D overview is saved as TIFF\n"
 			+	" - Basal bodies: z position with voxel depth, minimum size applied, columns shown in every mode\n"
-			+	" - Kinetics output: a hang, and a crash with objects that are basal bodies only\n"
+			+	" - Kinetics output: hang and crash with objects that are basal bodies only\n"
+			+	" - Images without calibration: skeleton lengths 3x too long, first point misplaced (GitHub issue #15)\n"
+			+	" - 'of total #' in _CQ.txt also without segmented basal bodies\n"
+			+	" - '# excluded' no longer includes cilia removed by the basal-body filter (own count)\n"
+			+	" - Time-lapse: 'Minimum size (A/B)' was applied to the first frame only\n"
+			+	" - Basal-body columns without skeleton results; 3D overviews of 32-bit images; crashes\n"
 			+ "\n"
 			+ "As before: do not mix skeleton results (e.g. length) with versions before v0.1.7.";
 
@@ -90,7 +95,7 @@ public class CiliaQMain implements PlugIn, Measurements {
 		if(!whatsNewDue(Prefs.get(WHATS_NEW_PREF, null)))	return;
 		GenericDialog gd = new GenericDialog(PLUGINNAME + " v" + PLUGINVERSION + " - What's new");
 		gd.setInsets(0,0,0);	gd.addMessage("What's new in " + PLUGINNAME + " v" + PLUGINVERSION, HeadingFont);
-		gd.setInsets(5,0,0);	gd.addTextAreas(WHATS_NEW_TEXT, null, 20, 100);
+		gd.setInsets(5,0,0);	gd.addTextAreas(WHATS_NEW_TEXT, null, 25, 100);
 		gd.getTextArea1().setEditable(false);
 		gd.setInsets(5,0,0);	gd.addMessage("All detailed changes: release notes button below.", InstructionsFont);
 		gd.setInsets(5,0,0);	gd.addCheckbox("Do not show this again until the next update", false);
@@ -383,20 +388,25 @@ public void run(String arg) {
 			od.setLocation(0,0);
 			od.setVisible(true);
 			
+			final boolean [] fileListClosed = {false};	// v0.2.2: closing the window ends the run (before, CiliaQ waited forever)
 			od.addWindowListener(new java.awt.event.WindowAdapter() {
 				public void windowClosing(WindowEvent winEvt) {
-					return;
+					fileListClosed[0] = true;
 				}
 			});
-		
+
 			// Waiting for od to be done
-			while (od.done == false) {
+			while (od.done == false && !fileListClosed[0]) {
 				try {
 					Thread.currentThread().sleep(50);
 				} catch (Exception e) {
 				}
 			}
-			
+			if(!od.done) {
+				od.dispose();	// new in v0.2.2: before, closing only hid the window
+				return;			// the file list was closed without starting
+			}
+
 			tasks = od.filesToOpen.size();
 			name = new String [tasks];
 			dir = new String [tasks];
@@ -479,9 +489,26 @@ public void run(String arg) {
 //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 //------------------------------CELL MEASUREMENT------------------------------
 //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+	
+	// v0.2.2: a minimum size below 1 voxel means nothing (0 gave a crash), so it is raised to 1, with a note per image
+	String raisedSizes = "";
+	if(minSize < 1){
+		raisedSizes = "minimum cilium size " + minSize + " -> 1";
+		minSize = 1;
+	}
+	if(segmentedBB && minBBSize < 1){
+		raisedSizes += (raisedSizes.isEmpty() ? "" : ", ") + "minimum basal body size " + minBBSize + " -> 1";
+		minBBSize = 1;
+	}
+
 	for(int task = 0; task < tasks; task++){
 	currentTask = task + 1;	// New in v0.2.2: this image's notes are those of its task (getNotes)
-	
+
+	if(!raisedSizes.isEmpty()){
+		progress.notifyMessage("A minimum size below 1 voxel means nothing, so it was raised to 1: " + raisedSizes + "."
+				+ " (File " + name[task] + ", Dir: " + dir[task] + ")", ProgressReporter.NOTIFICATION);
+	}
+
 	if(!macroDefaults.isEmpty()){
 		// New in v0.2.2: the macro keys that got their default, once per image
 		String used = "";
@@ -501,16 +528,14 @@ public void run(String arg) {
 		progress.updateBarText("in progress...");
 				
 		//Check for problems
-				if(name[task].substring(name[task].lastIndexOf("."),name[task].length()).equals(".txt")){
-					progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": File " + name[task] + " is no image! Could not be processed!", ProgressReporter.ERROR);
-					progress.moveTask(task);
-					break running;
-				}
-				if(name[task].substring(name[task].lastIndexOf("."),name[task].length()).equals(".zip")){	
-					progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": File " + name[task] + " is no image! Could not be processed!", ProgressReporter.ERROR);
-					progress.moveTask(task);
-					break running;
-				}		
+		if(name[task].toLowerCase(Locale.ROOT).endsWith(".txt")){
+			progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": File " + name[task] + " is no image! Could not be processed!", ProgressReporter.ERROR);
+			break running;
+		}
+		if(name[task].toLowerCase(Locale.ROOT).endsWith(".zip")){
+			progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": File " + name[task] + " is no image! Could not be processed!", ProgressReporter.ERROR);
+			break running;
+		}
 		//Check for problems
 				
 		//open Image
@@ -529,7 +554,6 @@ public void run(String arg) {
 			} catch (Exception e) {
 				progress.notifyMessage("Task " + (task + 1) + "/" + tasks + ": file " + name[task]
 						+ " is no image - could not be processed!", ProgressReporter.ERROR);
-				progress.moveTask(task);
 				break running;
 			}
 			
@@ -576,6 +600,7 @@ public void run(String arg) {
 					progress.notifyMessage("Task " + (task + 1) + "/" + tasks
 							+ ": x and y calibration in metadata differ - used only x metadata calibration for both, x and y!",
 							ProgressReporter.NOTIFICATION);
+					imp.getCalibration().pixelHeight = pixelWidth;	// v0.2.2: as the note says (before: the height was kept, so the skeleton's y did not match)
 				}
 				timePerFrame = frameInterval;
 				if (timePerFrame == 0.0) {
@@ -598,7 +623,16 @@ public void run(String arg) {
 			}
 			if(channelReconstruction>imp.getNChannels()){
 				progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": reconstruction channel does not exist - analysis cancelled!", ProgressReporter.ERROR);
-				progress.moveTask(task);				
+				break running;
+			}
+			if(segmentedBB && basalStainC>imp.getNChannels()){
+				progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": basal body channel does not exist - analysis cancelled!", ProgressReporter.ERROR);
+				break running;
+			}
+			if(segmentedBB && allForeground(imp, basalStainC)){
+				// v0.2.2: e.g. an intensity channel chosen as the segmented one (v0.2.1 stopped the run)
+				progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": basal body channel " + basalStainC + " is not segmented"
+						+ " (every voxel is foreground) - analysis cancelled! Check the basal body channel in the settings.", ProgressReporter.ERROR);
 				break running;
 			}
 			boolean measureC2local = measureC2;
@@ -666,19 +700,23 @@ public void run(String arg) {
 					+ tempExcludeSelection
 					+ "' for this image, to ensure that cilia can be detected.", ProgressReporter.NOTIFICATION);
 			}
-			
+		
+		// Run start-up checks
 			runStartupChecks(imp, channelReconstruction, segmentedBB ? basalStainC : -1,
 					name [task], dir [task], progress);
+			
+		// Check for the basal body radius being to small, once per image
+			if(segmentedBB && Cilium.bbRadiusTooSmall(imp.getCalibration())){				
+				progress.notifyMessage("Basal body measurement radius (" + tools.micronToImageUnit(imp.getCalibration(), 1.0)
+						+ " " + imp.getCalibration().getUnit() + ") spans fewer than 2 voxels - the reported basal body"
+						+ " intensities are unreliable. Check the image calibration. (File " + name[task] + ", Dir: "
+						+ dir[task] + ")", ProgressReporter.NOTIFICATION);
+			}
 				
 		//Get cilia data and save them
 			if(imp.getNFrames()!=1){
 				//Timelapse Mode
 				progress.notifyMessage("Timelapse workflow started...", ProgressReporter.LOG);				
-//				if(segmentedBB) { // TODO remove
-//					progress.notifyMessage("Task " + (task+1) + "/" + tasks + ": deriving basal body parameters from segmented basal body channel is not yet implemented for 4D and can only be applied in non-timelapse analysis - analysis cancelled!", ProgressReporter.ERROR);
-//					progress.moveTask(task);
-//					break running;
-//				}
 				this.analyzeCiliaIn4DAndSaveResults(imp, measureC2local, measureC3local, measureBasalLocal, name[task], dir[task], startDate, filePrefix, subfolderPrefix, tempExcludeSelection);
 			}else{
 				//Single-frame Mode
@@ -932,9 +970,8 @@ private String createRecordString() {
 	if (labelModeCilia) {
 		recordString += "label-mode-cilia ";
 	}
-	if (joinGap > 0.0) {
-		recordString += "join-gap=" + joinGap + " ";
-	}
+	
+	recordString += "join-gap=" + joinGap + " ";
 
 	recordString += "exclude=[" + excludeSelection + "] ";
 
@@ -986,7 +1023,7 @@ public String getOneRowFooter(Date currentDate){
 
 private void addSettingsBlockToPanel(OutputTextFile tp, Date currentDate, Date startDate, String name, ImagePlus imp, 
 		boolean measureC2local, boolean measureC3local, boolean measureBasalLocal, double [] intensityThresholds,
-		int excludedCilia, int totalCilia, int excludedBBs, int totalBBs){
+		int excludedCilia, int totalCilia, int excludedBBs, int totalBBs, int excludedCiliaBB){
 	tp.append("Saving date:	" + FullDateFormatter.format(currentDate)
 	+ "	Starting date:	" + FullDateFormatter.format(startDate));
 	tp.append("image name:	" + name);
@@ -1023,8 +1060,9 @@ private void addSettingsBlockToPanel(OutputTextFile tp, Date currentDate, Date s
 				+ "	join pieces closer than [" + calibrationDimension + "]	" + dformat6.format(joinGap)
 				+ "	basal bodies	" + labelModeBB);
 		tp.append("	Additional filtering	" + excludeSelection + " excluded	# excluded:	" + excludedCilia + "	of total #:	" + totalCilia
-			+ "	" + bbCiliaFilterSelection + " excluded	#BBs excluded:	" + excludedBBs + "	of total #BB:	" + totalBBs);
-	}else{
+				+ "	" + bbCiliaFilterSelection + " excluded	#BBs excluded:	" + excludedBBs + "	of total #BB:	" + totalBBs
+				+ "	# cilia excluded by the BB filter:	" + excludedCiliaBB);	// New '# cilia excluded by the BB filter' in v0.2.2: at the end, so the importer reads both options as before
+		}else{
 		tp.append("	Minimum cilium size	" + dformat0.format(minSize) + "	Increase range for connecting cilia	" + increaseRangeCilia);
 		tp.append("	Label images (one value per object)	cilia	" + labelModeCilia 
 					+ "	join pieces closer than [" + calibrationDimension + "]	" + dformat6.format(joinGap));
@@ -1086,11 +1124,11 @@ void filterChannel(ImagePlus imp, int c, String particleLabel, int minSize, bool
 		for(int z = 0; z < imp.getNSlices(); z++){
 			for(int x = 0; x < imp.getWidth(); x++){
 				for(int y = 0; y < imp.getHeight(); y++){		
-					if(imp.getStack().getVoxel(x, y, imp.getStackIndex(c, z+1, 1)-1) > 0.0){
-						preliminaryParticle = new ArrayList<PartPoint>(nrOfPoints-floodFilledPc);
+					if(imp.getStack().getVoxel(x, y, imp.getStackIndex(c, z+1, t+1)-1) > 0.0){	// v0.2.2: fix to frame t (was frame 1 for every t, so only frame 1 was filtered)
+						preliminaryParticle = new ArrayList<PartPoint>();	// New in v0.2.2: no capacity (was every voxel left, per piece)
 						preliminaryParticle.add(new PartPoint(x, y, z, t, refImp, c));
-						
-						imp.getStack().setVoxel(x, y, imp.getStackIndex(c, z+1, 1)-1, 0.0);
+
+						imp.getStack().setVoxel(x, y, imp.getStackIndex(c, z+1, t+1)-1, 0.0);
 						floodFilledPc++;
 						
 						//Floodfiller					
@@ -1484,14 +1522,14 @@ void filterChannel(ImagePlus imp, int c, String particleLabel, int minSize, bool
 	
 	refImp.changes = false;
 	refImp.close();
-	
+
 	//write back to image
 	{
 		for(int j = 0; j < particles.size();j++){
 			for(int i = 0; i < particles.get(j).size();i++){
 				imp.getStack().setVoxel(particles.get(j).get(i).x,
-						particles.get(j).get(i).y, 
-						imp.getStackIndex(c, particles.get(j).get(i).z+1, 1)-1, 
+						particles.get(j).get(i).y,
+						imp.getStackIndex(c, particles.get(j).get(i).z+1, particles.get(j).get(i).t+1)-1,	// v0.2.2: fix, write-back to particle's frame (was 1)
 						particles.get(j).get(i).intensity);
 			}
 		}
@@ -1540,7 +1578,7 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjects (ImagePlus imp, int c){
 //					touchesXY = false;
 //					touchesZ = false;
 					
-					preliminaryParticle = new ArrayList<CellPoint>(nrOfPoints-floodFilledPc);
+					preliminaryParticle = new ArrayList<CellPoint>();	// New in v0.2.2: no capacity to speed up (was every voxel left, per piece)
 					preliminaryParticle.add(new CellPoint(x, y, z, 0, refImp, c));
 					
 					imp.getStack().setVoxel(x, y, imp.getStackIndex(c, z+1, 1)-1, 0.0);
@@ -1750,6 +1788,12 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjects (ImagePlus imp, int c){
 	return particles;
 }//end getCiliaObjects
 
+/**	joinParticles notes when one object holds more than this many pieces */
+static final int JOIN_MANY_PIECES = 20;
+
+/**	joinParticles notes when joining runs longer than this (ms) */
+static final long JOIN_SLOW_MS = 60000;
+
 /**
  *	Join pieces of one cilium that a gap splits, within one frame: two pieces join when their closest voxels lie within
  *	the gap (in the image's calibrated unit). In label mode only pieces with the same label join, otherwise any two.
@@ -1759,6 +1803,12 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjects (ImagePlus imp, int c){
  *	The label-aware flood fill is a connectivity fill, so one label can come out in pieces, e.g. where ridge detection
  *	(CiliaQ Preparator V0.2.1) lets one filament pass under another and both halves keep their label. A gappy stain
  *	splits a cilium of a mask the same way.
+ *
+ *	A piece below the minimum cilium size joins only a piece at or above it: in a noisy mask, specks
+ *	would otherwise chain into a few huge objects, whose skeletons can take hours. Small pieces still join a cilium,
+ *	and through it each other. Users who want small pieces to join each other lower the minimum size.
+ *	Two notes come during joining, so users can stop the run early: when one object holds more than JOIN_MANY_PIECES
+ *	pieces, and when joining runs longer than JOIN_SLOW_MS.
  *	
  *	New in v0.2.2
  *
@@ -1767,10 +1817,11 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjects (ImagePlus imp, int c){
  *	@param byLabel		join only pieces with the same label (label mode)
  *	@param gap			the gap in the calibrated unit, above 0
  *	@param cal			the calibration, to convert distances in voxels into the gap's unit (1 per voxel where it is missing)
+ *	@param minSize		the minimum cilium size in voxels: two pieces below it do not join each other
  *	@return				the number of pieces merged into another
  */
 private int joinParticles(ArrayList<ArrayList<CellPoint>> particles, ArrayList<Double> labels,
-		boolean byLabel, double gap, Calibration cal){
+		boolean byLabel, double gap, Calibration cal, int minSize){
 	if(particles == null || labels == null || particles.size() != labels.size() || !(gap > 0.0)) {
 		// nothing to join (or the lists out of step, which the fill never produces)
 		return 0;
@@ -1809,6 +1860,17 @@ private int joinParticles(ArrayList<ArrayList<CellPoint>> particles, ArrayList<D
 	}	
 	double gap2 = gap * gap;	// distances are compared squared: no square root needed
 	
+	// the pieces per cluster (at its root), and the two notes for the user, each given once
+	int [] pieces = new int [particles.size()];
+	Arrays.fill(pieces, 1);
+	boolean manyNoted = false, slowNoted = false;
+	long start = System.currentTimeMillis(), pairs = 0;
+	String unit = (cal == null) ? "" : " " + cal.getUnit();
+	String gapText = dfDialog.format(gap).replaceAll("0+$", "").replaceAll("\\.$", "");	// as entered: 0.3, not 0.300000
+	String lower = " If that is not intended, lower 'Join pieces closer than'"
+			+ (byLabel ? " or check that the channel holds labels (one value per cilium)" : "")
+			+ " and run again; closing the progress window stops the run after this image.";
+	
 	// Per group, every pair passes the tests from cheap to expensive:
 	//	- sorted by xMin, the comparison of a piece stops at the first piece that starts beyond the gap in x (break);
 	//	- the gap between the two bounding boxes (continue);
@@ -1832,6 +1894,19 @@ private int joinParticles(ArrayList<ArrayList<CellPoint>> particles, ArrayList<D
 					break;
 				}
 				
+				// the watchdog: joining runs unusually long (checked every 65536 pairs, skipped pairs included)
+				if(!slowNoted && (++pairs & 0xFFFF) == 0 && System.currentTimeMillis() - start > JOIN_SLOW_MS) {
+					progress.notifyMessageWithTaskNr("Joining pieces closer than " + gapText + unit + " is taking unusually long ("
+							+ (System.currentTimeMillis() - start) / 1000 + " s so far, " + particles.size() + " pieces)." + lower,
+							ProgressReporter.NOTIFICATION);
+					slowNoted = true;
+				}
+				
+				// two pieces below the minimum size do not join each other (see above)
+				if(particles.get(i).size() < minSize && particles.get(j).size() < minSize) {
+					continue;
+				}
+				
 				// the gap between the boxes per axis (0 where they overlap), in the calibrated unit; since no voxel lies
 				// outside its box, the closest voxels are at least this far apart
 				double dx = axisGap(box [i][0], box [i][1], box [j][0], box [j][1]) * pw;
@@ -1845,9 +1920,17 @@ private int joinParticles(ArrayList<ArrayList<CellPoint>> particles, ArrayList<D
 				
 				// already in one cluster (e.g. both joined to a third piece): no need to compare voxels. Otherwise the
 				// closest voxel pair decides; joining is transitive, so A and C join when both lie close to B.
-				if(findRoot(parent, i) != findRoot(parent, j)
-						&& withinGap(particles.get(i), particles.get(j), gap2, pw, ph, pd)){
+				int ri = findRoot(parent, i), rj = findRoot(parent, j);
+				if(ri != rj && withinGap(particles.get(i), particles.get(j), gap2, pw, ph, pd)){
 					unionRoots(parent, i, j);
+					int r = findRoot(parent, i);
+					pieces [r] = pieces [ri] + pieces [rj];
+					if(!manyNoted && pieces [r] > JOIN_MANY_PIECES) {
+						progress.notifyMessageWithTaskNr("Joining pieces closer than " + gapText + unit + ": one object already holds"
+								+ " more than " + JOIN_MANY_PIECES + " pieces. In a noisy image, joining can chain pieces into a few huge"
+								+ " objects, whose skeletons can take very long." + lower, ProgressReporter.NOTIFICATION);
+						manyNoted = true;
+					}
 				}
 			}
 		}
@@ -2445,10 +2528,10 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 					if(imp.getStack().getVoxel(x, y, imp.getStackIndex(c, z+1, t+1)-1) > 0.0){
 						seedValue = imp.getStack().getVoxel(x, y, imp.getStackIndex(c, z+1, t+1)-1);	// New in v0.2.2: read BEFORE the fill zeroes this voxel
 
-						//						touchesXY = false;
+//						touchesXY = false;
 //						touchesZ = false;
 						
-						preliminaryParticle = new ArrayList<CellPoint>(nrOfPoints-floodFilledPc);
+						preliminaryParticle = new ArrayList<CellPoint>();	// New in v0.2.2: no capacity to speed up (was every voxel left, per piece)
 						preliminaryParticle.add(new CellPoint(x, y, z, t, refImp, c));
 						
 						imp.getStack().setVoxel(x, y, imp.getStackIndex(c, z+1, t+1)-1, 0.0);
@@ -3006,8 +3089,8 @@ ArrayList<ArrayList<CellPoint>> getCiliaObjectsTimelapse (ImagePlus imp, int c, 
 	if(deferSizeRule){
 		int nJoined = 0, nLinked = 0;
 		if(joinGap > 0.0){
-			progress.updateBarText("Joining pieces closer than " + joinGap + " " + imp.getCalibration().getUnit() + " ...");
-			nJoined = joinParticles(particles, particleLabels, labelModeCilia, joinGap, imp.getCalibration());
+			progress.updateBarText("Joining pieces closer than " + plainNumber(joinGap) + " " + imp.getCalibration().getUnit() + " ...");
+			nJoined = joinParticles(particles, particleLabels, labelModeCilia, joinGap, imp.getCalibration(), minSize);
 		}		
 		if(labelModeCilia && !intensityLike) {
 			labelSplitNotes(particles, particleLabels, byLabelLinks);
@@ -3074,14 +3157,15 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 		totalNrOfPoints += nrOfPoints[t];
 	}
 	
-	if(totalNrOfPoints == imp.getNSlices()*imp.getNFrames()*imp.getWidth()*imp.getHeight()) {
-		progress.notifyMessageWithTaskNr("ERROR - The channel set for reconstruction (" + c 
-				+ ") is not segmented - make sure to set the correct channel nr for reconstruction in the preferences!", ProgressReporter.ERROR);
-		return new ArrayList<ArrayList<Uncalibrated3DPoint>>(0);
-	}else if(totalNrOfPoints == 0) {
-		progress.notifyMessageWithTaskNr("ERROR - The channel for reconstruction (" + c 
-				+ ") is empty - no cilia found!", ProgressReporter.ERROR);
-		return new ArrayList<ArrayList<Uncalibrated3DPoint>>(0);
+	if(totalNrOfPoints == 0 || totalNrOfPoints == imp.getNSlices()*imp.getNFrames()*imp.getWidth()*imp.getHeight()) {
+		// v0.2.2: one empty list per frame, so the analysis goes on without basal bodies (an empty list crashed the
+		// single-frame workflow). The callers note "No BBs found"; a channel where every voxel is foreground stops the
+		// image before (allForeground, in the checks of the task loop)
+		ArrayList<ArrayList<Uncalibrated3DPoint>> none = new ArrayList<ArrayList<Uncalibrated3DPoint>>(imp.getNFrames());
+		for(int t = 0; t < imp.getNFrames(); t++) {
+			none.add(new ArrayList<Uncalibrated3DPoint>(0));
+		}
+		return none;
 	}
 	
 	ArrayList<ArrayList<ArrayList<PartPoint>>> particles = new ArrayList<ArrayList<ArrayList<PartPoint>>>(imp.getNFrames());
@@ -3103,7 +3187,7 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 				for(int y = 0; y < imp.getHeight(); y++){		
 					if(imp.getStack().getVoxel(x, y, imp.getStackIndex(c, z+1, t+1)-1) > 0.0){
 						seedValue = imp.getStack().getVoxel(x, y, imp.getStackIndex(c, z+1, t+1)-1);	// New in v0.2.2: read BEFORE the fill zeroes this voxel
-						preliminaryParticle = new ArrayList<PartPoint>(nrOfPoints[t] - floodFilledPc[t]);
+						preliminaryParticle = new ArrayList<PartPoint>();	// New in v0.2.2: no capacity to speed up (was every voxel left, per piece)
 
 						preliminaryParticle.add(new PartPoint(x, y, z, t, refImp, c));
 						
@@ -3530,21 +3614,21 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 	particles.trimToSize();
 	
 	//write back to image
-		{	
-			for(int t = 0; t < particles.size(); t++){
-				for(int j = 0; j < particles.get(t).size(); j++){
-					for(int i = 0; i < particles.get(t).get(j).size(); i++){
-						imp.getStack().setVoxel(particles.get(t).get(j).get(i).x,
-							particles.get(t).get(j).get(i).y, 
-							imp.getStackIndex(c, particles.get(t).get(j).get(i).z+1, 
-							particles.get(t).get(j).get(i).t+1)-1, 
-							particles.get(t).get(j).get(i).intensity);
-					}
-				}
-			}			
+	for(int t = 0; t < particles.size(); t++){
+		for(int j = 0; j < particles.get(t).size(); j++){
+			for(int i = 0; i < particles.get(t).get(j).size(); i++){
+				imp.getStack().setVoxel(particles.get(t).get(j).get(i).x,
+					particles.get(t).get(j).get(i).y, 
+					imp.getStackIndex(c, particles.get(t).get(j).get(i).z+1, 
+					particles.get(t).get(j).get(i).t+1)-1, 
+					particles.get(t).get(j).get(i).intensity);
+			}
 		}
+	}
 	//write back to image
 	
+	int [][] track = linkBBsAcrossTime(particles, imp);	// New in v0.2.2
+
 	/*
 	 * Reduce basal bodies to center points
 	 */
@@ -3567,12 +3651,397 @@ ArrayList<ArrayList<Uncalibrated3DPoint>> getBBObjectsTimelapse (ImagePlus imp, 
 			centerY /= (double) particles.get(t).get(j).size();
 			centerZ /= (double) particles.get(t).get(j).size();
 			
-			bbs.get(t).add(new Uncalibrated3DPoint(centerX,centerY,centerZ));
+			Uncalibrated3DPoint bb = new Uncalibrated3DPoint(centerX,centerY,centerZ);
+			bb.track = track [t][j];	// New in v0.2.2
+			bbs.get(t).add(bb);
 		}
 	}
 		
 	return bbs;
 }//end getBBObjects
+
+/**
+ * The track of each basal-body piece (per frame, as in particles): the classic connection of the cilia, for the basal
+ * bodies. Pieces that overlap in x, y and z in consecutive frames, or across up to maxFrameGap frames without them, get
+ * one track. As linkFramesByOverlap: each voxel position remembers the piece that covered it last, so a piece links to
+ * the last piece at each of its positions, if that lies within the window. The map holds the basal-body voxels only.
+ * @return for each frame and piece, its track (the index of the track's first piece, counted over all frames)
+ *
+ * New in v0.2.2
+ */
+private int [][] linkBBsAcrossTime(ArrayList<ArrayList<ArrayList<PartPoint>>> particles, ImagePlus imp){
+	int W = imp.getWidth(), H = imp.getHeight();
+	int[] first = new int[particles.size()]; // the index of each frame's first piece
+	int n = 0;
+	for (int t = 0; t < particles.size(); t++) {
+		first[t] = n;
+		n += particles.get(t).size();
+	}
+	int[] frameOf = new int[n];
+	for (int t = 0; t < particles.size(); t++) {
+		for (int j = 0; j < particles.get(t).size(); j++)
+			frameOf[first[t] + j] = t;
+	}
+	int[] parent = new int[n];
+	for (int i = 0; i < n; i++)
+		parent[i] = i;
+
+	HashMap<Long, Integer> lastPiece = new HashMap<Long, Integer>();
+	// voxel position (x, y, z) -> the piece that covered it last (long: large stacks)
+	
+	for (int t = 0; t < particles.size(); t++) {
+		// 1) link to the pieces of earlier frames (this frame is marked in step 2, so a
+		// piece never links within its frame)
+		for (int j = 0; j < particles.get(t).size(); j++) {
+			for (PartPoint p : particles.get(t).get(j)) {
+				Integer last = lastPiece.get(((long) p.z * H + p.y) * W + p.x);
+				if (last != null && t - frameOf[last.intValue()] <= maxFrameGap + 1) {
+					unionRoots(parent, first[t] + j, last.intValue());
+				}
+			}
+		}
+		// 2) mark: this frame's pieces become the last piece at their positions
+		for (int j = 0; j < particles.get(t).size(); j++) {
+			for (PartPoint p : particles.get(t).get(j)) {
+				lastPiece.put(((long) p.z * H + p.y) * W + p.x, first[t] + j);
+			}
+		}
+	}
+
+	int[][] track = new int[particles.size()][];
+	for (int t = 0; t < particles.size(); t++) {
+		track[t] = new int[particles.get(t).size()];
+		for (int j = 0; j < track[t].length; j++)
+			track[t][j] = findRoot(parent, first[t] + j);
+	}
+	return track;
+}
+
+/**
+ * Builds the time-lapse objects (one ID and one row in the results each) when the cilia are connected by overlap
+ * (classic connection) or by label ID and the basal bodies are segmented. Before this method runs, each cilium object
+ * is one cilium followed over time, and in each frame every basal body was matched to at most one cilium (the nearest,
+ * within the maximum distance). This method also follows each basal body over time (its track, see linkBBsAcrossTime)
+ * and uses it to decide which frames belong to which object:
+ *	- A cilium that disappears and comes back stays one object, since its basal body is followed through the frames
+ *	  without the cilium. For example, a cilium resorbed in frames 3 and 4 and grown again in frame 5 keeps its ID, and
+ *	  frames 3 and 4 hold its basal body only.
+ *	- A basal body that never has a cilium is one object over all its frames, not one object per frame.
+ *	- Two cilium objects that share a basal body become one object if they never have a cilium in the same frame. For
+ *	  example, a cilium that changed its direction between two frames, so that its overlap broke, is joined again.
+ *	  Two cilium objects with a cilium in the same frame stay two objects, since they are two cilia (cilia that touch
+ *	  are one object already).
+ *	- With the connection by label ID, the labels decide which cilium is which, so cilium objects are never joined.
+ *	  Basal bodies only add frames to an object.
+ *
+ * In each frame, an object holds at most one basal body. In a frame with the cilium, this is the basal body matched to
+ * the cilium. In a frame without the cilium, it is the basal body of the object's track that lies nearest to the
+ * object's basal body in the closest frame. Any further basal body of the object's track in that frame becomes an
+ * object of one frame. For example, a daughter centriole that touched the basal body in one frame joined its track,
+ * but is not counted as the object's basal body.
+ *
+ * The basal-body filter looks at whole objects, as in linear assignment:
+ *	- "cilia without BBs" removes an object whose cilium has a basal body in no frame;
+ *	- "BBs without cilia" removes every object that never has a cilium, and counts its basal bodies as excluded.
+ * Since the filter looks at whole objects, a cilium whose basal body is missed in a few frames (e.g. where the basal
+ * body stain is faint) stays in the results.
+ *
+ * @param timelapseCilia	the cilium objects, MODIFIED IN PLACE: afterwards the final objects, first the cilium objects
+ *							in their order, then the objects of basal bodies only
+ * @param bbParticles		per frame, the basal bodies (centre points, each with its track from linkBBsAcrossTime)
+ * @param bbObject			per frame and basal body, the index in timelapseCilia of the cilium object it was matched to
+ *							(-1 = not matched)
+ * @return					the number of basal bodies removed by the filter "BBs without cilia"
+ *
+ * New in v0.2.2
+ */
+private int addBasalBodiesAcrossTime(ArrayList<TimelapseCilium> timelapseCilia,
+		ArrayList<ArrayList<Uncalibrated3DPoint>> bbParticles, int [][] bbObject, ImagePlus imp,
+		boolean measureC2local, boolean measureC3local, boolean measureBasalLocal, double [] intensityThresholds){
+	final int nC = timelapseCilia.size();
+	final double pw = imp.getCalibration().pixelWidth, pd = imp.getCalibration().pixelDepth;
+	boolean dropBBsWithoutCilia = bbCiliaFilterSelection.equals(bbCiliaFilterOptions[1]) || bbCiliaFilterSelection.equals(bbCiliaFilterOptions[3]);
+	boolean dropCiliaWithoutBBs = bbCiliaFilterSelection.equals(bbCiliaFilterOptions[2]) || bbCiliaFilterSelection.equals(bbCiliaFilterOptions[3]);
+
+	// 1) Decide which cilium objects and basal-body tracks belong together.
+	//    Each cilium object and each basal-body track is a node: the cilium objects are nodes 0 to nC-1, the tracks are
+	//    nodes from nC on (trackNode gives the node of a track). Nodes that belong together form a group. The groups are
+	//    kept as a union-find: each node points to a parent, and the node that points to itself (the root) stands for its group.
+	//    A basal body matched to a cilium puts the cilium object and the basal body's track into one group. Since one
+	//    track can be matched to different cilium objects over time (e.g. to a cilium before and after its overlap
+	//    broke), this is how two cilium objects come into one group.
+	HashMap<Integer, Integer> trackNode = new HashMap<Integer, Integer>();
+	for (ArrayList<Uncalibrated3DPoint> frame : bbParticles) {
+		for (Uncalibrated3DPoint bb : frame) {
+			if (!trackNode.containsKey(bb.track))
+				trackNode.put(bb.track, nC + trackNode.size());
+		}
+	}
+	
+	int[] parent = new int[nC + trackNode.size()];
+	BitSet[] ciliumFrames = new BitSet[parent.length];
+		// per root: the frames in which its group has a cilium (to refuse joining two cilia of one frame)
+	
+	for (int i = 0; i < parent.length; i++) {
+		parent[i] = i;
+		ciliumFrames[i] = new BitSet();
+	}
+	for (int c = 0; c < nC; c++) {
+		for (Cilium cil : timelapseCilia.get(c).cilia) {
+			if (cil.ciliumAvailable)
+				ciliumFrames[c].set(cil.t);
+		}
+	}
+	boolean byLabel = timelapseTrackingSelection.equals(timelapseTrackingOptions[2]);
+	for (int t = 0; t < bbParticles.size(); t++) {
+		for (int b = 0; b < bbParticles.get(t).size(); b++) {
+			if (bbObject[t][b] < 0) {
+				 // not matched to a cilium in this frame: links nothing
+				continue;
+			}
+			int ri = findRoot(parent, bbObject[t][b]),
+					rj = findRoot(parent, trackNode.get(bbParticles.get(t).get(b).track));
+			
+			if (ri == rj || ciliumFrames[ri].intersects(ciliumFrames[rj])) {
+				// Already one group: nothing to do. Both groups have a cilium in the same frame: they are two cilia (e.g. two
+				// cilia whose basal bodies touched once, so that their tracks became one), so they stay apart. The basal body
+				// stays matched to its cilium in this frame either way (bbObject is not changed).			
+				continue;
+			}
+			
+			if (byLabel && !ciliumFrames[ri].isEmpty() && !ciliumFrames[rj].isEmpty()) {
+				// Label ID: two groups that both have a cilium would join two labels, so they stay apart. A group without
+				// cilium (a track of basal bodies only) may still join, so that it adds its frames to the cilium.
+				continue;
+			}
+			BitSet both = (BitSet) ciliumFrames[ri].clone();
+			both.or(ciliumFrames[rj]);
+			unionRoots(parent, ri, rj);
+			ciliumFrames[findRoot(parent, ri)] = both;		// the joined group has the cilium frames of both
+		}
+	}
+	
+	// 2) Join the cilium objects of one group into one object.
+	//    firstOf gives each group its cilium object with the lowest index (-1: the group has no cilium object, only basal
+	//    bodies). The joined object takes the place of that first object, so the other objects keep their order. Since
+	//    step 1 never joins cilium objects that have a cilium in the same frame, their frames can simply be put together
+	//    in time order. Each frame keeps the basal body matched to its cilium.
+	int[] firstOf = new int[parent.length]; // root -> its first cilium object (-1 = none)
+	Arrays.fill(firstOf, -1);
+	TreeMap<Integer, ArrayList<Integer>> groups = new TreeMap<Integer, ArrayList<Integer>>(); // root -> its cilium objects
+	for (int c = 0; c < nC; c++) {
+		int r = findRoot(parent, c);
+		if (firstOf[r] < 0)
+			firstOf[r] = c;
+		if (!groups.containsKey(r))
+			groups.put(r, new ArrayList<Integer>());
+		groups.get(r).add(c);
+	}
+	for (ArrayList<Integer> g : groups.values()) {
+		if (g.size() == 1) {
+			 // a single cilium object: nothing to join
+			continue;
+		}
+		ArrayList<Cilium> perFrame = new ArrayList<Cilium>();
+		for (int c : g)
+			perFrame.addAll(timelapseCilia.get(c).cilia);
+		Collections.sort(perFrame, (u, v) -> Integer.compare(u.t, v.t));
+		timelapseCilia.set(g.get(0),
+				new TimelapseCilium(perFrame, imp, measureC2local, measureC3local, skeletonize, progress));
+		for (int k = 1; k < g.size(); k++){
+			 // joined into the first; left out in step 4
+			timelapseCilia.set(g.get(k), null);
+		}
+	}
+	
+	// 3) Give each object its basal body in the frames without its cilium, and place every other basal body.
+	//    chosen holds, per group and frame, the basal body the object holds in that frame. It starts with the basal
+	//    bodies matched to a cilium (below), and is filled frame by frame with the basal bodies picked in frames
+	//    without the cilium. So in a frame without the cilium, the object's basal body can be found by comparing with
+	//    its basal body in the frames around it.
+	HashMap<Integer, TreeMap<Integer, Uncalibrated3DPoint>> chosen = new HashMap<Integer, TreeMap<Integer, Uncalibrated3DPoint>>();	// root -> frame -> its basal body
+	for (int t = 0; t < bbParticles.size(); t++) {
+		for (int b = 0; b < bbParticles.get(t).size(); b++) {
+			if (bbObject[t][b] < 0)
+				continue;
+			int r = findRoot(parent, bbObject[t][b]);
+			if (!chosen.containsKey(r))
+				chosen.put(r, new TreeMap<Integer, Uncalibrated3DPoint>());
+			chosen.get(r).put(t, bbParticles.get(t).get(b));
+		}
+	}
+	
+	HashMap<Integer, ArrayList<Cilium>> bbFramesOf = new HashMap<Integer, ArrayList<Cilium>>();	// cilium object -> its frames with the basal body only
+	ArrayList<ArrayList<Cilium>> bbOnly = new ArrayList<ArrayList<Cilium>>();	// the objects of basal bodies only, in the order they appear
+	HashMap<Integer, Integer> bbOnlyOf = new HashMap<Integer, Integer>();		// root of a group without cilium -> its index in bbOnly
+	int excludedBBs = 0;
+	for(int t = 0; t < bbParticles.size(); t++){
+		// this frame's basal bodies that were not matched to a cilium, per group, in their order
+		LinkedHashMap<Integer, ArrayList<Integer>> candidates = new LinkedHashMap<Integer, ArrayList<Integer>>();
+		for (int b = 0; b < bbParticles.get(t).size(); b++) {
+			if (bbObject[t][b] >= 0) {
+				 // matched to a cilium: already the basal body of that cilium's frame
+				continue;
+			}
+			int r = findRoot(parent, trackNode.get(bbParticles.get(t).get(b).track));
+			if (!candidates.containsKey(r))
+				candidates.put(r, new ArrayList<Integer>());
+			candidates.get(r).add(b);
+		}
+		for (Map.Entry<Integer, ArrayList<Integer>> e : candidates.entrySet()) {
+			int r = e.getKey();
+			int first = firstOf[r];
+			boolean withCilium = first >= 0;
+			int pick = -1; // stays -1 if the object has a cilium in this frame: its basal body is the matched one
+			if (!withCilium || !hasCiliumInFrame(timelapseCilia.get(first), t)) {
+				pick = nearestToObject(chosen.get(r), t, e.getValue(), bbParticles.get(t), pw, pd);
+				if (!chosen.containsKey(r))
+					chosen.put(r, new TreeMap<Integer, Uncalibrated3DPoint>());
+				chosen.get(r).put(t, bbParticles.get(t).get(pick));
+			}
+			for (int b : e.getValue()) {
+				if (b == pick && withCilium) {
+					// the cilium object's basal body in a frame without its cilium
+					if (!bbFramesOf.containsKey(first))
+						bbFramesOf.put(first, new ArrayList<Cilium>());
+					bbFramesOf.get(first).add(bbOnlyCilium(bbParticles.get(t).get(b), t, imp, measureC2local,
+							measureC3local, measureBasalLocal, intensityThresholds));
+					continue;
+				}
+				if (dropBBsWithoutCilia) {
+					// every basal body that gets here ends up in an object without cilium: the picked one of a group
+					// without cilium object, or a further one (an object of one frame)
+					excludedBBs++;	// in an object without cilium
+					continue;
+				}
+				ArrayList<Cilium> object;
+				if(b == pick){
+					// the basal body of a group without cilium object: one more frame of its object of basal bodies only
+					if(!bbOnlyOf.containsKey(r)){
+						bbOnlyOf.put(r, bbOnly.size());
+						bbOnly.add(new ArrayList<Cilium>());
+					}
+					object = bbOnly.get(bbOnlyOf.get(r));
+				}else{
+					// a further basal body of the track in this frame: an object of one frame
+					object = new ArrayList<Cilium>(1);
+					bbOnly.add(object);
+				}
+				object.add(bbOnlyCilium(bbParticles.get(t).get(b), t, imp, measureC2local, measureC3local, measureBasalLocal,
+						intensityThresholds));
+			}
+		}
+	}
+
+	// 4) Put the final list together: first the cilium objects in their order (joined ones once, at the place of the
+	//    first), each with its frames of the basal body only added in time order; then the objects of basal bodies only.
+	//    The filter "cilia without BBs" is applied here, since only now does each object hold all its frames.
+	ArrayList<TimelapseCilium> objects = new ArrayList<TimelapseCilium>(nC + bbOnly.size());
+	for (int c = 0; c < nC; c++) {
+		TimelapseCilium tc = timelapseCilia.get(c);
+		if (tc == null) {
+			// joined into another cilium object in step 2
+			continue;
+		}
+		if (bbFramesOf.containsKey(c)) {
+			// built again from all its frames, so that the frames with the basal body only are part of the object
+			ArrayList<Cilium> perFrame = new ArrayList<Cilium>(tc.cilia);
+			perFrame.addAll(bbFramesOf.get(c));
+			Collections.sort(perFrame, (u, v) -> Integer.compare(u.t, v.t));
+			tc = new TimelapseCilium(perFrame, imp, measureC2local, measureC3local, skeletonize, progress);
+		}
+		if (dropCiliaWithoutBBs) {
+			// excluded only if no frame of the object holds a basal body
+			boolean withBB = false;
+			for (Cilium cil : tc.cilia)
+				if (cil.bbAvailable)
+					withBB = true;
+			if (!withBB)
+				tc.excluded = true;
+		}
+		objects.add(tc);
+	}
+	for (ArrayList<Cilium> frames : bbOnly) {
+		// an object of one frame has its own constructor
+		objects.add(frames.size() == 1 ? new TimelapseCilium(frames.get(0), imp, progress)
+				: new TimelapseCilium(frames, imp, measureC2local, measureC3local, skeletonize, progress));
+	}
+	timelapseCilia.clear();
+	timelapseCilia.addAll(objects);
+	return excludedBBs;
+}
+
+/**
+ * A frame of an object that holds its basal body only.
+ *
+ * New in v0.2.2
+ */
+private Cilium bbOnlyCilium(Uncalibrated3DPoint bb, int t, ImagePlus imp, boolean measureC2local, boolean measureC3local,
+		boolean measureBasalLocal, double [] intensityThresholds){
+	return new Cilium(bb, t, imp, measureC2local, channelC2, measureC3local, channelC3, measureBasalLocal, basalStainC,
+			channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize);
+}
+
+/**
+ * Does the object hold a cilium in frame t?
+ *
+ * New in v0.2.2
+ */
+private static boolean hasCiliumInFrame(TimelapseCilium tc, int t){
+	for(Cilium cil : tc.cilia){
+		if(cil.t == t && cil.ciliumAvailable)	return true;
+	}
+	return false;
+}
+
+/**
+ * Of the basal bodies bs (indices in frame), the one nearest the object's basal body in the frame closest to t (the
+ * earlier one on a tie); the first if the object has none yet.
+ *
+ * New in v0.2.2
+ */
+private int nearestToObject(TreeMap<Integer, Uncalibrated3DPoint> chosen, int t, ArrayList<Integer> bs,
+		ArrayList<Uncalibrated3DPoint> frame, double pw, double pd){
+	if(chosen == null || chosen.isEmpty())	return bs.get(0);
+	Map.Entry<Integer, Uncalibrated3DPoint> before = chosen.lowerEntry(t), after = chosen.higherEntry(t);
+	Uncalibrated3DPoint ref = (after == null || (before != null && t - before.getKey() <= after.getKey() - t))
+			? before.getValue()
+			: after.getValue();
+	int best = bs.get(0);
+	double bestDist = Double.POSITIVE_INFINITY;
+	for (int b : bs) {
+		Uncalibrated3DPoint p = frame.get(b);
+		double d = getDistance(p.x * pw, p.y * pw, p.z * pd, ref.x * pw, ref.y * pw, ref.z * pd); // pixel height = width
+		if (d < bestDist) {
+			best = b;
+			bestDist = d;
+		}
+	}
+	return best;
+}
+
+/**
+ * The distance from a basal body (voxel coordinates) to a cilium, in the calibrated unit: to the cilium's nearest
+ * skeleton point, or to its centre if it has no skeleton. The measure of the basal-body assignment in time-lapses.
+ *
+ * New in v0.2.2
+ */
+private double bbToCiliumDistance(Cilium theCilium, Uncalibrated3DPoint bb){
+	if(theCilium.sklAvailable) {
+		double minDist = Double.POSITIVE_INFINITY;
+		double sklPoints [][] = theCilium.getSkeletonPointsForOriginalImage();
+		for(int skl = 0; skl < sklPoints.length; skl++) {
+			double dist = getDistance(bb.x * theCilium.calibration, bb.y * theCilium.calibration, bb.z * theCilium.voxelDepth,
+					sklPoints[skl][0], sklPoints[skl][1], sklPoints[skl][2]);
+			if(dist < minDist) {
+				minDist = dist;
+			}
+		}
+		return minDist;
+	}
+	return getDistance(bb.x * theCilium.calibration, bb.y * theCilium.calibration, bb.z * theCilium.voxelDepth,
+			theCilium.xC, theCilium.yC, theCilium.zC);
+}
 
 /**
  * added time lapse mode on 23.04.2019 (JNH)
@@ -3704,6 +4173,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	imp.setHideOverlay(false);
 	
 	int excludedCilia = 0;
+	int excludedCiliaBB = 0;	// New in v0.2.2: the cilia the basal-body filter removed, counted apart from the border option
 	int excludedBBs = 0;
 	int nrOfBBs = 0;
 	int totalNrOfDetectedCilia = 0;
@@ -3712,11 +4182,11 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		//Retrieving ciliary objects from the image
 		ArrayList<ArrayList<CellPoint>> ciliaParticles = getCiliaObjectsTimelapse(imp, channelReconstruction, increaseRangeCilia, true);	//Method changed on 23.04.2019
 		if(ciliaParticles.size() == 0) {
+			progress.notifyMessage("No cilia found in image " + name + " (Dir: " + dir + ") - skipped analysis",
+					ProgressReporter.NOTIFICATION);	// New in v0.2.2: as in time-lapses (before: no output and no note)
 			return;
 		}
 		progress.updateBarText("Structure reconstruction completed.");
-		
-		//TODO implement method to move on if no cells detected
 		
 		//Determine intensity thresholds for each other channel
 		progress.updateBarText("Determining intensity thresholds ...");
@@ -3741,6 +4211,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		
 		ciliaParticles.clear();
 		ciliaParticles.trimToSize();
+		totalNrOfDetectedCilia = cilia.size();	// New in v0.2.2: for every image ('of total #' was 0 without segmented basal bodies)
 		
 		/*
 		 * Add basal bodies if selected
@@ -3755,6 +4226,11 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			ArrayList<Uncalibrated3DPoint> bbParticles = bbTemp.get(0);
 			
 			nrOfBBs = bbParticles.size();
+			if(nrOfBBs == 0) {
+				// v0.2.2: the note of time-lapses, also when every basal body is below the minimum size
+				progress.notifyMessage("No BBs found in image - no BBs added. File " + name
+						+ " (Dir: " + dir + ")", ProgressReporter.NOTIFICATION);
+			}
 			
 			//Assign cilia and basal bodies next:			
 			double minDist, dist;
@@ -3823,18 +4299,11 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				}
 			}
 
-			totalNrOfDetectedCilia = cilia.size();
 			int nrOfBBsWithoutCilia = 0;	// V0.2.2: Counted directly; the old arithmetic could go negative
 			for(int bb = 0; bb < bbUsed.length; bb++) {
 				if(!bbUsed[bb]) {
 					nrOfBBsWithoutCilia++;
 				}
-			}
-			
-			{// Delete in brackets TODO
-//				IJ.log("FINAL STATS OF ASSIGNMENTS: " + nrOfCiliaWithoutBBs + " cilia without BB, " 
-//						+ (cilia.size()-nrOfCiliaWithoutBBs) + " cilia with BBs, "
-//						+ nrOfBBsWithoutCilia + " unassigned BBs.");
 			}
 			
 			// Exclusion or inclusion of BBs without cilia / BBs with cilia
@@ -3867,7 +4336,7 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 					for(int cil = 0; cil < cilia.size(); cil++){
 						if(!cilia.get(cil).bbAvailable) {
 							cilia.get(cil).excluded = true;
-							excludedCilia++;
+							excludedCiliaBB++;
 						}
 					}
 				}
@@ -4061,7 +4530,8 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	OutputTextFile tw2 = new OutputTextFile("");
 	
 	addSettingsBlockToPanel(tw1, currentDate, startDate, name, imp, 
-			measureC2local, measureC3local, measureBasalLocal, intensityThresholds, excludedCilia, totalNrOfDetectedCilia, excludedBBs,nrOfBBs);
+			measureC2local, measureC3local, measureBasalLocal, intensityThresholds, excludedCilia,
+			totalNrOfDetectedCilia, excludedBBs,nrOfBBs, excludedCiliaBB);
 	
 	tw1.append("Results:");				
 	String appendTxt = "File name	";	
@@ -4270,67 +4740,22 @@ private void analyzeCiliaIn3DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				appendTxt += dformat6.format(coloc[1]);
 			}else{
 				appendTxt += "		";
-			}	
-			
-			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbX * calibration);
-			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbY * calibration);
-			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbZ * voxelDepth);
-			
-			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbCenterIntensityC2);
-			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius1C2);
-			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius2C2);
-			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbCenterIntensityC3);
-			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius1C3);
-			appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius2C3);
-		
-
-			//From v0.2.0 we do no longer print the profiles in the main file, facilitating analysis
-			//Profiles can instead be loaded and plotted programmatically from another file
-			//TODO think about output separately
-			
-//			if(measureC2local){
-//				if(iProfileC2 != null){
-//					for(int j = 0; j < nrOfProfileCols; j++){
-//						appendTxt += "	";
-//						if(cilia.get(i).sklAvailable && j < iProfileC2.length){
-//							appendTxt += dformat6.format(iProfileC2[j]);
-//						}						
-//					}
-//					iProfileC2 = cilia.get(i).getIntensityProfile(2, calibration, true);
-//					for(int j = 0; j < nrOfProfileCols; j++){
-//						appendTxt += "	";
-//						if(cilia.get(i).sklAvailable && j < iProfileC2.length){
-//							appendTxt += dformat6.format(iProfileC2[j]);
-//						}						
-//					}
-//				}else{
-//					for(int j = 0; j < nrOfProfileCols; j++){
-//						appendTxt += "		";
-//					}
-//				}				
-//			}					
-//			if(measureC3local){
-//				if(iProfileC3 != null){
-//					for(int j = 0; j < nrOfProfileCols; j++){
-//						appendTxt += "	";
-//						if(cilia.get(i).sklAvailable && j < iProfileC3.length){
-//							appendTxt += dformat6.format(iProfileC3[j]);
-//						}						
-//					}
-//					iProfileC3 = cilia.get(i).getIntensityProfile(3, calibration, true);
-//					for(int j = 0; j < nrOfProfileCols; j++){
-//						appendTxt += "	";
-//						if(cilia.get(i).sklAvailable && j < iProfileC3.length){
-//							appendTxt += dformat6.format(iProfileC3[j]);
-//						}
-//					}
-//				}else{
-//					for(int j = 0; j < nrOfProfileCols; j++){
-//						appendTxt += "		";
-//					}
-//				}					
-//			}
+			}
+		}else{
+			appendTxt += "								";	// v0.2.2: the 8 centre-line cells stay empty, so the basal-body cells below keep their columns
 		}
+		
+		// v0.2.2: the basal-body cells are also written without skeleton results (before were written within the if(skeletonize) clause above)
+		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbX * calibration);
+		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbY * calibration);
+		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbZ * voxelDepth);
+
+		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbCenterIntensityC2);
+		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius1C2);
+		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius2C2);
+		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbCenterIntensityC3);
+		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius1C3);
+		appendTxt += "	"; if(segmentedBB && cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilia.get(i).bbIntensityRadius2C3);
 				
 		appendTxt = name + appendTxt;
 		tw1.append(""+appendTxt);
@@ -4410,6 +4835,7 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	imp.setHideOverlay(false);
 	
 	int excludedCilia = 0;
+	int excludedCiliaBB = 0;	// New in v0.2.2: the cilia the basal-body filter removed, counted apart from the border option
 	int excludedBBs = 0;
 	int totalNrOfBBs = 0;
 	
@@ -4429,9 +4855,6 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		//Determine intensity thresholds for each other channel
 		progress.updateBarText("Determining intensity thresholds...");
 		intensityThresholds = getIntensityThresholds(imp, ciliaParticles);
-				
-		boolean touchesXY, touchesZ;
-		int [] sliceCounter = new int [imp.getNSlices()];
 		
 		//Create timelapse cilia objects
 		timelapseCilia.ensureCapacity(ciliaParticles.size());
@@ -4457,8 +4880,8 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			}
 			
 			if(totalNrOfBBs == 0) {
-				progress.notifyMessage("No BBs found in image - no BBs added. File " + name 
-						+ " (Dir: " + dir + ") - skipped analysis", ProgressReporter.NOTIFICATION);
+				progress.notifyMessage("No BBs found in image - no BBs added. File " + name
+						+ " (Dir: " + dir + ")", ProgressReporter.NOTIFICATION);	// the analysis goes on (as in linear assignment)
 				if (bbCiliaFilterSelection.equals(bbCiliaFilterOptions[2]) || bbCiliaFilterSelection.equals(bbCiliaFilterOptions[3])) { //  "cilia without BBs" or "cilia without BBs and BBs without cilia"
 					// Exclude Cilia without BBs. If no BBs detected, need to cancel whole image.
 					progress.notifyMessage("Since no BBs found and cilia without BBs excluded, no cilia remaining in file " + name 
@@ -4467,7 +4890,10 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 				}
 			}else {
 				//Iterate over all time points and within each time point assign bbs and cilia
+				int [][] bbObject = new int [bbParticles.size()][];	// v0.2.2: per frame and basal body, the object whose cilium it was matched to (-1 = none)
 				for(int t = 0; t < bbParticles.size(); t++) {
+					bbObject [t] = new int [bbParticles.get(t).size()];
+					Arrays.fill(bbObject [t], -1);
 					
 					//Create a list of cilia with IDs for this timepoint
 					ArrayList <Cilium> cilia = new ArrayList <Cilium>(bbParticles.get(t).size());
@@ -4483,42 +4909,15 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 					}
 					
 					//Assign cilia and basal bodies next:			
-					double minDist, dist;
-					double sklPoints [][];
-					
 					double matrixDist [][] = new double [cilia.size()][bbParticles.get(t).size()];
 					double matrixDistSquared [][] = new double [cilia.size()][bbParticles.get(t).size()];
-					Cilium theCilium;
 
 					progress.updateBarText("assigning basal bodies to cilia (t "
 							+ t + ")... compute distances");
 					
 					for(int bb = 0; bb < bbParticles.get(t).size(); bb++){
 						for(int cil = 0; cil < cilia.size(); cil++){
-							theCilium = cilia.get(cil);
-							if(theCilium.sklAvailable) {
-								minDist = Double.POSITIVE_INFINITY;
-								sklPoints = theCilium.getSkeletonPointsForOriginalImage();
-								for(int skl = 0; skl < sklPoints.length; skl++) {
-									dist = getDistance(bbParticles.get(t).get(bb).x * theCilium.calibration,
-											bbParticles.get(t).get(bb).y * theCilium.calibration,
-											bbParticles.get(t).get(bb).z * theCilium.voxelDepth,
-											sklPoints[skl][0],
-											sklPoints[skl][1],
-											sklPoints[skl][2]);
-									if(dist < minDist) {
-										minDist = dist;
-									}
-								}
-								matrixDist [cil][bb] =  minDist;
-							}else {
-								matrixDist [cil][bb] =  getDistance(bbParticles.get(t).get(bb).x * theCilium.calibration,
-										bbParticles.get(t).get(bb).y * theCilium.calibration,
-										bbParticles.get(t).get(bb).z * theCilium.voxelDepth,
-										theCilium.xC,
-										theCilium.yC,
-										theCilium.zC);
-							}
+							matrixDist [cil][bb] = bbToCiliumDistance(cilia.get(cil), bbParticles.get(t).get(bb));	// v0.2.2: a helper
 							
 							// If out of range reset to border to out of range to let out of range connections not matter
 							matrixDistSquared [cil][bb] = matrixDist [cil][bb];
@@ -4534,174 +4933,33 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 					
 					//Applying HungarianAlgorithm = linear_sum_assignment in python to get best solution
 					progress.updateBarText("assigning basal bodies to cilia... assigning by minimizing linear sum");
-					int [] bbForCilium = new HungarianAlgorithm(matrixDistSquared).execute();
 					
+					// a frame without cilia: nothing to assign, its basal bodies stay unassigned (the assignment needs a
+					// row: it crashed on an empty matrix)
+					int [] bbForCilium = cilia.size() == 0 ? new int [0] : new HungarianAlgorithm(matrixDistSquared).execute();
+
 					//Now assign BBs to cilia
-					int nrOfCiliaWithoutBBs = 0;
-					boolean bbUsed [] = new boolean [bbParticles.get(t).size()];
-					Arrays.fill(bbUsed,false);
 					for(int cil = 0; cil < cilia.size(); cil++){
 						progress.updateBarText("assigning basal bodies to cilia... adding basal body to cilium " + (cil+1) + " of " + cilia.size() + "!");
 						if(bbForCilium[cil] > -1 && matrixDist[cil][bbForCilium[cil]] <= maxDistanceBBCiliumEnd) {
 							cilia.get(cil).addBasalBody(bbParticles.get(t).get(bbForCilium[cil]), imp, measureC2local, channelC2, measureC3local, channelC3,
 									channelReconstruction, progress);
-							bbUsed[bbForCilium[cil]] = true;
-						}else {
-							nrOfCiliaWithoutBBs ++;
-						}
-					}
-
-					int nrOfBBsWithoutCilia = 0;	// V0.2.2: Counted directly; the old arithmetic could go negative
-					for(int bb = 0; bb < bbUsed.length; bb++) {
-						if(!bbUsed[bb]) {
-							nrOfBBsWithoutCilia++;
-						}
-					}
-										
-					// Exclusion or inclusion of BBs without cilia / BBs with cilia
-					// "nothing based on BB-cilia-linking", "BBs without cilia", "cilia without BBs", "cilia without BBs and BBs without cilia"
-					{
-						if (bbCiliaFilterSelection.equals(bbCiliaFilterOptions[1]) || bbCiliaFilterSelection.equals(bbCiliaFilterOptions[3])) { // "BBs without cilia" or "cilia without BBs and BBs without cilia"
-							// Exclude BBs without cilia - if selected
-							for(int bb = 0; bb < bbParticles.get(t).size(); bb++) {
-								if(!bbUsed[bb]) {
-									excludedBBs ++;
-								}
-							}
-						}
-						
-						if (bbCiliaFilterSelection.equals(bbCiliaFilterOptions[0]) || bbCiliaFilterSelection.equals(bbCiliaFilterOptions[2])) { //  "nothing based on BB-cilia-linking" or "cilia without BBs",
-							// Add BBs as cilia object without cilium
-							timelapseCilia.ensureCapacity(timelapseCilia.size() + nrOfBBsWithoutCilia);
-							for(int bb = 0; bb < bbParticles.get(t).size(); bb++) {
-								if(bbUsed[bb]) {
-									continue;
-								}
-								// ADD the BB without cilium into a cilium and then timelapsecilium object
-								// (TODO May require later linkage)
-								timelapseCilia.add(new TimelapseCilium(new Cilium(bbParticles.get(t).get(bb),
-										t, imp,
-										measureC2local, channelC2, measureC3local, channelC3,
-										measureBasalLocal, basalStainC, 
-										channelReconstruction, gXY, gZ, intensityThresholds, progress, skeletonize),
-										imp, progress));
-								
-							}
-						}
-						
-						//Exclude cilia without BBs - if selected
-						if (bbCiliaFilterSelection.equals(bbCiliaFilterOptions[2]) || bbCiliaFilterSelection.equals(bbCiliaFilterOptions[3])) { //  "cilia without BBs" or "cilia without BBs and BBs without cilia"
-							for(int cil = 0; cil < cilia.size(); cil++){
-								if(!cilia.get(cil).bbAvailable) {
-									cilia.get(cil).excluded = true;
-									//Exclude also timelapse cilium completely
-									timelapseCilia.get(ciliaIDs.get(cil)).excluded = true;
-									excludedCilia++;
-								}
-							}
+							bbObject [t][bbForCilium[cil]] = ciliaIDs.get(cil);
 						}
 					}
 				}
+
+				// v0.2.2: the basal bodies across time, the objects of basal bodies only and the basal-body filter
+				progress.updateBarText("linking basal bodies across time...");
+				excludedBBs += addBasalBodiesAcrossTime(timelapseCilia, bbParticles, bbObject, imp,
+						measureC2local, measureC3local, measureBasalLocal, intensityThresholds);
 			}
+
 		}
 				
 		// Compute timelapse parameters
 		for(int i = 0; i < timelapseCilia.size(); i++){
 			timelapseCilia.get(i).computeBBParameters();
-		}
-		
-		
-		// Exclude cilia if touching borders TODO IMPROVE
-		for(int i = 0; i < timelapseCilia.size(); i++){
-			if(timelapseCilia.get(i).excluded) {
-				if(timelapseCilia.get(i).ciliumAvailable) {
-					//write ID into image
-					txtID = new TextRoi((int)Math.round(timelapseCilia.get(i).xCAvg/imp.getCalibration().pixelWidth), 
-							(int)Math.round(timelapseCilia.get(i).yCAvg/imp.getCalibration().pixelHeight),
-							dformat0.format(i+1), RoiFont);
-					txtID.setStrokeColor(Color.YELLOW);					
-					imp.getOverlay().add(txtID);
-				}else if(timelapseCilia.get(i).bbAvailable) {
-					//write ID into image
-					txtID = new TextRoi((int)Math.round(timelapseCilia.get(i).bbXAvg), 
-							(int)Math.round(timelapseCilia.get(i).bbYAvg),
-							dformat0.format(i+1), RoiFont);
-					txtID.setStrokeColor(Color.YELLOW);					
-					imp.getOverlay().add(txtID);
-				}
-				continue;
-			}
-			if(!timelapseCilia.get(i).ciliumAvailable) {
-				if(timelapseCilia.get(i).bbAvailable) {
-					//write ID into image
-					txtID = new TextRoi((int)Math.round(timelapseCilia.get(i).bbXAvg), 
-							(int)Math.round(timelapseCilia.get(i).bbYAvg),
-							dformat0.format(i+1), RoiFont);
-					txtID.setStrokeColor(Color.WHITE);					
-					imp.getOverlay().add(txtID);
-				}			
-				continue;
-			}
-			
-			//Exclude cilia if selected
-			if(!timelapseCilia.get(i).excluded && !tempExcludeSelection.equals(excludeOptions[0])){
-				progress.updateBarText("Quantifying cilia (" + i + "/" + timelapseCilia.size() + " done): checking xyz borders...");
-				touchesXY = false; touchesZ = false;
-				Arrays.fill(sliceCounter, 0);
-				for(int k = 0; k < timelapseCilia.get(i).cilia.size(); k++){
-					for(int j = 0; j < timelapseCilia.get(i).cilia.get(k).points.length; j++){
-						if(timelapseCilia.get(i).cilia.get(k).points [j][0] == 0.0 
-								|| (int)Math.round(timelapseCilia.get(i).cilia.get(k).points [j][0] / imp.getCalibration().pixelWidth) == imp.getWidth()-1){
-							touchesXY = true;
-							break;
-						}
-						if(timelapseCilia.get(i).cilia.get(k).points [j][1] == 0.0 
-								|| (int)Math.round(timelapseCilia.get(i).cilia.get(k).points [j][1] / imp.getCalibration().pixelHeight) == imp.getHeight()-1){
-							touchesXY = true;
-							break;
-						}
-						if(tempExcludeSelection.equals(excludeOptions[2])
-								&& (timelapseCilia.get(i).cilia.get(k).points [j][2] == 0 
-								|| (int)Math.round(timelapseCilia.get(i).cilia.get(k).points [j][2] / imp.getCalibration().pixelDepth) == imp.getNSlices()-1)){
-							touchesZ = true;
-							break;
-						}						
-						sliceCounter [(int)Math.round(timelapseCilia.get(i).cilia.get(k).points [j][2] / imp.getCalibration().pixelDepth)]++;
-					}
-				}
-								
-				if(touchesXY){
-					timelapseCilia.get(i).excluded = true;
-				}else if(tempExcludeSelection.equals(excludeOptions[2])){
-					if(touchesZ){
-						timelapseCilia.get(i).excluded = true;
-					}
-				}else if(tempExcludeSelection.equals(excludeOptions[3])){
-					//check where most points are located
-					if(tools.getMaximumIndex(sliceCounter) == 0 ||
-							tools.getMaximumIndex(sliceCounter) == imp.getNSlices()-1){
-						timelapseCilia.get(i).excluded = true;
-					}							
-				}
-				
-				if(timelapseCilia.get(i).excluded)	excludedCilia++;
-				
-				progress.updateBarText("filter cilia... (" + (i+1) + "/" + timelapseCilia.size() + ")");
-			}
-			
-			//write ID into image
-			txtID = new TextRoi((int)Math.round(timelapseCilia.get(i).xCAvg/imp.getCalibration().pixelWidth), 
-					(int)Math.round(timelapseCilia.get(i).yCAvg/imp.getCalibration().pixelHeight),
-					dformat0.format(i+1), RoiFont);
-			if(timelapseCilia.get(i).excluded){
-				txtID.setStrokeColor(Color.YELLOW);
-			}else{
-				txtID.setStrokeColor(Color.WHITE);
-			}
-			imp.getOverlay().add(txtID);
-								
-			progress.addToBar(0.2/timelapseCilia.size());
-			progress.updateBarText("reconstructing cilia... (" + (i+1) + "/" + timelapseCilia.size() + ")");
 		}
 		
 		ciliaParticles.clear();
@@ -4715,6 +4973,124 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 			return;
 		}
 		
+		// the basal-body counts of the settings block: the tracking keeps every basal body in one track, with its
+		// cilium or in a track of basal bodies only (those the filter removed count as excluded)
+		if(segmentedBB){
+			for(int i = 0; i < timelapseCilia.size(); i++){
+				int bbFrames = 0;
+				for(int k = 0; k < timelapseCilia.get(i).cilia.size(); k++){
+					if(timelapseCilia.get(i).cilia.get(k).bbAvailable)	bbFrames++;
+				}
+				totalNrOfBBs += bbFrames;
+				if(timelapseCilia.get(i).excluded && !timelapseCilia.get(i).ciliumAvailable)	excludedBBs += bbFrames;
+			}
+		}
+	}
+
+	/*
+	 * The basal-body filter count, the border exclusion and the IDs, for every connection mode
+	 */
+	
+	// New in v0.2.2: the cilia the basal-body filter removed, each once (counted per frame before, under the border option)
+	for(int i = 0; i < timelapseCilia.size(); i++) {
+		if(timelapseCilia.get(i).excluded && timelapseCilia.get(i).ciliumAvailable)	excludedCiliaBB++;	// cilia only: linear assignment also removes tracks of basal bodies only
+	}
+
+	boolean touchesXY, touchesZ;
+	int [] sliceCounter = new int [imp.getNSlices()];
+	
+	// Exclude cilia if touching borders TODO IMPROVE
+	for(int i = 0; i < timelapseCilia.size(); i++){
+		if(timelapseCilia.get(i).excluded) {
+			if(timelapseCilia.get(i).ciliumAvailable) {
+				//write ID into image
+				txtID = new TextRoi((int)Math.round(timelapseCilia.get(i).xCAvg/imp.getCalibration().pixelWidth), 
+						(int)Math.round(timelapseCilia.get(i).yCAvg/imp.getCalibration().pixelHeight),
+						dformat0.format(i+1), RoiFont);
+				txtID.setStrokeColor(Color.YELLOW);					
+				imp.getOverlay().add(txtID);
+			}else if(timelapseCilia.get(i).bbAvailable) {
+				//write ID into image
+				txtID = new TextRoi((int)Math.round(timelapseCilia.get(i).bbXAvg), 
+						(int)Math.round(timelapseCilia.get(i).bbYAvg),
+						dformat0.format(i+1), RoiFont);
+				txtID.setStrokeColor(Color.YELLOW);					
+				imp.getOverlay().add(txtID);
+			}
+			continue;
+		}
+		if(!timelapseCilia.get(i).ciliumAvailable) {
+			if(timelapseCilia.get(i).bbAvailable) {
+				//write ID into image
+				txtID = new TextRoi((int)Math.round(timelapseCilia.get(i).bbXAvg), 
+						(int)Math.round(timelapseCilia.get(i).bbYAvg),
+						dformat0.format(i+1), RoiFont);
+				txtID.setStrokeColor(Color.WHITE);					
+				imp.getOverlay().add(txtID);
+			}			
+			continue;
+		}
+		
+		//Exclude cilia if selected
+		if(!timelapseCilia.get(i).excluded && !tempExcludeSelection.equals(excludeOptions[0])){
+			progress.updateBarText("Quantifying cilia (" + i + "/" + timelapseCilia.size() + " done): checking xyz borders...");
+			touchesXY = false; touchesZ = false;
+			Arrays.fill(sliceCounter, 0);
+			for(int k = 0; k < timelapseCilia.get(i).cilia.size(); k++){
+				if(!timelapseCilia.get(i).cilia.get(k).ciliumAvailable)	continue;	// a frame with the basal body only (linear assignment) has no voxels
+				for(int j = 0; j < timelapseCilia.get(i).cilia.get(k).points.length; j++){
+					if(timelapseCilia.get(i).cilia.get(k).points [j][0] == 0.0 
+							|| (int)Math.round(timelapseCilia.get(i).cilia.get(k).points [j][0] / imp.getCalibration().pixelWidth) == imp.getWidth()-1){
+						touchesXY = true;
+						break;
+					}
+					if(timelapseCilia.get(i).cilia.get(k).points [j][1] == 0.0 
+							|| (int)Math.round(timelapseCilia.get(i).cilia.get(k).points [j][1] / imp.getCalibration().pixelHeight) == imp.getHeight()-1){
+						touchesXY = true;
+						break;
+					}
+					if(tempExcludeSelection.equals(excludeOptions[2])
+							&& (timelapseCilia.get(i).cilia.get(k).points [j][2] == 0 
+							|| (int)Math.round(timelapseCilia.get(i).cilia.get(k).points [j][2] / imp.getCalibration().pixelDepth) == imp.getNSlices()-1)){
+						touchesZ = true;
+						break;
+					}						
+					sliceCounter [(int)Math.round(timelapseCilia.get(i).cilia.get(k).points [j][2] / imp.getCalibration().pixelDepth)]++;
+				}
+			}
+							
+			if(touchesXY){
+				timelapseCilia.get(i).excluded = true;
+			}else if(tempExcludeSelection.equals(excludeOptions[2])){
+				if(touchesZ){
+					timelapseCilia.get(i).excluded = true;
+				}
+			}else if(tempExcludeSelection.equals(excludeOptions[3])){
+				//check where most points are located
+				if(tools.getMaximumIndex(sliceCounter) == 0 ||
+						tools.getMaximumIndex(sliceCounter) == imp.getNSlices()-1){
+					timelapseCilia.get(i).excluded = true;
+				}							
+			}
+			
+			if(timelapseCilia.get(i).excluded)	excludedCilia++;
+			
+			progress.updateBarText("filter cilia... (" + (i+1) + "/" + timelapseCilia.size() + ")");
+		}
+		
+		//write ID into image
+		txtID = new TextRoi((int)Math.round(timelapseCilia.get(i).xCAvg/imp.getCalibration().pixelWidth), 
+				(int)Math.round(timelapseCilia.get(i).yCAvg/imp.getCalibration().pixelHeight),
+				dformat0.format(i+1), RoiFont);
+		if(timelapseCilia.get(i).excluded){
+			txtID.setStrokeColor(Color.YELLOW);
+		}else{
+			txtID.setStrokeColor(Color.WHITE);
+		}
+		imp.getOverlay().add(txtID);
+							
+		progress.addToBar(0.2/timelapseCilia.size());
+		progress.updateBarText("reconstructing cilia... (" + (i+1) + "/" + timelapseCilia.size() + ")");
 	}
 	progress.updateBarText("" + timelapseCilia.size() + " cilia reconstructed!");
 	
@@ -4750,9 +5126,17 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 	//Save Textfile--------------------------------------	
 	OutputTextFile tw1 = new OutputTextFile ("");
 	OutputTextFile tw2 = new OutputTextFile ("");
+
+	// 'of total #': the objects with a cilium, as in single images (objects of basal bodies only do not count)
+	int totalNrOfDetectedCilia = 0;
+	for(int i = 0; i < timelapseCilia.size(); i++){
+		if(timelapseCilia.get(i).ciliumAvailable)	totalNrOfDetectedCilia++;
+	}
+
+	addSettingsBlockToPanel(tw1, currentDate, startDate, name, imp,
+			measureC2local, measureC3local, measureBasalLocal, intensityThresholds, excludedCilia, totalNrOfDetectedCilia, excludedBBs, totalNrOfBBs, excludedCiliaBB);	// New in v0.2.2: the basal-body counts (were 0, 0)
 	
-	addSettingsBlockToPanel(tw1, currentDate, startDate, name, imp, 
-			measureC2local, measureC3local, measureBasalLocal, intensityThresholds, excludedCilia, timelapseCilia.size(),0,0); //TODO Detect and save excluded BBs
+
 	
 	tw1.append("Averaged results of the time-course analysis:");				
 	String appendTxt = "	";	
@@ -4904,8 +5288,8 @@ private void analyzeCiliaIn4DAndSaveResults(ImagePlus imp, boolean measureC2loca
 		saveIndividualCiliumKinetics(timelapseCilia.get(i), ""+(i+1), imp, 
 				measureC2local, measureC3local, measureBasalLocal, 
 				nrOfProfileCols, name, dir, currentDate, startDate,
-				filePrefix + "_C" + dformat0.format(i+1), subfolderPrefix + "_C" + dformat0.format(i+1), 
-				intensityThresholds, excludedCilia, timelapseCilia.size(), excludedBBs, totalNrOfBBs);
+				filePrefix + "_C" + dformat0.format(i+1), subfolderPrefix + "_C" + dformat0.format(i+1), intensityThresholds,
+				excludedCilia, totalNrOfDetectedCilia, excludedBBs, totalNrOfBBs, excludedCiliaBB);
 	}
 
 	appendNotesLine(tw1, filePrefix);	// New in v0.2.2
@@ -4991,13 +5375,14 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 	String filePrefix, String subfolderPrefix, 
 	double [] intensityThresholds,
 	int excludedCilia, int totalCilia, 
-	int excludedBBs, int totalBBs){
+	int excludedBBs, int totalBBs, int excludedCiliaBB){
 	//Save Textfile--------------------------------------	
 	OutputTextFile tw1 = new OutputTextFile ("");
 	OutputTextFile tw2 = new OutputTextFile ("");
 	
 	addSettingsBlockToPanel(tw1, currentDate, startDate, name, imp, 
-			measureC2local, measureC3local, measureBasalLocal, intensityThresholds, excludedCilia, totalCilia,excludedBBs,totalBBs);
+			measureC2local, measureC3local, measureBasalLocal, intensityThresholds,
+			excludedCilia, totalCilia,excludedBBs,totalBBs, excludedCiliaBB);
 	
 	tw1.append("Results for Cilium " + ciliumID + ":");				
 	String appendTxt = "		ID";	
@@ -5135,7 +5520,7 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 		}
 		
 		appendTxt = "		" + ciliumID;	
-		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable) appendTxt += dformat0.format(cilium.cilia.get(i).t); //"frame";
+		appendTxt += "	" + dformat0.format(cilium.cilia.get(i).t); //"frame"; v0.2.2: print also in a frame with the basal body only
 		
 		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).xC);
 		appendTxt += "	"; if(cilium.cilia.get(i).ciliumAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).yC);
@@ -5237,65 +5622,21 @@ public void saveIndividualCiliumKinetics(TimelapseCilium cilium, String ciliumID
 			}else{
 				appendTxt += "		";
 			}
-			
-			appendTxt += "	"; if(segmentedBB && cilium.cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).bbX * calibration);
-			appendTxt += "	"; if(segmentedBB && cilium.cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).bbY * calibration);
-			appendTxt += "	"; if(segmentedBB && cilium.cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).bbZ * voxelDepth);
-			
-			appendTxt += "	"; if(segmentedBB && cilium.cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).bbCenterIntensityC2);
-			appendTxt += "	"; if(segmentedBB && cilium.cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).bbIntensityRadius1C2);
-			appendTxt += "	"; if(segmentedBB && cilium.cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).bbIntensityRadius2C2);
-			appendTxt += "	"; if(segmentedBB && cilium.cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).bbCenterIntensityC3);
-			appendTxt += "	"; if(segmentedBB && cilium.cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).bbIntensityRadius1C3);
-			appendTxt += "	"; if(segmentedBB && cilium.cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).bbIntensityRadius2C3);
-		
-			//From v0.2.2 we do no longer print the profiles in the main file, facilitating analysis
-			//Profiles can instead be loaded and plotted programmatically from another file
-			//TODO think about output separately
-			
-//			if(measureC2local){
-//				if(iProfileC2 != null){
-//					for(int j = 0; j < nrOfProfileCols; j++){
-//						appendTxt += "	";
-//						if(cilium.cilia.get(i).sklAvailable && j < iProfileC2.length){
-//							appendTxt += dformat6.format(iProfileC2[j]);
-//						}						
-//					}
-//					iProfileC2 = cilium.cilia.get(i).getIntensityProfile(2, calibration, true);
-//					for(int j = 0; j < nrOfProfileCols; j++){
-//						appendTxt += "	";
-//						if(cilium.cilia.get(i).sklAvailable && j < iProfileC2.length){
-//							appendTxt += dformat6.format(iProfileC2[j]);
-//						}						
-//					}
-//				}else{
-//					for(int j = 0; j < nrOfProfileCols; j++){
-//						appendTxt += "		";
-//					}
-//				}
-//			}					
-//			if(measureC3local){
-//				if(iProfileC3 != null){
-//					for(int j = 0; j < nrOfProfileCols; j++){
-//						appendTxt += "	";
-//						if(cilium.cilia.get(i).sklAvailable && j < iProfileC3.length){
-//							appendTxt += dformat6.format(iProfileC3[j]);
-//						}						
-//					}
-//					iProfileC3 = cilium.cilia.get(i).getIntensityProfile(3, calibration, true);
-//					for(int j = 0; j < nrOfProfileCols; j++){
-//						appendTxt += "	";
-//						if(cilium.cilia.get(i).sklAvailable && j < iProfileC3.length){
-//							appendTxt += dformat6.format(iProfileC3[j]);
-//						}
-//					}
-//				}else{
-//					for(int j = 0; j < nrOfProfileCols; j++){
-//						appendTxt += "		";
-//					}
-//				}
-//			}
+		}else{
+			appendTxt += "								";	// v0.2.2: the 8 centre-line cells stay empty, so the basal-body cells below keep their columns
 		}
+		
+		// v0.2.2: the basal-body cells also without skeleton results (inside if(skeletonize) they were missing then)
+		appendTxt += "	"; if(segmentedBB && cilium.cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).bbX * calibration);
+		appendTxt += "	"; if(segmentedBB && cilium.cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).bbY * calibration);
+		appendTxt += "	"; if(segmentedBB && cilium.cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).bbZ * voxelDepth);
+
+		appendTxt += "	"; if(segmentedBB && cilium.cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).bbCenterIntensityC2);
+		appendTxt += "	"; if(segmentedBB && cilium.cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).bbIntensityRadius1C2);
+		appendTxt += "	"; if(segmentedBB && cilium.cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).bbIntensityRadius2C2);
+		appendTxt += "	"; if(segmentedBB && cilium.cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).bbCenterIntensityC3);
+		appendTxt += "	"; if(segmentedBB && cilium.cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).bbIntensityRadius1C3);
+		appendTxt += "	"; if(segmentedBB && cilium.cilia.get(i).bbAvailable) appendTxt += dformat6.format(cilium.cilia.get(i).bbIntensityRadius2C3);
 		tw1.append(""+appendTxt);
 		
 		appendTxt = name + appendTxt;
@@ -5400,7 +5741,7 @@ private void saveSkeletonOverviewImagesTimelapse(String savePath, ImagePlus imp,
 	+ "	Starting date:	" + FullDateFormatter.format(startDate));
 	tp.append("");
 	
-	tp.append("Results image:	" + savePath.substring(savePath.lastIndexOf(System.getProperty("file.separator"))) + "_Skl.tif");
+	tp.append("Results image:	" + new File(savePath).getName() + ".tif");	// New in v0.2.2: the name it is saved under
 	tp.append("	channel 1:	red	" + "ciliary skeleton");
 	tp.append("	channel 2:	white	" + "detected base");
 	
@@ -5575,7 +5916,7 @@ private void saveSkeletonOverviewImageNonTimeLapse(String savePath, ImagePlus im
 	+ "	Starting date:	" + FullDateFormatter.format(startDate));
 	tp.append("");
 	
-	tp.append("Results image:	" + savePath.substring(savePath.lastIndexOf(System.getProperty("file.separator"))) + "_Skl.tif");
+	tp.append("Results image:	" + new File(savePath).getName() + ".tif");	// New in v0.2.2: the name it is saved under
 	tp.append("	channel 1:	red	" + "ciliary skeleton");
 	tp.append("	channel 2:	white	" + "detected base");
 	
@@ -5914,7 +6255,7 @@ private static ImagePlus getTimePointFor3D(ImagePlus imp, int t){
 	 *	Matters since Cilia Preparator V0.2.1, where label images may be created in 32-bit format.
 	 */
 	double iMax = impOut.getBitDepth() == 32
-			? impOut.getStatistics().max
+			? maxOfFrame(imp, t)	// of the input: impOut is still empty here (its maximum, 0, painted every object 0)
 			: Math.pow(2.0, impOut.getBitDepth()) - 1.0;
 	
 	impOut.setCalibration(imp.getCalibration());
@@ -5959,8 +6300,45 @@ private static ImagePlus getTimePointFor3D(ImagePlus imp, int t){
 }
 
 /**
+ * Is every voxel of channel c (one-based) above 0, in every slice and frame? Then the channel is not segmented (e.g.
+ * an intensity channel set as the segmented basal-body channel).
+ */
+private static boolean allForeground(ImagePlus imp, int c){
+	for(int t = 1; t <= imp.getNFrames(); t++){
+		for(int s = 1; s <= imp.getNSlices(); s++){
+			ImageProcessor ip = imp.getStack().getProcessor(imp.getStackIndex(c, s, t));
+			for(int i = 0; i < ip.getPixelCount(); i++){
+				if(ip.getf(i) <= 0.0f) {
+					return false;	// background found: stops at the first, so a segmented channel costs little
+				}
+			}
+		}
+	}
+	return true;
+}
+
+/**
+ * The largest value in frame t (one-based) of imp, over every channel and slice; 1 if there is none above 0. The
+ * value getTimePointFor3D paints the objects of a 32-bit image with, so they show at the top of the display range.
+ */
+private static double maxOfFrame(ImagePlus imp, int t){
+	double max = 0.0;
+	for(int c = 1; c <= imp.getNChannels(); c++){
+		for(int s = 1; s <= imp.getNSlices(); s++){
+			ImageProcessor ip = imp.getStack().getProcessor(imp.getStackIndex(c, s, t));
+			for(int i = 0; i < ip.getPixelCount(); i++){
+				if(ip.getf(i) > max) {
+					max = ip.getf(i);
+				}
+			}
+		}
+	}
+	return max > 0.0 ? max : 1.0;
+}
+
+/**
  * automatic conversion to RGB
- * 
+ *
  * Method copied from the plugin "MotiQ_3D", plugin for ImageJ, Version v0.1.5,
  * 	Downloaded from https://github.com/hansenjn/MotiQ/releases/tag/v0.1.5 
  * 	on 23rd of April 2019.
@@ -6044,7 +6422,8 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 			gd.setInsets(0,0,0);	gd.addNumericField("Minimum cilium size [voxel]: ", minSize, 0);
 			gd.setInsets(0,0,0);	gd.addCheckbox("Increase range for connecting", increaseRangeCilia);
 			gd.setInsets(0,0,0);	gd.addNumericField("Join pieces closer than [calibrated unit] (0 = off): ", joinGap, 2);
-			gd.setInsets(0,0,0);	gd.addMessage("(with labels: only pieces of the same label are joined if close enough)", InstructionsFont);
+			gd.setInsets(0,0,0);	gd.addMessage("(pieces below the minimum size join only pieces of at least that size)"
+					+ "\n(with labels: only pieces of the same label)", InstructionsFont);
 			gd.setInsets(0,0,0);	gd.addChoice("Additionally exclude...", excludeOptions, excludeSelection);
 			
 			gd.setInsets(10,0,0);	gd.addMessage("Intensity measurements", SubHeadingFont);
@@ -6070,7 +6449,7 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 			gd.setInsets(0,0,0);	gd.addChoice("Link cilia across time by", timelapseTrackingOptions, timelapseTrackingSelection);
 			gd.setInsets(0,0,0);	gd.addMessage("Classic: set max frame gap; "
 					+ "By linear assignment: set max tracking distance + max frame gap; "
-					+ "By label ID: ignore settings below.", InstructionsFont);
+					+ "By label ID: max frame gap for BBs only.", InstructionsFont);
 			gd.setInsets(0,0,0);	gd.addNumericField("-> Max tracking distance [calibrated unit]: ", maxTrackingDistance, 2);
 			gd.setInsets(0,0,0);	gd.addNumericField("-> Max frame gap [frames]: ", maxFrameGap, 0);
 			
@@ -6131,7 +6510,7 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 			//read and process variables--------------------------------------------------
 			
 		}
-		if(bbCSelection == bbCOptions[2]) {			
+		if(bbCSelection.equals(bbCOptions[2])) {
 			// READ what had been applied last time CiliaQ was used. TODO Need to rethink whether this would be useful...
 //			minBBSize = Prefs.getInt("ciliaQ.minBBSize", minBBSize);
 //			increaseRangeBB = Prefs.getBoolean("ciliaQ.increaseRangeBB", increaseRangeBB);
@@ -6704,6 +7083,10 @@ private static double [] getColocalizedLengthsOfProfile(double [] intensityProfi
 							line = br.readLine();
 						}
 						if(line.contains("Additional filtering")){
+							if(line.contains("	# cilia excluded by the BB filter:")) {
+								// New in v0.2.2: a count, not a setting
+								line = line.substring(0, line.indexOf("	# cilia excluded by the BB filter:"));
+							}
 							if(line.contains("BBs excluded:")) {
 								//New from v0.2.0 on
 //								tp.append("	Additional filtering	" + excludeSelection + " excluded	# excluded:	" + excludedCilia + "	of total #:	" + totalCilia
